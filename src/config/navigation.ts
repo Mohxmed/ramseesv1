@@ -4,6 +4,7 @@ import {
   TargetIcon,
   SettingsIcon,
   BitcoinIcon,
+  DecisionIcon,
   type IconProps,
 } from "@/components/icons/icons";
 
@@ -28,6 +29,11 @@ export const NAVIGATION: NavItem[] = [
     label: "مركز قيادة بيتكوين",
     href: "/bitcoin",
     icon: BitcoinIcon,
+  },
+  {
+    label: "مركز القرارات",
+    href: "/decision-center",
+    icon: DecisionIcon,
   },
   {
     label: "الإعدادات",

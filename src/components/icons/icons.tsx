@@ -151,6 +151,29 @@ export function BitcoinIcon({ className = "h-5 w-5" }: IconProps) {
   );
 }
 
+export function DecisionIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M9.5 6 12 3.5 14.5 6" />
+      <path d="M12 3.5v6" />
+      <path d="M9.5 12 12 14.5 14.5 12" />
+      <path d="M12 14.5v5" />
+      <path d="M9.5 18 12 20.5 14.5 18" />
+      <path d="M2 8h4M2 12h4M2 16h4" />
+      <path d="M18 8h4M18 12h4M18 16h4" />
+    </svg>
+  );
+}
+
 export function PanelLeftCloseIcon({ className = "h-5 w-5" }: IconProps) {  return (
     <svg
       className={className}
