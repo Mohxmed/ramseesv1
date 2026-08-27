@@ -133,8 +133,25 @@ export function PanelLeftIcon({ className = "h-5 w-5" }: IconProps) {
   );
 }
 
-export function PanelLeftCloseIcon({ className = "h-5 w-5" }: IconProps) {
+export function BitcoinIcon({ className = "h-5 w-5" }: IconProps) {
   return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M11.767 19.089c4.924.868 6.14-6.025 1.216-6.894m-1.216 6.894L5.86 18.047m5.908 1.042-.347 1.97m1.563-8.864c4.924.869 6.14-6.025 1.215-6.893m-1.215 6.893-3.94-.694m5.155-6.2L8.29 5.88m2.278-2.92L10.002 0m.576 6.728.347-1.97" />
+      <path d="M7.5 2.4 6.5 5.9M13.5 18.1l1 3.5M12.5 6.2l3.2.6M9.4 11.9l-3.5-.6" />
+    </svg>
+  );
+}
+
+export function PanelLeftCloseIcon({ className = "h-5 w-5" }: IconProps) {  return (
     <svg
       className={className}
       viewBox="0 0 24 24"

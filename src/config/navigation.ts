@@ -3,6 +3,7 @@ import {
   DashboardIcon,
   TargetIcon,
   SettingsIcon,
+  BitcoinIcon,
   type IconProps,
 } from "@/components/icons/icons";
 
@@ -22,6 +23,11 @@ export const NAVIGATION: NavItem[] = [
     label: "الهدف الذهبي",
     href: "/golden-target",
     icon: TargetIcon,
+  },
+  {
+    label: "مركز قيادة بيتكوين",
+    href: "/bitcoin",
+    icon: BitcoinIcon,
   },
   {
     label: "الإعدادات",
