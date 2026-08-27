@@ -108,7 +108,7 @@ export function ForecastCards({ forecast }: { forecast: Forecast | null }) {
   const c = forecast.conditional;
 
   return (
-    <section className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
+    <section className="w-full rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold text-zinc-100">
@@ -130,7 +130,7 @@ export function ForecastCards({ forecast }: { forecast: Forecast | null }) {
       </div>
 
       {/* Historical backing */}
-      <div className="mt-5 overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950/40">
+      <div className="mt-5 w-full overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950/40">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 px-4 py-2.5">
           <h3 className="text-sm font-semibold text-zinc-200">السند التاريخي (حالات مشابهة)</h3>
           {c && (
@@ -145,7 +145,7 @@ export function ForecastCards({ forecast }: { forecast: Forecast | null }) {
             <p className="px-4 py-2 text-[11px] text-zinc-400">
               الحالة الحالية: <span className="text-zinc-200">{c.currentStateSummary}</span>
             </p>
-            <div className="grid grid-cols-3 gap-px bg-zinc-800 text-center text-[11px]">
+            <div className="grid grid-cols-1 gap-px bg-zinc-800 text-center text-[11px] sm:grid-cols-3">
               {(
                 [
                   ["بعد 30 دقيقة", c.after30],
