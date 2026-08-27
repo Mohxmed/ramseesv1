@@ -13,6 +13,10 @@ export interface CatalogEntry {
   /** default numeric expected value (null for boolean) */
   defaultExpected: number | null;
   placeholder?: string;
+  /** Display unit suffix for numeric inputs (e.g. "%"), or undefined for a plain number. */
+  unit?: string;
+  /** Optional fine hint shown under a numeric value input. */
+  hint?: string;
 }
 
 const BOOLEAN_OPS = ["is_true", "is_false", "is_unknown"] as const;
@@ -38,7 +42,8 @@ function n(
   id: string,
   name: string,
   category: SignalCategory,
-  defaultExpected: number
+  defaultExpected: number,
+  opts: { unit?: string; hint?: string } = {}
 ): CatalogEntry {
   return {
     id,
@@ -48,6 +53,7 @@ function n(
     operators: NUMERIC_OPS as unknown as CatalogEntry["operators"],
     defaultOperator: ">",
     defaultExpected,
+    ...opts,
   };
 }
 
@@ -60,13 +66,13 @@ export const SIGNAL_CATALOG: CatalogEntry[] = [
   b("biasBullish", "الانحياز الكلي صاعد", "trend"),
 
   // Probability
-  n("probBullish30", "الاحتمال الإحصائي صاعد (30د)", "probability", SIGNAL_THRESHOLDS.probBullish30),
-  n("probBullish60", "الاحتمال الإحصائي صاعد (60د)", "probability", SIGNAL_THRESHOLDS.probBullish60),
-  n("probBullish120", "الاحتمال الإحصائي صاعد (120د)", "probability", SIGNAL_THRESHOLDS.probBullish120),
+  n("probBullish30", "الاحتمال الإحصائي صاعد (30د)", "probability", SIGNAL_THRESHOLDS.probBullish30, { unit: "%", hint: "نسبة احتمال الصعود" }),
+  n("probBullish60", "الاحتمال الإحصائي صاعد (60د)", "probability", SIGNAL_THRESHOLDS.probBullish60, { unit: "%", hint: "نسبة احتمال الصعود" }),
+  n("probBullish120", "الاحتمال الإحصائي صاعد (120د)", "probability", SIGNAL_THRESHOLDS.probBullish120, { unit: "%", hint: "نسبة احتمال الصعود" }),
 
   // Price
-  n("nearSupport", "السعر قرب الدعم (%)", "price", SIGNAL_THRESHOLDS.nearSupportDistance),
-  n("nearResistance", "السعر قرب المقاومة (%)", "price", SIGNAL_THRESHOLDS.nearResistanceDistance),
+  n("nearSupport", "السعر قرب الدعم (%)", "price", SIGNAL_THRESHOLDS.nearSupportDistance, { unit: "%", hint: "المسافة النسبية من الدعم" }),
+  n("nearResistance", "السعر قرب المقاومة (%)", "price", SIGNAL_THRESHOLDS.nearResistanceDistance, { unit: "%", hint: "المسافة النسبية من المقاومة" }),
   b("aboveSupport", "السعر فوق الدعم", "price"),
   b("belowResistance", "السعر تحت المقاومة", "price"),
 
@@ -76,13 +82,13 @@ export const SIGNAL_CATALOG: CatalogEntry[] = [
 
   // Volume
   b("volumeExpansion", "توسع الحجم", "volume"),
-  n("volumeConfirmation", "تأكيد الحجم (نسبة شراء %)", "volume", SIGNAL_THRESHOLDS.volumeConfirmRatio * 100),
+  n("volumeConfirmation", "تأكيد الحجم (نسبة شراء %)", "volume", SIGNAL_THRESHOLDS.volumeConfirmRatio * 100, { unit: "%", hint: "نسبة الطلبات الشرائية" }),
 
   // Liquidity
   b("liquidityPoolNearby", "تجمع سيولة قريب", "liquidity"),
   b("sellSideSwept", "مسح سيولة البيع", "liquidity"),
   b("buySideSwept", "مسح سيولة الشراء", "liquidity"),
-  n("buyWallImbalance", "توازن جدار الشراء", "liquidity", 0.1),
+  n("buyWallImbalance", "توازن جدار الشراء", "liquidity", 0.1, { hint: "نسبة توازن أوامر الشراء" }),
 
   // Technical
   b("rsiOversold", "RSI ذروة البيع", "technical"),
@@ -93,7 +99,7 @@ export const SIGNAL_CATALOG: CatalogEntry[] = [
   b("emaAligned", "محاذاة المتوسطات", "technical"),
 
   // Risk
-  n("riskRewardOk", "العائد/المخاطرة (R:R)", "risk", SIGNAL_THRESHOLDS.minRiskReward),
+  n("riskRewardOk", "العائد/المخاطرة (R:R)", "risk", SIGNAL_THRESHOLDS.minRiskReward, { hint: "مضاعفات المخاطرة" }),
 
   // Volatility
   b("volatilityOk", "التقلب مقبول", "volatility"),

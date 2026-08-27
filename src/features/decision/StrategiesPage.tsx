@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import type { StrategyType } from "./types";
 import { useStrategies, type PersistStatus } from "./hooks/useStrategies";
 import { StrategyList } from "./components/StrategyList";
-import { StrategyBuilder } from "./components/StrategyBuilder";
+import { LiveStrategyBuilder } from "./components/LiveStrategyBuilder";
 import { CreateStrategyModal } from "./components/CreateStrategyModal";
 
 const STATUS_META: Record<PersistStatus, { label: string; className: string }> = {
@@ -88,11 +88,10 @@ export function StrategiesPage() {
 
         <div className="lg:col-span-2">
           {activeStrategy ? (
-            <StrategyBuilder
-              key={`${activeStrategy.id}:${focus.nonce}`}
+            <LiveStrategyBuilder
+              key={activeStrategy.id}
               strategy={activeStrategy}
               onUpdate={persisted.saveStrategy}
-              liveSignals={[]}
               initialTab={focus.target}
             />
           ) : (
