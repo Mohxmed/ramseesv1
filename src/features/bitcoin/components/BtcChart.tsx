@@ -62,6 +62,11 @@ const COLOR = {
 
 type OverlayKey = "ema9" | "ema21" | "ema50" | "vwap";
 
+/** Real time-scale space reserved to the right of the last candle (in bars),
+ *  like TradingView's "future" zone. Forecasts / projected paths / targets
+ *  can later be drawn on a series at timestamps inside this reserved range. */
+const FUTURE_BARS = 18;
+
 type Snapshot = {
   time: Time | undefined;
   open: number;
@@ -131,11 +136,12 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
       },
       timeScale: {
         borderColor: "rgba(63,63,70,0.6)",
-        rightOffset: 8,
+        rightOffset: FUTURE_BARS,
         barSpacing: 7,
         minBarSpacing: 0.5,
         fixRightEdge: true,
         lockVisibleTimeRangeOnResize: true,
+        shiftVisibleRangeOnNewBar: true,
       },
       crosshair: {
         mode: CrosshairMode.Magnet,
@@ -284,9 +290,11 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
     );
 
     // Fit only on the very first load or when the timeframe actually changed,
-    // so the user's zoom is preserved across live data updates.
+    // so the user's zoom is preserved across live data updates. The future
+    // zone (rightOffset) is re-applied so it stays a stable part of the scale.
     if (lastFittedTfRef.current !== timeframe) {
       lastFittedTfRef.current = timeframe;
+      chart.timeScale().applyOptions({ rightOffset: FUTURE_BARS, shiftVisibleRangeOnNewBar: true });
       chart.timeScale().fitContent();
       chart.priceScale("right").applyOptions({ autoScale: true });
     }
