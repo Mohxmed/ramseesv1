@@ -8,6 +8,7 @@ import { PredictionPanel } from "@/features/bitcoin/components/PredictionPanel";
 import { HistoricalStatsCard } from "@/features/bitcoin/components/HistoricalStats";
 import { MarketDataCard } from "@/features/bitcoin/components/MarketData";
 import { GoldenTargetCard } from "@/features/bitcoin/components/GoldenTargetCard";
+import { AnalysisPanel } from "@/features/bitcoin/components/AnalysisPanel";
 
 export default function BitcoinPage() {
   const {
@@ -18,6 +19,7 @@ export default function BitcoinPage() {
     chartCandles,
     indicators,
     prediction,
+    analysis30m,
     refresh,
   } = useBitcoin();
 
@@ -59,11 +61,17 @@ export default function BitcoinPage() {
         <>
           <MarketOverviewCard overview={overview} />
 
-          <BtcChart
-            candles={chartCandles}
-            timeframe={timeframe}
-            onTimeframeChange={setTimeframe}
-          />
+          <div className="grid gap-6 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <BtcChart
+                candles={chartCandles}
+                timeframe={timeframe}
+                onTimeframeChange={setTimeframe}
+                analysis={analysis30m}
+              />
+            </div>
+            <AnalysisPanel analysis={analysis30m} />
+          </div>
 
           <div className="grid gap-6 lg:grid-cols-2">
             <PredictionPanel prediction={prediction} />

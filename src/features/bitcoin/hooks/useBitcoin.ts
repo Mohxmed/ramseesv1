@@ -13,6 +13,7 @@ import {
 } from "../data/normalize";
 import { computeIndicators } from "../indicators";
 import { runPrediction } from "../prediction";
+import { analyzeSupportResistance } from "../analysis";
 import {
   AUTO_REFRESH_MS,
   CHART_DEFAULT_TIMEFRAME,
@@ -24,6 +25,7 @@ import type {
   PredictionResult,
   TechnicalIndicators,
 } from "../types";
+import type { SupportResistanceResult } from "../analysis/types";
 
 type DataState =
   | { status: "loading" }
@@ -41,6 +43,9 @@ export function useBitcoin() {
     null
   );
   const [prediction, setPrediction] = useState<PredictionResult | null>(null);
+  const [analysis30m, setAnalysis30m] = useState<SupportResistanceResult | null>(
+    null
+  );
   const [data, setData] = useState<DataState>({ status: "loading" });
 
   const busyRef = useRef(false);
@@ -55,20 +60,27 @@ export function useBitcoin() {
     setIndicators(computeIndicators(chartSeries));
   }, []);
 
+  const loadAnalysis30m = useCallback((kLines: BtcCandle[]) => {
+    setAnalysis30m(analyzeSupportResistance(kLines));
+  }, []);
+
   const fetchAll = useCallback(async () => {
     if (busyRef.current) return;
     busyRef.current = true;
     try {
-      // Fetch 1m candles once for prediction + derive chart from timeframe
-      // when the timeframe is 1m, else fetch chart series separately.
-      const [rawTicker, rawKlines] = await Promise.all([
+      // Fetch 1m candles once for prediction + 30m candles for the
+      // automated technical analysis (support/resistance zones).
+      const [rawTicker, rawKlines, rawKlines30m] = await Promise.all([
         spotApi.ticker24h(),
         spotApi.klines("1m"),
+        spotApi.klines("30m"),
       ]);
 
       const spot = normalizeSpotTicker(rawTicker);
       const all1m = normalizeKlines(rawKlines);
+      const all30m = normalizeKlines(rawKlines30m);
       setCandles(all1m);
+      loadAnalysis30m(all30m);
 
       // Build chart series based on selected timeframe.
       if (timeframe === "1m") {
@@ -118,7 +130,7 @@ export function useBitcoin() {
     } finally {
       busyRef.current = false;
     }
-  }, [timeframe, loadIndicators, loadPrediction]);
+  }, [timeframe, loadIndicators, loadPrediction, loadAnalysis30m]);
 
   useEffect(() => {
     fetchAll();
@@ -139,6 +151,7 @@ export function useBitcoin() {
     chartCandles,
     indicators,
     prediction,
+    analysis30m,
     refresh,
   };
 }
