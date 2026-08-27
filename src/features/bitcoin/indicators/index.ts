@@ -149,21 +149,46 @@ function signal(value: number | null, bull: number, bear: number): IndicatorValu
   return "neutral";
 }
 
+/**
+ * Canonical indicator series for a candle set — the single source every
+ * consumer (indicators summary, market state, chart overlays) computes against
+ * so primitives are never re-derived in different ways.
+ *
+ * All series are aligned to `candles` (index i ↔ candle i; null before warmup).
+ */
+export function indicatorSeries(candles: BtcCandle[]) {
+  const closes = candles.map((c) => c.close);
+  return {
+    times: candles.map((c) => c.time),
+    closes,
+    ema9: ema(closes, 9),
+    ema21: ema(closes, 21),
+    ema50: ema(closes, 50),
+    sma20: sma(closes, 20),
+    sma50: sma(closes, 50),
+    sma200: sma(closes, 200),
+    rsi14: rsi(closes, 14),
+    atr14: atr(candles, 14),
+    vwap: vwap(candles),
+  };
+}
+
 export function computeIndicators(candles: BtcCandle[]): TechnicalIndicators {
   const closes = candles.map((c) => c.close);
   const lastClose = closes[closes.length - 1];
   const lastIndex = closes.length - 1;
 
-  const rsiSeries = rsi(closes, 14);
-  const ema9s = ema(closes, 9);
-  const ema21s = ema(closes, 21);
-  const ema50s = ema(closes, 50);
-  const sma20s = sma(closes, 20);
-  const sma50s = sma(closes, 50);
-  const sma200s = sma(closes, 200);
+  const s = indicatorSeries(candles);
+  const rsiSeries = s.rsi14;
+  const ema9s = s.ema9;
+  const ema21s = s.ema21;
+  const ema50s = s.ema50;
+  const sma20s = s.sma20;
+  const sma50s = s.sma50;
+  const sma200s = s.sma200;
   const { upper, middle, lower } = bollinger(closes, 20, 2);
-  const atrSeries = atr(candles, 14);
-  const vwapSeries = vwap(candles);
+  const atrSeries = s.atr14;
+  const vwapSeries = s.vwap;
   const { macd: macdLine, signal: macdSignal, hist } = macd(closes);
 
   const rsiVal = rsiSeries[lastIndex] ?? null;

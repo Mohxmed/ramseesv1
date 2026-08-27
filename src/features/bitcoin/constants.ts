@@ -3,8 +3,11 @@ import type { BtcTimeframe } from "./types";
 export const BITCOIN_CONFIG = {
   SYMBOL: "BTC",
   CURRENCY: "USD",
+  /** Spot/futures trading pair used in REST + WebSocket URLs. */
+  PAIR: "BTCUSDT",
 } as const;
 
+/** Timeframes offered by the chart/UI (display + fetch). */
 export const TIMEFRAMES: BtcTimeframe[] = [
   "1m",
   "5m",
@@ -15,6 +18,13 @@ export const TIMEFRAMES: BtcTimeframe[] = [
   "4h",
   "1d",
 ];
+
+/**
+ * Timeframes used by the multi-timeframe analysis signal aggregation.
+ * The analysis set (MULTI_TFS) intentionally excludes "1d" so signals stay
+ * near-term; "1d" remains available for chart display via TIMEFRAMES.
+ */
+export const MULTI_TFS: BtcTimeframe[] = ["1m", "5m", "15m", "30m", "1h", "2h", "4h"];
 
 /** Candle duration in minutes for each timeframe. */
 export const TIMEFRAME_MINUTES: Record<BtcTimeframe, number> = {
@@ -78,5 +88,7 @@ export const FAST_REFRESH_MS = 5_000;
 export const SLOW_REFRESH_MS = 60_000;
 // Aggressive order-flow aggregation window (seconds).
 export const ORDER_FLOW_WINDOW_S = 60;
+/** Large-trade threshold (in BTC, at this price scale) for order-flow split. */
+export const ORDER_FLOW_LARGE_BTC = 5;
 export const WS_BASE = "wss://stream.binance.com:9443/ws";
 

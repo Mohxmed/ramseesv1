@@ -1,5 +1,6 @@
 import { ProtectedRoute } from "@/components/shared/protected-route";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { MarketDataProvider } from "@/features/bitcoin/store/market-context";
 
 export default function DashboardLayout({
   children,
@@ -8,7 +9,9 @@ export default function DashboardLayout({
 }) {
   return (
     <ProtectedRoute>
-      <DashboardShell>{children}</DashboardShell>
+      <MarketDataProvider>
+        <DashboardShell>{children}</DashboardShell>
+      </MarketDataProvider>
     </ProtectedRoute>
   );
 }

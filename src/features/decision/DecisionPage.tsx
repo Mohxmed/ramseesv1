@@ -1,18 +1,15 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import type { StrategyType } from "./types";
+import Link from "next/link";
+import { useMemo } from "react";
 import { useDecisionCenter } from "./hooks/useDecisionCenter";
 import { Header } from "./components/Header";
 import { DecisionSummary } from "./components/DecisionSummary";
 import { MarketSnapshot } from "./components/MarketSnapshot";
 import { SignalMatrix } from "./components/SignalMatrix";
 import { StrategyList } from "./components/StrategyList";
-import { StrategyBuilder } from "./components/StrategyBuilder";
 import { StrategyFlows } from "./components/StrategyFlows";
 import { WhyNot } from "./components/WhyNot";
-import { SAVED_PILL } from "./components/badges";
-import { defaultStrategy } from "./templates";
 import { BtcChart } from "../bitcoin/components/BtcChart";
 import type { DecisionOverlay } from "../bitcoin/components/BtcChart";
 
@@ -20,12 +17,6 @@ export function DecisionPage() {
   const dc = useDecisionCenter();
   const { persisted } = dc;
   const strategy = persisted.activeStrategy;
-
-  const [focus, setFocus] = useState<{ target: StrategyType; nonce: number }>({
-    target: "BUY",
-    nonce: 0,
-  });
-  const [savedFlash, setSavedFlash] = useState(false);
 
   const deps = useMemo(
     () => ({
@@ -45,10 +36,7 @@ export function DecisionPage() {
     [dc.cmd]
   );
 
-  const liveSignals = useMemo(
-    () => dc.signals.map((s) => ({ id: s.id, status: s.status })),
-    [dc.signals]
-  );
+  const liveSignals = useMemo(() => dc.signals, [dc.signals]);
 
   // Entry / Stop-Loss / Take-Profit overlay for the chart — derived from the
   // live evaluation + real S/R levels and the current price. Only shown when a
@@ -79,33 +67,13 @@ export function DecisionPage() {
     return null;
   }, [dc.evaluation, deps.analysis, deps.overview]);
 
-  const onSave = useCallback(() => {
-    if (strategy) persisted.saveStrategy(strategy);
-    setSavedFlash(true);
-    window.setTimeout(() => setSavedFlash(false), 1500);
-  }, [strategy, persisted]);
-
-  const onReset = useCallback(() => {
-    const defs = defaultStrategy(true);
-    const reset = defs[0];
-    persisted.saveStrategy({ ...reset, id: strategy?.id ?? reset.id, name: "استراتيجيتي" });
-  }, [strategy, persisted]);
-
-  const onCreate = useCallback(() => {
-    persisted.createStrategy();
-  }, [persisted]);
-
-  const onJump = useCallback((t: StrategyType) => {
-    setFocus((f) => ({ target: t, nonce: f.nonce + 1 }));
-  }, []);
-
   const statusLabel = dc.loading
-    ? "Loading…"
+    ? "جارٍ التحميل…"
     : dc.error
-    ? "Error"
+    ? "خطأ"
     : dc.liveConnected
-    ? "LIVE EVALUATION"
-    : "READY";
+    ? "تقييم مباشر"
+    : "جاهز";
 
   return (
     <div className="space-y-4">
@@ -113,13 +81,8 @@ export function DecisionPage() {
         liveConnected={dc.liveConnected}
         updatedAt={dc.updatedAt}
         status={statusLabel}
-        onReset={onReset}
         onEvaluate={() => dc.cmd.refresh?.()}
-        onCreate={onCreate}
-        onSave={onSave}
-      >
-        {savedFlash && <SAVED_PILL />}
-      </Header>
+      />
 
       <DecisionSummary evaluation={dc.evaluation} />
 
@@ -152,30 +115,32 @@ export function DecisionPage() {
           <StatusLegend />
         </div>
 
-        <div className="lg:col-span-2">
-          {strategy ? (
-            <StrategyBuilder
-              key={`${strategy.id}:${focus.nonce}`}
-              strategy={strategy}
-              onUpdate={persisted.saveStrategy}
-              liveSignals={liveSignals}
-              initialTab={focus.target}
-            />
-          ) : (
-            <div className="rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/40 p-8 text-center text-sm text-zinc-500">
-              اختر أو أنشئ استراتيجية لبدء التحرير.
+        <div className="lg:col-span-2 space-y-4">
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
+            <div className="mb-2 text-sm font-semibold text-zinc-200">
+              {strategy ? `الاستراتيجية النشطة: ${strategy.name}` : "لا توجد استراتيجية نشطة"}
             </div>
+            <p className="text-xs text-zinc-500">
+              يتم هنا فقط عرض نتيجة التقييم المباشر. لإنشاء الاستراتيجيات أو تعديل شروطها، انتقل إلى
+              صفحة إدارة الاستراتيجيات.
+            </p>
+            <Link
+              href="/strategies"
+              className="mt-3 inline-block rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20"
+            >
+              إدارة الاستراتيجيات وتحريرها
+            </Link>
+          </div>
+
+          {liveSignals.length > 0 && (
+            <SignalMatrix signals={liveSignals} />
           )}
         </div>
       </div>
 
       <StrategyFlows evaluation={dc.evaluation} />
 
-      <WhyNot
-        flows={dc.evaluation?.flows ?? []}
-        flowType="BUY"
-        onJump={onJump}
-      />
+      <WhyNot flows={dc.evaluation?.flows ?? []} flowType="BUY" />
     </div>
   );
 }

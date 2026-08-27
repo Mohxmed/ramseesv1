@@ -2,7 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { OrderBookSnapshot, OrderFlowData } from "../types";
-import { WS_BASE } from "../constants";
+import {
+  WS_BASE,
+  ORDER_FLOW_WINDOW_S,
+  ORDER_FLOW_LARGE_BTC,
+  BITCOIN_CONFIG,
+} from "../constants";
 
 type AggTradeEvt = {
   e: string;
@@ -29,7 +34,10 @@ type BookTickerEvt = {
   T: number;
 };
 
-const WINDOW_MS = 60_000;
+// Rolling aggregation window for the live order-flow (seconds) — kept in sync
+// with ORDER_FLOW_WINDOW_S used by the REST order-flow normalization.
+const WINDOW_MS = ORDER_FLOW_WINDOW_S * 1000;
+const PAIR = BITCOIN_CONFIG.PAIR.toLowerCase();
 
 /**
  * Live order-flow feed backed by Binance WebSocket (`aggTrade` +
@@ -63,7 +71,7 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
       let largeBuyVolume = 0;
       let largeSellVolume = 0;
       let largeTradeCount = 0;
-      const LARGE = 5;
+      const LARGE = ORDER_FLOW_LARGE_BTC;
       for (const t of active) {
         const q = parseFloat(t.q);
         const p = parseFloat(t.p);
@@ -82,12 +90,12 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
         buyVolume,
         sellVolume,
         buySellDelta: buyVolume - sellVolume,
-        buySellRatio: sellVolume > 0 ? buyVolume / sellVolume : 1,
+        buySellRatio: sellVolume > 0 ? buyVolume / sellVolume : buyVolume > 0 ? 2 : 1,
         takerBuyRatio: total > 0 ? buyVolume / total : 0.5,
         largeBuyVolume,
         largeSellVolume,
         largeTradeCount,
-        sampleSeconds: WINDOW_MS / 1000,
+        sampleSeconds: ORDER_FLOW_WINDOW_S,
         timestamp: now,
       });
     };
@@ -95,7 +103,7 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
     const open = () => {
       if (closed) return;
       try {
-        const url = `${WS_BASE}/btcusdt@aggTrade/btcusdt@bookTicker`;
+        const url = `${WS_BASE}/${PAIR}@aggTrade/${PAIR}@bookTicker`;
         ws = new WebSocket(url);
         ws.onopen = () => {
           reconnectAttempts = 0;
@@ -157,31 +165,49 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
 
 export type LiveFeed = ReturnType<typeof useLiveFeed>;
 
-export function mergeBookTicker(snap: OrderBookSnapshot | null, live: { bestBid: number; bestAsk: number } | null): OrderBookSnapshot | null {
+/** Live best bid/ask (and optional qty) from WS bookTicker / REST bookTicker. */
+export type LiveBookTicker = {
+  bestBid: number;
+  bestAsk: number;
+  bidQty?: number;
+  askQty?: number;
+};
+
+/**
+ * Single source for building the instantaneous order-book snapshot from a depth
+ * snapshot + a live best-bid/ask ticker. Uses the live ticker (WS preferred,
+ * REST fallback) to override best prices/spread, and synthesises a minimal book
+ * when the depth snapshot is unavailable. Handles both sources being absent.
+ */
+export function mergeBookTicker(
+  snap: OrderBookSnapshot | null,
+  live: LiveBookTicker | null
+): OrderBookSnapshot | null {
+  if (!live) return snap;
+  const spread = live.bestAsk - live.bestBid;
+  const spreadPercent = live.bestBid > 0 ? (spread / live.bestBid) * 100 : 0;
   if (!snap) {
-    if (!live) return null;
-    const spread = live.bestAsk - live.bestBid;
     return {
       bestBid: live.bestBid,
       bestAsk: live.bestAsk,
-      bidQty: 0,
-      askQty: 0,
+      bidQty: live.bidQty ?? 0,
+      askQty: live.askQty ?? 0,
       spread,
-      spreadPercent: live.bestBid > 0 ? (spread / live.bestBid) * 100 : 0,
+      spreadPercent,
       bidDepth: 0,
       askDepth: 0,
       depthImbalance: 0,
       timestamp: Date.now(),
     };
   }
-  if (!live) return snap;
-  const spread = live.bestAsk - live.bestBid;
   return {
     ...snap,
     bestBid: live.bestBid,
     bestAsk: live.bestAsk,
+    bidQty: live.bidQty ?? snap.bidQty,
+    askQty: live.askQty ?? snap.askQty,
     spread,
-    spreadPercent: live.bestBid > 0 ? (spread / live.bestBid) * 100 : 0,
+    spreadPercent,
     timestamp: Date.now(),
   };
 }

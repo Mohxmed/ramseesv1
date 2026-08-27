@@ -47,7 +47,7 @@ export function StrategyBuilder({
 
   return (
     <Card
-      title={`Strategy Builder — محرر الاستراتيجية: ${strategy.name}`}
+      title={`محرر الاستراتيجية: ${strategy.name}`}
       actions={
         <div className="flex items-center gap-2">
           <input

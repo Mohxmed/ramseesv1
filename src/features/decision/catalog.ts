@@ -1,5 +1,5 @@
 import type { SignalCategory, SignalKind, StrategyType } from "./types";
-import { NUMERIC_OPERATORS } from "./constants";
+import { NUMERIC_OPERATORS, SIGNAL_THRESHOLDS } from "./constants";
 
 export interface CatalogEntry {
   id: string;
@@ -60,13 +60,13 @@ export const SIGNAL_CATALOG: CatalogEntry[] = [
   b("biasBullish", "الانحياز الكلي صاعد", "trend"),
 
   // Probability
-  n("probBullish30", "الاحتمال الإحصائي صاعد (30د)", "probability", 55),
-  n("probBullish60", "الاحتمال الإحصائي صاعد (60د)", "probability", 55),
-  n("probBullish120", "الاحتمال الإحصائي صاعد (120د)", "probability", 55),
+  n("probBullish30", "الاحتمال الإحصائي صاعد (30د)", "probability", SIGNAL_THRESHOLDS.probBullish30),
+  n("probBullish60", "الاحتمال الإحصائي صاعد (60د)", "probability", SIGNAL_THRESHOLDS.probBullish60),
+  n("probBullish120", "الاحتمال الإحصائي صاعد (120د)", "probability", SIGNAL_THRESHOLDS.probBullish120),
 
   // Price
-  n("nearSupport", "السعر قرب الدعم (%)", "price", 0.5),
-  n("nearResistance", "السعر قرب المقاومة (%)", "price", 0.5),
+  n("nearSupport", "السعر قرب الدعم (%)", "price", SIGNAL_THRESHOLDS.nearSupportDistance),
+  n("nearResistance", "السعر قرب المقاومة (%)", "price", SIGNAL_THRESHOLDS.nearResistanceDistance),
   b("aboveSupport", "السعر فوق الدعم", "price"),
   b("belowResistance", "السعر تحت المقاومة", "price"),
 
@@ -76,7 +76,7 @@ export const SIGNAL_CATALOG: CatalogEntry[] = [
 
   // Volume
   b("volumeExpansion", "توسع الحجم", "volume"),
-  n("volumeConfirmation", "تأكيد الحجم (نسبة شراء %)", "volume", 52),
+  n("volumeConfirmation", "تأكيد الحجم (نسبة شراء %)", "volume", SIGNAL_THRESHOLDS.volumeConfirmRatio * 100),
 
   // Liquidity
   b("liquidityPoolNearby", "تجمع سيولة قريب", "liquidity"),
@@ -93,7 +93,7 @@ export const SIGNAL_CATALOG: CatalogEntry[] = [
   b("emaAligned", "محاذاة المتوسطات", "technical"),
 
   // Risk
-  n("riskRewardOk", "العائد/المخاطرة (R:R)", "risk", 2),
+  n("riskRewardOk", "العائد/المخاطرة (R:R)", "risk", SIGNAL_THRESHOLDS.minRiskReward),
 
   // Volatility
   b("volatilityOk", "التقلب مقبول", "volatility"),

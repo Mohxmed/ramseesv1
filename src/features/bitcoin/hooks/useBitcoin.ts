@@ -28,12 +28,13 @@ import {
   computeFuturesContext,
 } from "../analysis";
 import { extractFeatureVector, findSimilarCases, buildForecast } from "../prediction";
-import { useLiveFeed } from "./useLiveFeed";
+import { useLiveFeed, mergeBookTicker, type LiveBookTicker } from "./useLiveFeed";
 import {
   FAST_REFRESH_MS,
   SLOW_REFRESH_MS,
   CHART_DEFAULT_TIMEFRAME,
   MULTI_TF_LIMIT,
+  MULTI_TFS,
   SIMILARITY_LIMIT,
 } from "../constants";
 import type {
@@ -60,9 +61,7 @@ type DataState =
   | { status: "error"; message: string }
   | { status: "ready" };
 
-const MULTI_TFS: BtcTimeframe[] = ["1m", "5m", "15m", "30m", "1h", "2h", "4h"];
-
-export function useBitcoin() {
+export function useBitcoinPipeline() {
   const [timeframe, setTimeframe] = useState<BtcTimeframe>(
     CHART_DEFAULT_TIMEFRAME
   );
@@ -139,47 +138,13 @@ export function useBitcoin() {
       loadIndicators(chartTf);
 
       // Live order book (depth snapshot + bookTicker best bid/ask).
-      let book: OrderBookSnapshot | null = bookRaw
-        ? normalizeOrderBook(bookRaw)
+      const restTicker: LiveBookTicker | null = bookTickerRaw
+        ? normalizeBookTicker(bookTickerRaw)
         : null;
-      if (bookTickerRaw) {
-        const bt = normalizeBookTicker(bookTickerRaw);
-        if (book) {
-          book.bestBid = bt.bestBid;
-          book.bestAsk = bt.bestAsk;
-          book.bidQty = bt.bidQty;
-          book.askQty = bt.askQty;
-          book.spread = bt.bestAsk - bt.bestBid;
-          book.spreadPercent =
-            bt.bestBid > 0 ? ((bt.bestAsk - bt.bestBid) / bt.bestBid) * 100 : 0;
-          book.timestamp = Date.now();
-        } else {
-          const spread = bt.bestAsk - bt.bestBid;
-          book = {
-            bestBid: bt.bestBid,
-            bestAsk: bt.bestAsk,
-            bidQty: bt.bidQty,
-            askQty: bt.askQty,
-            spread,
-            spreadPercent: bt.bestBid > 0 ? (spread / bt.bestBid) * 100 : 0,
-            bidDepth: 0,
-            askDepth: 0,
-            depthImbalance: 0,
-            timestamp: Date.now(),
-          };
-        }
-      }
-      // Apply live book ticker (best bid/ask) if present.
-      if (book && liveBookRef.current) {
-        const spread = liveBookRef.current.bestAsk - liveBookRef.current.bestBid;
-        book.bestBid = liveBookRef.current.bestBid;
-        book.bestAsk = liveBookRef.current.bestAsk;
-        book.spread = spread;
-        book.spreadPercent =
-          liveBookRef.current.bestBid > 0
-            ? (spread / liveBookRef.current.bestBid) * 100
-            : 0;
-      }
+      const book = mergeBookTicker(
+        bookRaw ? normalizeOrderBook(bookRaw) : null,
+        liveBookRef.current ?? restTicker
+      );
       setOrderBook(book);
 
       const flowRaw = tradesRaw ? normalizeOrderFlow(tradesRaw) : null;
@@ -283,47 +248,13 @@ export function useBitcoin() {
         futuresApi.longShortRatio().catch(() => [] as LongShortRatioRaw),
       ]);
 
-      let book: OrderBookSnapshot | null = bookRaw
-        ? normalizeOrderBook(bookRaw)
+      const restTicker: LiveBookTicker | null = bookTickerRaw
+        ? normalizeBookTicker(bookTickerRaw)
         : null;
-      if (bookTickerRaw) {
-        const bt = normalizeBookTicker(bookTickerRaw);
-        if (book) {
-          book.bestBid = bt.bestBid;
-          book.bestAsk = bt.bestAsk;
-          book.bidQty = bt.bidQty;
-          book.askQty = bt.askQty;
-          book.spread = bt.bestAsk - bt.bestBid;
-          book.spreadPercent =
-            bt.bestBid > 0 ? ((bt.bestAsk - bt.bestBid) / bt.bestBid) * 100 : 0;
-          book.timestamp = Date.now();
-        } else {
-          const spread = bt.bestAsk - bt.bestBid;
-          book = {
-            bestBid: bt.bestBid,
-            bestAsk: bt.bestAsk,
-            bidQty: bt.bidQty,
-            askQty: bt.askQty,
-            spread,
-            spreadPercent: bt.bestBid > 0 ? (spread / bt.bestBid) * 100 : 0,
-            bidDepth: 0,
-            askDepth: 0,
-            depthImbalance: 0,
-            timestamp: Date.now(),
-          };
-        }
-      }
-      // Apply live book ticker (best bid/ask) if present.
-      if (book && liveBookRef.current) {
-        const spread = liveBookRef.current.bestAsk - liveBookRef.current.bestBid;
-        book.bestBid = liveBookRef.current.bestBid;
-        book.bestAsk = liveBookRef.current.bestAsk;
-        book.spread = spread;
-        book.spreadPercent =
-          liveBookRef.current.bestBid > 0
-            ? (spread / liveBookRef.current.bestBid) * 100
-            : 0;
-      }
+      const book = mergeBookTicker(
+        bookRaw ? normalizeOrderBook(bookRaw) : null,
+        liveBookRef.current ?? restTicker
+      );
       setOrderBook(book);
 
       const flowRaw = tradesRaw ? normalizeOrderFlow(tradesRaw) : null;

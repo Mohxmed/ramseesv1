@@ -1,6 +1,6 @@
 "use client";
 
-import { useBitcoin } from "@/features/bitcoin/hooks/useBitcoin";
+import { useMarketData } from "@/features/bitcoin/store/market-context";
 import { BtcChart } from "@/features/bitcoin/components/BtcChart";
 import { TechnicalIndicatorsCard } from "@/features/bitcoin/components/TechnicalIndicators";
 import { PredictionPanel } from "@/features/bitcoin/components/PredictionPanel";
@@ -33,7 +33,7 @@ export default function BitcoinPage() {
     waves,
     forecast,
     refresh,
-  } = useBitcoin();
+  } = useMarketData();
 
   const ready = data.status === "ready" || !!overview;
 
@@ -107,6 +107,7 @@ export default function BitcoinPage() {
                 orderBook={orderBook}
                 orderFlow={orderFlow}
                 liquidity={liquidity}
+                marketState={marketState}
                 live={liveConnected === true}
               />
             </div>

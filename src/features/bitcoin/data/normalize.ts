@@ -19,51 +19,60 @@ import type {
   PremiumIndexRaw,
   SpotTickerRaw,
 } from "../services/api";
+import {
+  parsed,
+  parsedPositive,
+  safeNumber,
+  validateCandles,
+  isFiniteNumber,
+} from "./validate";
+import { ORDER_FLOW_WINDOW_S, ORDER_FLOW_LARGE_BTC } from "../constants";
 
 export function normalizeSpotTicker(raw: SpotTickerRaw): SpotTicker {
-  const num = (v: string) => parseFloat(v);
   return {
-    price: num(raw.lastPrice),
-    open: num(raw.openPrice),
-    high: num(raw.highPrice),
-    low: num(raw.lowPrice),
-    volume: num(raw.volume),
-    quoteVolume: num(raw.quoteVolume),
-    priceChange: num(raw.priceChange),
-    priceChangePercent: num(raw.priceChangePercent),
-    weightedAvgPrice: num(raw.weightedAvgPrice),
-    timestamp: raw.closeTime,
+    price: parsedPositive(raw.lastPrice, 0),
+    open: parsed(raw.openPrice, 0),
+    high: parsed(raw.highPrice, 0),
+    low: parsed(raw.lowPrice, 0),
+    volume: parsed(raw.volume, 0),
+    quoteVolume: parsed(raw.quoteVolume, 0),
+    priceChange: parsed(raw.priceChange, 0),
+    priceChangePercent: parsed(raw.priceChangePercent, 0),
+    weightedAvgPrice: parsed(raw.weightedAvgPrice, 0),
+    timestamp: isFiniteNumber(raw.closeTime) ? raw.closeTime : Date.now(),
   };
 }
 
 export function normalizeKlines(raw: unknown[][]): BtcCandle[] {
-  return raw.map((k) => ({
-    time: Math.floor((k[0] as number) / 1000),
-    open: parseFloat(k[1] as string),
-    high: parseFloat(k[2] as string),
-    low: parseFloat(k[3] as string),
-    close: parseFloat(k[4] as string),
-    volume: parseFloat(k[5] as string),
-    takerBuyVolume: parseFloat(k[9] as string),
-  }));
+  return validateCandles(
+    raw.map((k) => ({
+      time: Math.floor((k[0] as number) / 1000),
+      open: parsed(k[1], 0),
+      high: parsed(k[2], 0),
+      low: parsed(k[3], 0),
+      close: parsed(k[4], 0),
+      volume: parsed(k[5], 0),
+      takerBuyVolume: k[9] != null ? parsed(k[9], 0) : undefined,
+    }))
+  );
 }
 
 export function normalizeOrderBook(raw: DepthRaw): OrderBookSnapshot {
-  const bestBid = parseFloat(raw.bids?.[0]?.[0] ?? "0");
-  const bestAsk = parseFloat(raw.asks?.[0]?.[0] ?? "0");
-  const bidQty = parseFloat(raw.bids?.[0]?.[1] ?? "0");
-  const askQty = parseFloat(raw.asks?.[0]?.[1] ?? "0");
-  const mid = (bestBid + bestAsk) / 2 || 1;
+  const bestBid = parsedPositive(raw.bids?.[0]?.[0], 0);
+  const bestAsk = parsedPositive(raw.asks?.[0]?.[0], 0);
+  const bidQty = parsed(raw.bids?.[0]?.[1], 0);
+  const askQty = parsed(raw.asks?.[0]?.[1], 0);
+  const mid = bestBid + bestAsk > 0 ? (bestBid + bestAsk) / 2 : 1;
 
   let bidDepth = 0;
   let askDepth = 0;
   for (const [p, q] of raw.bids ?? []) {
-    const price = parseFloat(p);
-    if ((mid - price) / mid <= 0.005) bidDepth += parseFloat(q);
+    const price = parsedPositive(p, 0);
+    if (price > 0 && (mid - price) / mid <= 0.005) bidDepth += parsed(q, 0);
   }
   for (const [p, q] of raw.asks ?? []) {
-    const price = parseFloat(p);
-    if ((price - mid) / mid <= 0.005) askDepth += parseFloat(q);
+    const price = parsedPositive(p, 0);
+    if (price > 0 && (price - mid) / mid <= 0.005) askDepth += parsed(q, 0);
   }
 
   const depthImbalance =
@@ -89,12 +98,13 @@ export function normalizeOrderFlow(raw: AggTradeRaw[]): OrderFlowData {
   let largeBuyVolume = 0;
   let largeSellVolume = 0;
   let largeTradeCount = 0;
-  const LARGE = 5; // BTC — large-trade threshold at this price scale
+  const LARGE = ORDER_FLOW_LARGE_BTC; // BTC — large-trade threshold at this price scale
 
   for (const t of raw) {
-    const q = parseFloat(t.q);
-    const p = parseFloat(t.p);
+    const q = parsed(t.q, 0);
+    const p = parsed(t.p, 0);
     const usd = q * p;
+    if (!isFiniteNumber(usd) || q <= 0 || p <= 0) continue;
     if (t.m) {
       sellVolume += q;
       if (usd >= LARGE * p) largeSellVolume += q;
@@ -106,7 +116,7 @@ export function normalizeOrderFlow(raw: AggTradeRaw[]): OrderFlowData {
   }
 
   const total = buyVolume + sellVolume;
-  const timestamp = raw.length ? raw[raw.length - 1].T : Date.now();
+  const timestamp = raw.length ? safeNumber(raw[raw.length - 1].T, Date.now()) : Date.now();
 
   return {
     buyVolume,
@@ -117,35 +127,35 @@ export function normalizeOrderFlow(raw: AggTradeRaw[]): OrderFlowData {
     largeBuyVolume,
     largeSellVolume,
     largeTradeCount,
-    sampleSeconds: 60,
+    sampleSeconds: ORDER_FLOW_WINDOW_S,
     timestamp,
   };
 }
 
 export function normalizeBookTicker(raw: BookTickerRaw) {
   return {
-    bestBid: parseFloat(raw.bidPrice),
-    bestAsk: parseFloat(raw.askPrice),
-    bidQty: parseFloat(raw.bidQty),
-    askQty: parseFloat(raw.askQty),
-    timestamp: raw.time,
+    bestBid: parsedPositive(raw.bidPrice, 0),
+    bestAsk: parsedPositive(raw.askPrice, 0),
+    bidQty: parsed(raw.bidQty, 0),
+    askQty: parsed(raw.askQty, 0),
+    timestamp: isFiniteNumber(raw.time) ? raw.time : Date.now(),
   };
 }
 
 export function normalizeOiHistory(raw: OpenInterestHistRaw) {
   return raw
     .map((r) => ({
-      time: Math.floor(r.timestamp / 1000),
-      value: parseFloat(r.sumOpenInterest),
+      time: Math.floor(safeNumber(r.timestamp, 0) / 1000),
+      value: parsed(r.sumOpenInterest, 0),
     }))
-    .filter((r) => isFinite(r.value));
+    .filter((r) => isFiniteNumber(r.value) && r.time > 0);
 }
 
 export function normalizePremiumIndex(raw: PremiumIndexRaw) {
   return {
-    markPrice: parseFloat(raw.markPrice),
-    indexPrice: parseFloat(raw.indexPrice),
-    lastFundingRate: parseFloat(raw.lastFundingRate),
+    markPrice: parsed(raw.markPrice, 0),
+    indexPrice: parsed(raw.indexPrice, 0),
+    lastFundingRate: parsed(raw.lastFundingRate, 0),
     nextFundingTime: raw.nextFundingTime,
   };
 }
@@ -177,12 +187,13 @@ export function normalizeMarketOverview(input: {
   let openInterestChange: number | null = null;
   let futuresVolume: number | null = null;
   if (input.openInterest && input.futuresTicker) {
-    futuresVolume = parseFloat(input.futuresTicker.quoteVolume);
+    const v = parsed(input.futuresTicker.quoteVolume, 0);
+    if (isFiniteNumber(v) && v > 0) futuresVolume = v;
   }
 
   let markPrice: number | null = null;
   if (input.futuresTicker) {
-    markPrice = parseFloat(input.futuresTicker.markPrice);
+    markPrice = parsed(input.futuresTicker.markPrice, 0);
   }
 
   const basis =
@@ -201,20 +212,20 @@ export function normalizeMarketOverview(input: {
     totalSupply: md.total_supply ?? null,
     maxSupply: md.max_supply ?? null,
     fundRate: input.funding?.[0]
-      ? parseFloat(input.funding[0].fundingRate) * 100
+      ? parsed(input.funding[0].fundingRate, 0) * 100
       : null,
     openInterest: input.openInterest
-      ? parseFloat(input.openInterest.openInterest)
+      ? parsed(input.openInterest.openInterest, 0)
       : null,
     openInterestChange,
     longShortRatio: input.longShort?.[0]
-      ? parseFloat(input.longShort[0].longShortRatio)
+      ? parsed(input.longShort[0].longShortRatio, 0)
       : null,
     longAccount: input.longShort?.[0]
-      ? parseFloat(input.longShort[0].longAccount) * 100
+      ? parsed(input.longShort[0].longAccount, 0) * 100
       : null,
     shortAccount: input.longShort?.[0]
-      ? parseFloat(input.longShort[0].shortAccount) * 100
+      ? parsed(input.longShort[0].shortAccount, 0) * 100
       : null,
     liquidations: null,
     futuresVolume,

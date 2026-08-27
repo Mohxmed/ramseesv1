@@ -1,22 +1,30 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Strategy, StrategyType } from "../types";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ConditionNode, Strategy, StrategyType } from "../types";
 import { STRATEGY_STORAGE_KEY } from "../constants";
 import {
   defaultFlowNode,
   defaultStrategy,
   STRATEGY_TEMPLATES,
 } from "../templates";
+import { strategiesService } from "../services/strategies.service";
+import { useAuth } from "../../auth/hooks/useAuth";
 
-function load(): Strategy[] {
-  if (typeof window === "undefined") return [];
+export type PersistStatus =
+  | "loading"
+  | "saved"
+  | "saving"
+  | "error"
+  | "local";
+
+function loadLocal(): Strategy[] {
+  if (typeof window === "undefined") return defaultStrategy();
   try {
     const raw = localStorage.getItem(STRATEGY_STORAGE_KEY);
     if (!raw) return defaultStrategy();
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return defaultStrategy();
-    // hydrate / upgrade missing fields
     return parsed
       .map((s) => hydrate(s))
       .filter((s): s is Strategy => s != null);
@@ -48,8 +56,6 @@ function hydrate(s: unknown): Strategy | null {
   };
 }
 
-import type { ConditionNode } from "../types";
-
 function sanitizeNode(n: ConditionNode | undefined, flowType: StrategyType): ConditionNode {
   if (n && n.type === "condition") {
     return {
@@ -77,12 +83,58 @@ function sanitizeNode(n: ConditionNode | undefined, flowType: StrategyType): Con
 }
 
 export function useStrategies() {
-  const [strategies, setStrategies] = useState<Strategy[]>(() => load());
+  const { user } = useAuth();
+  const userId = user?.uid ?? null;
+
+  const [strategies, setStrategies] = useState<Strategy[]>(() => loadLocal());
   const [activeId, setActiveId] = useState<string | null>(() => {
-    const s = load();
+    const s = loadLocal();
     return s.length ? s[0].id : null;
   });
+  const [status, setStatus] = useState<PersistStatus>("loading");
 
+  // Keep a monotonic seed so a new strategy gets a fresh unique id each time.
+  const seedRef = useRef(0);
+  const newId = useCallback(
+    (prefix: string) => `${prefix}_${Date.now().toString(36)}_${(seedRef.current += 1)}`,
+    []
+  );
+
+  // --- Firestore hydration (once, when userId resolves) ---
+  useEffect(() => {
+    if (!userId) {
+      setStatus("local");
+      return;
+    }
+    let cancelled = false;
+    setStatus("loading");
+    strategiesService
+      .list(userId)
+      .then((remote) => {
+        if (cancelled) return;
+        if (remote.length > 0) {
+          const merged = remote
+            .map((s) => hydrate(s))
+            .filter((s): s is Strategy => s != null);
+          if (merged.length > 0) {
+            setStrategies(merged);
+            setActiveId((cur) => {
+              if (cur && merged.some((s) => s.id === cur)) return cur;
+              return merged[0]?.id ?? null;
+            });
+          }
+        }
+        setStatus("saved");
+      })
+      .catch(() => {
+        if (!cancelled) setStatus("local");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  // --- Mirror to localStorage cache always ---
   useEffect(() => {
     try {
       localStorage.setItem(STRATEGY_STORAGE_KEY, JSON.stringify(strategies));
@@ -90,6 +142,40 @@ export function useStrategies() {
       /* storage unavailable */
     }
   }, [strategies]);
+
+  // --- Push to Firestore on every change (only when a user is present) ---
+  const prevIdsRef = useRef<string[] | null>(null);
+  useEffect(() => {
+    if (!userId) return;
+    const currentIds = strategies.map((s) => s.id);
+    const prevIds = prevIdsRef.current;
+    prevIdsRef.current = currentIds;
+
+    setStatus("saving");
+    let cancelled = false;
+
+    const writes = strategies.map((s) =>
+      strategiesService.save(userId, { ...s, updatedAt: Date.now() })
+    );
+
+    // Delete strategies that were just removed locally.
+    if (prevIds) {
+      for (const pid of prevIds) {
+        if (!currentIds.includes(pid)) writes.push(strategiesService.remove(userId, pid));
+      }
+    }
+
+    Promise.all(writes)
+      .then(() => {
+        if (!cancelled) setStatus("saved");
+      })
+      .catch(() => {
+        if (!cancelled) setStatus("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [strategies, userId]);
 
   const saveStrategy = useCallback((s: Strategy) => {
     setStrategies((prev) => {
@@ -101,47 +187,56 @@ export function useStrategies() {
     });
   }, []);
 
-  const createStrategy = useCallback((templateId?: string) => {
-    const base = STRATEGY_TEMPLATES.find((t) => t.id === templateId);
-    const s: Strategy = base
-      ? {
-          id: `s_${Date.now().toString(36)}`,
-          name: base.name,
-          flows: base.flows.map((f) => ({ ...f, root: cloneNode(f.root) })),
-          enabled: true,
+  const createStrategy = useCallback(
+    (templateId?: string) => {
+      const base = STRATEGY_TEMPLATES.find((t) => t.id === templateId);
+      const s: Strategy = base
+        ? {
+            id: newId("s"),
+            name: base.name,
+            flows: base.flows.map((f) => ({ ...f, root: cloneNode(f.root) })),
+            enabled: true,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          }
+        : { ...defaultStrategy(true)[0], id: newId("s"), createdAt: Date.now(), updatedAt: Date.now() };
+      setStrategies((prev) => [...prev, s]);
+      setActiveId(s.id);
+      return s.id;
+    },
+    [newId]
+  );
+
+  const deleteStrategy = useCallback(
+    (id: string) => {
+      setStrategies((prev) => {
+        const next = prev.filter((x) => x.id !== id);
+        if (activeId === id) setActiveId(next[0]?.id ?? null);
+        return next;
+      });
+    },
+    [activeId]
+  );
+
+  const duplicateStrategy = useCallback(
+    (id: string) => {
+      setStrategies((prev) => {
+        const src = prev.find((x) => x.id === id);
+        if (!src) return prev;
+        const copy: Strategy = {
+          ...src,
+          id: newId("s"),
+          name: `${src.name} (نسخة)`,
+          flows: src.flows.map((f) => ({ ...f, root: cloneNode(f.root) })),
           createdAt: Date.now(),
           updatedAt: Date.now(),
-        }
-      : defaultStrategy(true)[0];
-    setStrategies((prev) => [...prev, s]);
-    setActiveId(s.id);
-    return s.id;
-  }, []);
-
-  const deleteStrategy = useCallback((id: string) => {
-    setStrategies((prev) => {
-      const next = prev.filter((x) => x.id !== id);
-      if (activeId === id) setActiveId(next[0]?.id ?? null);
-      return next;
-    });
-  }, [activeId]);
-
-  const duplicateStrategy = useCallback((id: string) => {
-    setStrategies((prev) => {
-      const src = prev.find((x) => x.id === id);
-      if (!src) return prev;
-      const copy: Strategy = {
-        ...src,
-        id: `s_${Date.now().toString(36)}`,
-        name: `${src.name} (نسخة)`,
-        flows: src.flows.map((f) => ({ ...f, root: cloneNode(f.root) })),
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      };
-      setActiveId(copy.id);
-      return [...prev, copy];
-    });
-  }, []);
+        };
+        setActiveId(copy.id);
+        return [...prev, copy];
+      });
+    },
+    [newId]
+  );
 
   const toggleEnabled = useCallback((id: string) => {
     setStrategies((prev) =>
@@ -176,6 +271,7 @@ export function useStrategies() {
     strategies,
     activeId,
     activeStrategy,
+    status,
     setActive,
     saveStrategy,
     createStrategy,

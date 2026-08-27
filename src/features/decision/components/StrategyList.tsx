@@ -21,7 +21,7 @@ export function StrategyList({
   onCreate: () => void;
 }) {
   return (
-    <Card title="Strategies — استراتيجياتك">
+    <Card title="الاستراتيجيات">
       {strategies.length === 0 ? (
         <div className="rounded-xl border border-dashed border-zinc-700 p-4 text-center text-xs text-zinc-500">
           لا توجد استراتيجيات. أنشئ واحدة للبدء.
@@ -70,7 +70,7 @@ export function StrategyList({
                       : "border-zinc-700 text-zinc-500"
                   }`}
                 >
-                  {s.enabled ? "ON" : "OFF"}
+                  {s.enabled ? "مفعّلة" : "معطّلة"}
                 </button>
                 <button
                   type="button"

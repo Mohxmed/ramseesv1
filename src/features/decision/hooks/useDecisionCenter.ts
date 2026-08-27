@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { useBitcoin } from "../../bitcoin/hooks/useBitcoin";
+import { useMarketData } from "../../bitcoin/store/market-context";
 import { buildSignals } from "../signals/signalEngine";
 import { evaluateStrategy, setSignalNames } from "../evaluation/evaluate";
 import { useStrategies } from "./useStrategies";
@@ -18,7 +18,7 @@ import type { Signal } from "../types";
  * the decision output refreshes automatically as that data changes.
  */
 export function useDecisionCenter() {
-  const cmd = useBitcoin();
+  const cmd = useMarketData();
 
   const firstSignalTime = useMemo(
     () => Date.now(),

@@ -1,6 +1,6 @@
 "use client";
 
-import type { OrderBookSnapshot, OrderFlowData } from "../types";
+import type { MarketState, OrderBookSnapshot, OrderFlowData } from "../types";
 import type { LiquidityAnalysis } from "../analysis";
 import { formatBtc, formatPercent, formatPrice } from "../utils";
 
@@ -8,19 +8,19 @@ export function OrderFlowCard({
   orderBook,
   orderFlow,
   liquidity,
+  marketState,
   live,
 }: {
   orderBook: OrderBookSnapshot | null;
   orderFlow: OrderFlowData | null;
   liquidity: LiquidityAnalysis | null;
+  marketState: MarketState | null;
   live?: boolean;
 }) {
-  const flowReading =
-    !orderFlow || orderFlow.takerBuyRatio >= 0.5 + 0.05
-      ? "شراء"
-      : orderFlow && orderFlow.takerBuyRatio <= 0.5 - 0.05
-      ? "بيع"
-      : "متوازن";
+  // Single-source order-flow reading (MarketState.orderFlow), which already
+  // aggregates taker ratio + buy/sell ratio. No threshold is re-derived here.
+  const flowReading: "buy" | "sell" | "balanced" =
+    marketState?.orderFlow ?? "balanced";
 
   return (
     <section className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
@@ -55,8 +55,8 @@ export function OrderFlowCard({
 
       <div className="mt-3">
         <p className="text-[11px] text-zinc-500">القراءة</p>
-        <p className={`text-sm font-bold ${flowReading === "بيع" ? "text-red-400" : flowReading === "شراء" ? "text-emerald-400" : "text-zinc-300"}`}>
-          {flowReading === "بيع" ? "ضغط بيع" : flowReading === "شراء" ? "ضغط شراء" : "متوازن"}
+        <p className={`text-sm font-bold ${flowReading === "sell" ? "text-red-400" : flowReading === "buy" ? "text-emerald-400" : "text-zinc-300"}`}>
+          {flowReading === "sell" ? "ضغط بيع" : flowReading === "buy" ? "ضغط شراء" : "متوازن"}
         </p>
       </div>
 

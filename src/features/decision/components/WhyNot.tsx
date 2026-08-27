@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { ConditionEval, FlowEvaluation, StrategyType } from "../types";
 import { STRATEGY_TYPE_LABELS } from "../catalog";
 import { catalogById } from "../catalog";
@@ -10,10 +11,9 @@ function collectLeaves(ev: ConditionEval, out: ConditionEval[]): void {
   else ev.children?.forEach((c) => collectLeaves(c, out));
 }
 
-export function WhyNot({ flows, flowType, onJump }: {
+export function WhyNot({ flows, flowType }: {
   flows: FlowEvaluation[];
   flowType?: StrategyType;
-  onJump?: (t: StrategyType) => void;
 }) {
   const target = flowType ?? "BUY";
   const flow = flows.find((f) => f.type === target);
@@ -34,15 +34,12 @@ export function WhyNot({ flows, flowType, onJump }: {
     <Card
       title={`Why Not ${target}? — لماذا لا ${STRATEGY_TYPE_LABELS[target]} الآن؟`}
       actions={
-        onJump ? (
-          <button
-            type="button"
-            onClick={() => onJump(target)}
-            className="rounded-md border border-zinc-700 bg-zinc-800/60 px-2 py-1 text-[11px] font-semibold text-zinc-300 hover:border-zinc-500"
-          >
-            فتح محرر {STRATEGY_TYPE_LABELS[target]}
-          </button>
-        ) : undefined
+        <Link
+          href="/strategies"
+          className="rounded-md border border-zinc-700 bg-zinc-800/60 px-2 py-1 text-[11px] font-semibold text-zinc-300 hover:border-zinc-500"
+        >
+          تحرير استراتيجياتك
+        </Link>
       }
     >
       {!flow ? (
@@ -88,7 +85,7 @@ export function WhyNot({ flows, flowType, onJump }: {
                         {b.node.type === "condition" ? meta?.name ?? b.node.signalId : "المجموعة"}
                       </div>
                       <div className="mt-0.5 text-[11px] text-zinc-500" dir="ltr">
-                        {b.current} — mطلوب: {b.expected}
+                        {b.current} — المطلوب: {b.expected}
                       </div>
                       <div className="mt-0.5 text-[11px] text-zinc-500">{b.reason}</div>
                     </div>
@@ -110,7 +107,7 @@ export function WhyNot({ flows, flowType, onJump }: {
           <div className="mt-3 rounded-lg border border-zinc-700/50 bg-zinc-800/20 p-2.5 text-[11px] text-zinc-400">
             <span className="font-semibold text-zinc-300">Conflict with data?</span> أي شروط تظهر
             FALSE بسبب بيانات غير متوفرة تُعرض بتصنيف UNKNOWN (بيانات غير متاحة، لا نمنحها قيمة
-            افتراضية). افحص مصدر كل إشارة في «Signal Matrix».
+            افتراضية). افحص مصدر كل إشارة في صفحة «مصفوفة الإشارات».
           </div>
         </div>
       )}

@@ -6,7 +6,7 @@ import type {
   StrategyFlow,
   StrategyType,
 } from "./types";
-import { uid } from "./constants";
+import { uid, SIGNAL_THRESHOLDS } from "./constants";
 
 export function leaf(
   signalId: string,
@@ -41,16 +41,16 @@ export function defaultFlowNode(flowType: StrategyType): ConditionNode {
     case "BUY":
       return group("AND", [
         leaf("trendBullish", "IS_TRUE", null, true),
-        leaf("probBullish30", ">", 55, true),
-        leaf("nearSupport", "<=", 0.5, false),
-        leaf("riskRewardOk", ">=", 2, false),
+        leaf("probBullish30", ">", SIGNAL_THRESHOLDS.probBullish30, true),
+        leaf("nearSupport", "<=", SIGNAL_THRESHOLDS.nearSupportDistance, false),
+        leaf("riskRewardOk", ">=", SIGNAL_THRESHOLDS.minRiskReward, false),
       ]);
     case "SELL":
       return group("AND", [
         leaf("trendBullish", "IS_FALSE", null, true),
-        leaf("probBullish30", "<", 55, true),
-        leaf("nearResistance", "<=", 0.5, false),
-        leaf("riskRewardOk", ">=", 2, false),
+        leaf("probBullish30", "<", SIGNAL_THRESHOLDS.probBullish30, true),
+        leaf("nearResistance", "<=", SIGNAL_THRESHOLDS.nearResistanceDistance, false),
+        leaf("riskRewardOk", ">=", SIGNAL_THRESHOLDS.minRiskReward, false),
       ]);
     case "EXIT":
       return group("OR", [
@@ -115,10 +115,10 @@ export const STRATEGY_TEMPLATES: StrategyTemplate[] = [
       enabled: true,
       root: group("AND", [
         leaf("trendBullish", "IS_TRUE", null, true),
-        leaf("probBullish30", ">", 60, true),
-        leaf("nearSupport", "<=", 0.5, true),
-        leaf("riskRewardOk", ">=", 2, true),
-        leaf("volumeConfirmation", ">=", 52, false),
+        leaf("probBullish30", ">", 60, true), // deliberate stricter threshold
+        leaf("nearSupport", "<=", SIGNAL_THRESHOLDS.nearSupportDistance, true),
+        leaf("riskRewardOk", ">=", SIGNAL_THRESHOLDS.minRiskReward, true),
+        leaf("volumeConfirmation", ">=", SIGNAL_THRESHOLDS.volumeConfirmRatio * 100, false),
         leaf("sellSideSwept", "IS_TRUE", null, false),
       ]),
     },
@@ -147,8 +147,8 @@ export const STRATEGY_TEMPLATES: StrategyTemplate[] = [
         leaf("macdBullish", "IS_TRUE", null, true),
         leaf("volumeExpansion", "IS_TRUE", null, false),
         leaf("priceAboveEma9", "IS_TRUE", null, true),
-        leaf("probBullish30", ">", 55, true),
-        leaf("riskRewardOk", ">=", 2, false),
+        leaf("probBullish30", ">", SIGNAL_THRESHOLDS.probBullish30, true),
+        leaf("riskRewardOk", ">=", SIGNAL_THRESHOLDS.minRiskReward, false),
       ]),
     },
     {
@@ -181,10 +181,10 @@ export const STRATEGY_TEMPLATES: StrategyTemplate[] = [
       enabled: true,
       root: group("AND", [
         leaf("trendBullish", "IS_FALSE", null, true),
-        leaf("probBullish30", "<", 55, true),
-        leaf("nearResistance", "<=", 0.5, false),
+        leaf("probBullish30", "<", SIGNAL_THRESHOLDS.probBullish30, true),
+        leaf("nearResistance", "<=", SIGNAL_THRESHOLDS.nearResistanceDistance, false),
         leaf("momentumBearish", "IS_TRUE", null, true),
-        leaf("riskRewardOk", ">=", 2, true),
+        leaf("riskRewardOk", ">=", SIGNAL_THRESHOLDS.minRiskReward, true),
       ]),
     },
     {

@@ -61,9 +61,9 @@ function NodeView({ ev, depth }: { ev: ConditionEval; depth?: number }) {
             {meta.label}
           </span>
           {ev.required ? (
-            <span className="text-[9px] font-semibold text-blue-400">Required</span>
+            <span className="text-[9px] font-semibold text-blue-400">مطلوب</span>
           ) : (
-            <span className="text-[9px] text-zinc-500">Optional</span>
+            <span className="text-[9px] text-zinc-500">اختياري</span>
           )}
         </div>
       </div>
@@ -75,7 +75,7 @@ function NodeView({ ev, depth }: { ev: ConditionEval; depth?: number }) {
 export function StrategyFlows({ evaluation }: { evaluation: StrategyEvaluation | null }) {
   if (!evaluation) {
     return (
-      <Card title="Strategy Flows — نتائج التدفقات">
+      <Card title="نتائج التدفقات">
         <div className="rounded-xl border border-dashed border-zinc-700 p-6 text-center text-xs text-zinc-500">
           لا توجد استراتيجية نشطة للتقيم.
         </div>
@@ -90,11 +90,11 @@ export function StrategyFlows({ evaluation }: { evaluation: StrategyEvaluation |
 
   return (
     <Card
-      title="Strategy Flows — نتائج التدفقات"
+      title="نتائج التدفقات"
       actions={
         <div className="flex items-center gap-2 text-[11px]">
           <span className="rounded-md border border-zinc-700 bg-zinc-800/60 px-2 py-1 font-semibold">
-            Completion: {evaluation.completion.toFixed(0)}%
+            الإكمال: {evaluation.completion.toFixed(0)}%
           </span>
           <span
             className={`rounded-md border px-2 py-1 font-bold ${
@@ -135,9 +135,9 @@ export function StrategyFlows({ evaluation }: { evaluation: StrategyEvaluation |
                 />
               </div>
               <div className="mt-1 flex justify-between text-[10px] text-zinc-500">
-                <span>Completion {f.completion.toFixed(0)}%</span>
+                <span>الإكمال {f.completion.toFixed(0)}%</span>
                 <span>
-                  Optional {f.satisfiedOptional}/{f.totalOptional}
+                  الاختياري {f.satisfiedOptional}/{f.totalOptional}
                 </span>
               </div>
 
@@ -149,7 +149,7 @@ export function StrategyFlows({ evaluation }: { evaluation: StrategyEvaluation |
               {/* Unknown / missing */}
               {f.unknown.length > 0 && (
                 <div className="mt-2 rounded-lg border border-zinc-700/50 bg-zinc-800/20 p-2 text-[10px] text-zinc-400">
-                  <span className="font-semibold text-zinc-300">UNKNOWN:</span> {f.unknown.join("، ")}
+                  <span className="font-semibold text-zinc-300">غير مؤكد (UNKNOWN):</span> {f.unknown.join("، ")}
                 </div>
               )}
               {f.missing.length > 0 && (

@@ -1,25 +1,17 @@
 "use client";
 
-import type { ReactNode } from "react";
+import Link from "next/link";
 
 export function Header({
   liveConnected,
   updatedAt,
   status,
-  onReset,
   onEvaluate,
-  onCreate,
-  onSave,
-  children,
 }: {
   liveConnected: boolean | null;
   updatedAt: number;
   status: string;
-  onReset: () => void;
   onEvaluate: () => void;
-  onCreate: () => void;
-  onSave: () => void;
-  children: ReactNode;
 }) {
   return (
     <section className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
@@ -29,7 +21,7 @@ export function Header({
             <span className="text-xl">🧭</span>
           </div>
           <div>
-            <h1 className="text-lg font-bold text-zinc-50">Decision Center</h1>
+            <h1 className="text-lg font-bold text-zinc-50">مركز القرارات</h1>
             <p className="text-[11px] text-zinc-500">مركز القرارات — تحويل البيانات إلى شروط قابلة للتقييم</p>
           </div>
         </div>
@@ -50,42 +42,26 @@ export function Header({
           </span>
           <span className="rounded-md border border-zinc-700 bg-zinc-800/60 px-2 py-1">{status}</span>
           <span className="rounded-md border border-zinc-700 bg-zinc-800/60 px-2 py-1">
-            Updated {new Date(updatedAt).toLocaleTimeString("ar", { hour12: false })}
+            تم التحديث {new Date(updatedAt).toLocaleTimeString("ar", { hour12: false })}
           </span>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={onCreate}
+          <Link
+            href="/strategies"
             className="rounded-md border border-zinc-700 bg-zinc-800/60 px-3 py-1.5 text-xs font-semibold text-zinc-200 hover:border-zinc-500"
           >
-            + Create Strategy
-          </button>
-          <button
-            type="button"
-            onClick={onSave}
-            className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20"
-          >
-            Save Strategy
-          </button>
-          <button
-            type="button"
-            onClick={onReset}
-            className="rounded-md border border-zinc-700 bg-zinc-800/60 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:border-red-500/40"
-          >
-            Reset
-          </button>
+            إدارة الاستراتيجيات
+          </Link>
           <button
             type="button"
             onClick={onEvaluate}
             className="rounded-md bg-emerald-500/80 px-3 py-1.5 text-xs font-bold text-zinc-950 hover:bg-emerald-400"
           >
-            Evaluate Now
+            تقييم الآن
           </button>
         </div>
       </div>
-      {children}
     </section>
   );
 }

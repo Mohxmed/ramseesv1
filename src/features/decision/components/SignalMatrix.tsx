@@ -54,7 +54,7 @@ export function SignalMatrix({ signals }: { signals: Signal[] }) {
 
   return (
     <Card
-      title="Signal Matrix — مصفوفة الإشارات"
+      title="مصفوفة الإشارات"
       actions={
         <div className="flex flex-wrap gap-1">
           {FILTERS.map((f) => (
@@ -101,15 +101,15 @@ export function SignalMatrix({ signals }: { signals: Signal[] }) {
 
               <div className="mt-2 grid grid-cols-3 gap-1 border-t border-zinc-800/70 pt-2 text-[11px]">
                 <div>
-                  <div className="text-[9px] uppercase text-zinc-600">Current</div>
+                  <div className="text-[9px] uppercase text-zinc-600">القيمة الحالية</div>
                   <div className="font-mono text-zinc-200" dir="ltr">{s.value}</div>
                 </div>
                 <div>
-                  <div className="text-[9px] uppercase text-zinc-600">Rule</div>
+                  <div className="text-[9px] uppercase text-zinc-600">الشرط</div>
                   <div className="font-mono text-zinc-400" dir="ltr">{s.threshold}</div>
                 </div>
                 <div>
-                  <div className="text-[9px] uppercase text-zinc-600">Source</div>
+                  <div className="text-[9px] uppercase text-zinc-600">المصدر</div>
                   <div className="truncate text-zinc-400" title={s.source}>{s.source}</div>
                 </div>
               </div>

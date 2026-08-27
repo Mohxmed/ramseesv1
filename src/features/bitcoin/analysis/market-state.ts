@@ -6,24 +6,12 @@ import type {
   OrderBookSnapshot,
   OrderFlowData,
 } from "../types";
+import { indicatorSeries } from "../indicators";
+import { MULTI_TFS } from "../constants";
 
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
-
-function emaLast(values: number[], period: number): number | null {
-  if (values.length < period) return null;
-  const k = 2 / (period + 1);
-  let prev = values[0];
-  for (let i = 1; i < values.length; i++) prev = values[i] * k + prev * (1 - k);
-  return prev;
-}
-
-function smaLast(values: number[], period: number): number | null {
-  if (values.length < period) return null;
-  const slice = values.slice(-period);
-  return slice.reduce((a, b) => a + b, 0) / period;
-}
 
 function mean(values: number[]): number {
   return values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0;
@@ -32,15 +20,6 @@ function mean(values: number[]): number {
 function std(values: number[]): number {
   const m = mean(values);
   return Math.sqrt(mean(values.map((v) => (v - m) * (v - m))));
-}
-
-function returns(candles: BtcCandle[]): number[] {
-  const out: number[] = [];
-  for (let i = 1; i < candles.length; i++) {
-    if (candles[i - 1].close > 0)
-      out.push((candles[i].close / candles[i - 1].close - 1) * 100);
-  }
-  return out;
 }
 
 function atrPct(candles: BtcCandle[], period = 14): number {
@@ -73,13 +52,14 @@ type TfSignal = {
 
 function signalOnTf(candles: BtcCandle[] | undefined): TfSignal | null {
   if (!candles || candles.length < 30) return null;
-  const closes = candles.map((c) => c.close);
+  const s = indicatorSeries(candles);
+  const closes = s.closes;
   const last = closes[closes.length - 1];
 
-  const ema9 = emaLast(closes, 9);
-  const ema21 = emaLast(closes, 21);
-  const ema50 = emaLast(closes, 50);
-  const sma50 = smaLast(closes, 50);
+  const ema9 = s.ema9[s.ema9.length - 1] ?? null;
+  const ema21 = s.ema21[s.ema21.length - 1] ?? null;
+  const ema50 = s.ema50[s.ema50.length - 1] ?? null;
+  const sma50 = s.sma50[s.sma50.length - 1] ?? null;
 
   let trendScore = 0;
   if (ema9 != null && ema21 != null) {
@@ -91,19 +71,13 @@ function signalOnTf(candles: BtcCandle[] | undefined): TfSignal | null {
   const norm = Math.max(1, Math.abs(trendScore));
   const trend = trendScore / norm;
 
-  // Momentum: RSI + ROC over 14 bars.
+  // Momentum: RSI (canonical indicator series) + ROC over 14 bars.
   let momentum = 0;
-  if (closes.length >= 15) {
-    let gains = 0;
-    let losses = 0;
-    for (let i = closes.length - 14; i < closes.length; i++) {
-      const d = closes[i] - closes[i - 1];
-      if (d >= 0) gains += d;
-      else losses -= d;
-    }
-    const rsi = losses === 0 ? 100 : 100 - 100 / (1 + gains / Math.max(1e-9, losses));
-    momentum = (rsi - 50) / 50; // -1..1
-    const roc = closes.length >= 20 ? (last / closes[closes.length - 20] - 1) * 100 : 0;
+  const rsiVal = s.rsi14[s.rsi14.length - 1];
+  if (rsiVal != null) {
+    momentum = (rsiVal - 50) / 50; // -1..1
+    const roc =
+      closes.length >= 20 ? (last / closes[closes.length - 20] - 1) * 100 : 0;
     momentum = momentum * 0.6 + Math.max(-1, Math.min(1, roc / 1.5)) * 0.4;
   }
 
@@ -145,7 +119,7 @@ export function computeMarketState(input: {
     0;
 
   // Aggregate across timeframes (weight shorter TFs for the "now" read).
-  const tfs: BtcTimeframe[] = ["1m", "5m", "15m", "30m", "1h", "2h", "4h"];
+  const tfs: BtcTimeframe[] = MULTI_TFS;
   const sigs = tfs
     .map((tf) => signalOnTf(input.candles[tf]))
     .filter((s): s is TfSignal => s !== null);

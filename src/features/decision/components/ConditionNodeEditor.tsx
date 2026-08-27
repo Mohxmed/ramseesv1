@@ -106,7 +106,7 @@ export function ConditionNodeEditor({
                 : "border-zinc-700 bg-zinc-800/40 text-zinc-400"
             }`}
           >
-            {node.required ? "Required" : "Optional"}
+            {node.required ? "مطلوب" : "اختياري"}
           </button>
 
           {/* Enabled toggle */}
@@ -120,7 +120,7 @@ export function ConditionNodeEditor({
                 : "border-zinc-700 bg-zinc-800/40 text-zinc-500"
             }`}
           >
-            {node.enabled ? "ON" : "OFF"}
+            {node.enabled ? "مفعّل" : "معطّل"}
           </button>
 
           {onRemove ? (
@@ -148,7 +148,7 @@ export function ConditionNodeEditor({
       style={{ marginInlineStart: depth > 0 ? depth * 14 : 0 }}
     >
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <span className="text-[10px] uppercase tracking-wide text-zinc-500">Group</span>
+        <span className="text-[10px] uppercase tracking-wide text-zinc-500">مجموعة</span>
 
         <button
           type="button"
@@ -183,7 +183,7 @@ export function ConditionNodeEditor({
               : "border-zinc-700 bg-zinc-800/40 text-zinc-400"
           }`}
         >
-          {node.required ? "Required" : "Optional"}
+          {node.required ? "مطلوب" : "اختياري"}
         </button>
 
         {/* Add controls */}
@@ -207,7 +207,7 @@ export function ConditionNodeEditor({
           }
           className="rounded-md border border-zinc-600 bg-zinc-800/60 px-2 py-1 text-[11px] font-semibold text-zinc-200 hover:border-zinc-400"
         >
-          + Condition
+          + شرط
         </button>
         <button
           type="button"
@@ -229,7 +229,7 @@ export function ConditionNodeEditor({
           }
           className="rounded-md border border-zinc-600 bg-zinc-800/60 px-2 py-1 text-[11px] font-semibold text-zinc-200 hover:border-zinc-400"
         >
-          + Group
+          + مجموعة
         </button>
 
         {onRemove ? (
@@ -238,7 +238,7 @@ export function ConditionNodeEditor({
             onClick={onRemove}
             className="rounded-md border border-zinc-700 bg-zinc-800/40 px-2 py-1 text-[11px] font-bold text-red-400 hover:border-red-500/40"
           >
-            ✕ Group
+            ✕ مجموعة
           </button>
         ) : null}
       </div>

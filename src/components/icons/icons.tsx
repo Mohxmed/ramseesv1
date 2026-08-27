@@ -174,6 +174,27 @@ export function DecisionIcon({ className = "h-5 w-5" }: IconProps) {
   );
 }
 
+export function StrategyIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 6h16" />
+      <path d="M4 12h10" />
+      <path d="M4 18h7" />
+      <circle cx="18" cy="18" r="3" />
+      <path d="m20.5 20.5 2 2" />
+    </svg>
+  );
+}
+
 export function PanelLeftCloseIcon({ className = "h-5 w-5" }: IconProps) {  return (
     <svg
       className={className}

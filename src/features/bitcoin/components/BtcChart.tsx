@@ -32,6 +32,7 @@ import type {
 } from "../analysis";
 import { TIMEFRAMES, TIMEFRAME_MINUTES } from "../constants";
 import { formatPrice } from "../utils";
+import { indicatorSeries } from "../indicators";
 
 export type DecisionOverlay = {
   entry?: number;
@@ -377,31 +378,8 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
     }
     if (overlays.length === 0) return;
 
-    const closes = candles.map((c) => c.close);
+    const s = indicatorSeries(candles);
     const times = candles.map((c) => c.time as UTCTimestamp);
-
-    const ema = (period: number) => {
-      const out: number[] = [];
-      let prev = closes[0];
-      const k = 2 / (period + 1);
-      for (let i = 0; i < closes.length; i++) {
-        prev = i === 0 ? closes[0] : closes[i] * k + prev * (1 - k);
-        out.push(prev);
-      }
-      return out;
-    };
-
-    const vwap: number[] = [];
-    {
-      let cumPV = 0;
-      let cumVol = 0;
-      for (const c of candles) {
-        const typ = (c.high + c.low + c.close) / 3;
-        cumPV += typ * c.volume;
-        cumVol += c.volume;
-        vwap.push(cumVol > 0 ? cumPV / cumVol : typ);
-      }
-    }
 
     const color: Record<OverlayKey, string> = {
       ema9: COLOR.ema9,
@@ -409,11 +387,11 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
       ema50: COLOR.ema50,
       vwap: COLOR.vwap,
     };
-    const build: Record<OverlayKey, () => number[]> = {
-      ema9: () => ema(9),
-      ema21: () => ema(21),
-      ema50: () => ema(50),
-      vwap: () => vwap,
+    const build: Record<OverlayKey, () => (number | null)[]> = {
+      ema9: () => s.ema9,
+      ema21: () => s.ema21,
+      ema50: () => s.ema50,
+      vwap: () => s.vwap,
     };
 
     for (const key of overlays) {
@@ -429,7 +407,12 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
         overlayRef.current.set(key, series);
       }
       const values = build[key]();
-      series.setData(times.map((t, i) => ({ time: t, value: values[i] })));
+      const lineData: LineData[] = [];
+      for (let i = 0; i < times.length; i++) {
+        const v = values[i];
+        if (v != null && Number.isFinite(v)) lineData.push({ time: times[i], value: v });
+      }
+      series.setData(lineData);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [candles, overlays]);

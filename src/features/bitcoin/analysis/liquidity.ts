@@ -39,7 +39,7 @@ export function analyzeLiquidity(input: {
   futures: FuturesContext | null;
   marketState: MarketState | null;
 }): LiquidityAnalysis {
-  const { candles, srZones, orderBook, orderFlow, futures } = input;
+  const { candles, srZones, orderBook, orderFlow } = input;
   const price = candles[candles.length - 1]?.close ?? 0;
 
   const zones: LiquidityZone[] = [];
@@ -121,25 +121,19 @@ export function analyzeLiquidity(input: {
 
   zones.sort((a, b) => b.strength - a.strength);
 
-  // Liquidation-pressure proxy from funding + volatility + volume surge.
-  let lp = 0;
-  const funding = futures?.fundingRate ?? 0;
-  const fundingAbs = Math.abs(funding);
-  lp += fundingAbs > 0.05 ? 1 : fundingAbs > 0.02 ? 0.5 : 0;
-  lp += input.marketState?.volatility === "high" ? 1 : input.marketState?.volatility === "medium" ? 0.5 : 0;
-  lp += input.marketState?.volumeRegime === "high" ? 0.5 : 0;
+  // Liquidation pressure is owned by the Market State (single source), which
+  // blends funding extremes + volatility + volume regime. Consume it here
+  // rather than re-deriving with a different threshold set.
   const liquidationPressure: LiquidityAnalysis["liquidationPressure"] =
-    lp >= 1.5 ? "high" : lp >= 0.8 ? "moderate" : "low";
+    input.marketState?.liquidationPressure ?? "low";
 
   return {
     zones,
     bidPool: orderBook?.bidDepth ?? 0,
     askPool: orderBook?.askDepth ?? 0,
-    buyWallImbalance: orderBook
-      ? orderBook.bidDepth + orderBook.askDepth > 0
-        ? (orderBook.bidDepth - orderBook.askDepth) / (orderBook.bidDepth + orderBook.askDepth)
-        : 0
-      : 0,
+    // Depth imbalance is already computed by the order-book normalisation
+    // (OrderBookSnapshot.depthImbalance) — reuse it as the single source.
+    buyWallImbalance: orderBook?.depthImbalance ?? 0,
     liquidationPressure,
     timestamp: Date.now(),
   };
