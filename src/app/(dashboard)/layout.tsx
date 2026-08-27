@@ -1,5 +1,5 @@
-import { Sidebar } from "@/components/layout/sidebar";
 import { ProtectedRoute } from "@/components/shared/protected-route";
+import { DashboardShell } from "@/components/layout/dashboard-shell";
 
 export default function DashboardLayout({
   children,
@@ -8,10 +8,7 @@ export default function DashboardLayout({
 }) {
   return (
     <ProtectedRoute>
-      <div className="flex min-h-screen">
-        <Sidebar />
-        <main className="flex-1 overflow-y-auto p-8">{children}</main>
-      </div>
+      <DashboardShell>{children}</DashboardShell>
     </ProtectedRoute>
   );
 }
