@@ -29,6 +29,10 @@ export default function RootLayout({
       dir="rtl"
       className={`${cairo.variable} h-full antialiased`}
     >
+      <head>
+        <link rel="icon" href="/favicon.jpg" />
+        <link rel="shortcut icon" href="/favicon.jpg" />
+      </head>
       <body className="min-h-full bg-zinc-950 text-zinc-100">
         <AuthProvider>{children}</AuthProvider>
       </body>
