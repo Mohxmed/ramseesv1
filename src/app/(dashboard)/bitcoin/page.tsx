@@ -4,7 +4,6 @@ import { useBitcoin } from "@/features/bitcoin/hooks/useBitcoin";
 import { BtcChart } from "@/features/bitcoin/components/BtcChart";
 import { TechnicalIndicatorsCard } from "@/features/bitcoin/components/TechnicalIndicators";
 import { PredictionPanel } from "@/features/bitcoin/components/PredictionPanel";
-import { HistoricalStatsCard } from "@/features/bitcoin/components/HistoricalStats";
 import { MarketDataCard } from "@/features/bitcoin/components/MarketData";
 import { AnalysisPanel } from "@/features/bitcoin/components/AnalysisPanel";
 import { LiveMarketStateCard } from "@/features/bitcoin/components/LiveMarketStateCard";
@@ -123,9 +122,6 @@ export default function BitcoinPage() {
             </div>
             <div className="grid gap-6 sm:grid-cols-2 lg:col-span-2">
               <PredictionPanel prediction={prediction} />
-              {prediction && (
-                <HistoricalStatsCard h30={prediction.h30} h60={prediction.h60} />
-              )}
             </div>
           </div>
 
