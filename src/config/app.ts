@@ -1,12 +1,12 @@
 export const APP_CONFIG = {
   name: "RAMSEES",
-  description: "Personal Bitcoin Trading & Analysis System",
+  description: "نظام شخصي لتداول وتحليل البيتكوين",
   version: "0.1.0",
   currency: "BTC" as const,
 } as const;
 
 export const NAVIGATION = [
-  { label: "Dashboard", href: "/dashboard" },
-  { label: "Golden Target", href: "/golden-target" },
-  { label: "Settings", href: "/settings" },
+  { label: "لوحة التحكم", href: "/dashboard" },
+  { label: "الهدف الذهبي", href: "/golden-target" },
+  { label: "الإعدادات", href: "/settings" },
 ] as const;

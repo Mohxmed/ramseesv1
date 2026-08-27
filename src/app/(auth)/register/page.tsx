@@ -1,40 +1,39 @@
 import Link from "next/link";
 import { RegisterForm } from "@/components/auth/RegisterForm";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
+import { RedirectIfAuthenticated } from "@/components/auth/RedirectIfAuthenticated";
 
 export default function RegisterPage() {
   return (
-    <div className="space-y-6">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-          RAMSEES
-        </h1>
-        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-          إنشاء حساب جديد
-        </p>
-      </div>
-
-      <div className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <RegisterForm />
-
-        <div className="my-4 flex items-center gap-3">
-          <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
-          <span className="text-xs text-zinc-400">أو</span>
-          <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-700" />
+    <RedirectIfAuthenticated>
+      <div className="space-y-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-zinc-50">RAMSEES</h1>
+          <p className="mt-1 text-sm text-zinc-500">إنشاء حساب جديد</p>
         </div>
 
-        <GoogleSignInButton />
-      </div>
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-6">
+          <RegisterForm />
 
-      <p className="text-center text-sm text-zinc-500 dark:text-zinc-400">
-        لديك حساب بالفعل؟{" "}
-        <Link
-          href="/login"
-          className="font-medium text-zinc-900 hover:underline dark:text-zinc-100"
-        >
-          تسجيل الدخول
-        </Link>
-      </p>
-    </div>
+          <div className="my-4 flex items-center gap-3">
+            <div className="h-px flex-1 bg-zinc-800" />
+            <span className="text-xs text-zinc-500">أو</span>
+            <div className="h-px flex-1 bg-zinc-800" />
+          </div>
+
+          <GoogleSignInButton />
+        </div>
+
+        <p className="text-center text-sm text-zinc-500">
+          لديك حساب بالفعل؟{" "}
+          <Link
+            href="/login"
+            className="font-medium text-zinc-100 hover:underline"
+          >
+            تسجيل الدخول
+          </Link>
+        </p>
+      </div>
+    </RedirectIfAuthenticated>
   );
 }

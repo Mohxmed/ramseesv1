@@ -1,21 +1,17 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Cairo } from "next/font/google";
 import { AuthProvider } from "@/features/auth/context/AuthProvider";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+const cairo = Cairo({
+  variable: "--font-cairo",
+  subsets: ["arabic", "latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "RAMSEES - Bitcoin Trading System",
-  description: "Personal Bitcoin Trading & Analysis System",
+  title: "RAMSEES - نظام تداول البيتكوين",
+  description: "نظام شخصي لتداول وتحليل البيتكوين",
 };
 
 export default function RootLayout({
@@ -25,10 +21,11 @@ export default function RootLayout({
 }) {
   return (
     <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      lang="ar"
+      dir="rtl"
+      className={`${cairo.variable} h-full antialiased`}
     >
-      <body className="min-h-full bg-zinc-50 dark:bg-zinc-950">
+      <body className="min-h-full bg-zinc-950 text-zinc-100">
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

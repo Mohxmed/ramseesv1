@@ -4,6 +4,7 @@ export const GOLDEN_TARGET_CONFIG = {
   TOTAL_MOVES: 20 as const,
   STARTING_TARGET: 1 as const,
   GROWTH_RATE: 100 as const,
+  TARGET_MULTIPLIER: 2 as const,
 } as const;
 
 export function calculateTargetForMove(move: MoveNumber): number {
@@ -11,7 +12,7 @@ export function calculateTargetForMove(move: MoveNumber): number {
 }
 
 export const MOVE_TARGETS: Record<MoveNumber, number> = Object.fromEntries(
-  Array.from({ length: 20 }, (_, i) => {
+  Array.from({ length: GOLDEN_TARGET_CONFIG.TOTAL_MOVES }, (_, i) => {
     const move = (i + 1) as MoveNumber;
     return [move, calculateTargetForMove(move)];
   })

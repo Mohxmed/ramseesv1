@@ -20,7 +20,7 @@ export function LoginForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && (
-        <div className="rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-400">
+        <div className="rounded-md bg-red-900/20 p-3 text-sm text-red-400">
           {error}
         </div>
       )}
@@ -28,7 +28,7 @@ export function LoginForm() {
       <div>
         <label
           htmlFor="email"
-          className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+          className="block text-sm font-medium text-zinc-300"
         >
           البريد الإلكتروني
         </label>
@@ -41,7 +41,7 @@ export function LoginForm() {
             setEmail(e.target.value);
             clearError();
           }}
-          className="mt-1 block w-full rounded-md border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+          className="mt-1 block w-full rounded-md border border-zinc-700 bg-zinc-800/60 px-3 py-2 text-sm text-zinc-100 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
           dir="ltr"
         />
       </div>
@@ -49,7 +49,7 @@ export function LoginForm() {
       <div>
         <label
           htmlFor="password"
-          className="block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+          className="block text-sm font-medium text-zinc-300"
         >
           كلمة المرور
         </label>
@@ -62,7 +62,7 @@ export function LoginForm() {
             setPassword(e.target.value);
             clearError();
           }}
-          className="mt-1 block w-full rounded-md border border-zinc-300 px-3 py-2 text-sm shadow-sm focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+          className="mt-1 block w-full rounded-md border border-zinc-700 bg-zinc-800/60 px-3 py-2 text-sm text-zinc-100 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
           dir="ltr"
         />
       </div>
@@ -70,7 +70,7 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={loading}
-        className="w-full rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+        className="w-full rounded-md bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-300 disabled:opacity-50"
       >
         {loading ? "جاري تسجيل الدخول..." : "تسجيل الدخول"}
       </button>
