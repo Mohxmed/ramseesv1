@@ -1,19 +1,18 @@
 "use client";
 
 import { useBitcoin } from "@/features/bitcoin/hooks/useBitcoin";
-import { MarketOverviewCard } from "@/features/bitcoin/components/MarketOverview";
 import { BtcChart } from "@/features/bitcoin/components/BtcChart";
 import { TechnicalIndicatorsCard } from "@/features/bitcoin/components/TechnicalIndicators";
 import { PredictionPanel } from "@/features/bitcoin/components/PredictionPanel";
 import { HistoricalStatsCard } from "@/features/bitcoin/components/HistoricalStats";
 import { MarketDataCard } from "@/features/bitcoin/components/MarketData";
-import { GoldenTargetCard } from "@/features/bitcoin/components/GoldenTargetCard";
 import { AnalysisPanel } from "@/features/bitcoin/components/AnalysisPanel";
 import { LiveMarketStateCard } from "@/features/bitcoin/components/LiveMarketStateCard";
 import { ForecastCards } from "@/features/bitcoin/components/ForecastCards";
 import { OrderFlowCard } from "@/features/bitcoin/components/OrderFlowCard";
 import { FuturesCard } from "@/features/bitcoin/components/FuturesCard";
 import { StructureWavesCard } from "@/features/bitcoin/components/StructureWavesCard";
+import { InstantPriceBar } from "@/features/bitcoin/components/InstantPriceBar";
 
 export default function BitcoinPage() {
   const {
@@ -47,9 +46,9 @@ export default function BitcoinPage() {
             مركز قيادة بيتكوين
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500">
-            بيانات سوق حية (سبوت + عقود آجلة) + تحليل متعدد الأطر + توقع إحصائي
-            قصير المدى (30م / ساعة / ساعتان) مبني على مقارنة الحالات
-            التاريخية المشابهة. بيانات حقيقية من CoinGecko وبينانس.
+            مركز استخبارات سوق BTC الحية: بيانات فورية (سبوت + عقود آجلة) +
+            تحليل متعدد الأطر + توقع احتمالي قصير المدى (30م / ساعة / ساعتان)
+            مدعوم بمقارنة الحالات التاريخية. بيانات حقيقية من CoinGecko وبينانس.
           </p>
         </div>
         <button
@@ -76,36 +75,35 @@ export default function BitcoinPage() {
 
       {ready && (
         <>
-          <MarketOverviewCard overview={overview} />
+          {/* Chart — hero, full width, right after title/description */}
+          <BtcChart
+            candles={chartCandles}
+            timeframe={timeframe}
+            onTimeframeChange={setTimeframe}
+            analysis={analysis30m}
+            liquidity={liquidity}
+            structure={structure}
+            waves={waves}
+          />
 
-          <div className="grid gap-6 lg:grid-cols-3">
-            <div className="lg:col-span-2">
-              <BtcChart
-                candles={chartCandles}
-                timeframe={timeframe}
-                onTimeframeChange={setTimeframe}
-                analysis={analysis30m}
-                liquidity={liquidity}
-                structure={structure}
-                waves={waves}
-              />
-            </div>
-            <div className="grid gap-6 lg:col-span-1">
-              <LiveMarketStateCard
-                state={marketState}
-                updatedAt={marketState?.timestamp ?? Date.now()}
-                live={liveConnected === true}
-              />
-            </div>
-          </div>
+          {/* Live instant spot price data */}
+          <InstantPriceBar
+            overview={overview}
+            futures={futures}
+            marketState={marketState}
+            orderBook={orderBook}
+            live={liveConnected === true}
+          />
 
-          <ForecastCards forecast={forecast} />
-
-          <div className="grid gap-6 lg:grid-cols-3">
-            <div className="lg:col-span-1">
+          {/* Market state (half screen) + market structure/waves (half screen) */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <LiveMarketStateCard
+              state={marketState}
+              updatedAt={marketState?.timestamp ?? Date.now()}
+              live={liveConnected === true}
+            />
+            <div className="grid gap-6">
               <StructureWavesCard structure={structure} waves={waves ?? []} />
-            </div>
-            <div className="lg:col-span-1">
               <OrderFlowCard
                 orderBook={orderBook}
                 orderFlow={orderFlow}
@@ -113,14 +111,15 @@ export default function BitcoinPage() {
                 live={liveConnected === true}
               />
             </div>
-            <div className="lg:col-span-1">
-              <FuturesCard futures={futures} />
-            </div>
           </div>
 
+          {/* Forecast — most important, full prominence */}
+          <ForecastCards forecast={forecast} />
+
+          {/* Futures + technical + analysis */}
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="lg:col-span-1">
-              <AnalysisPanel analysis={analysis30m} />
+              <FuturesCard futures={futures} />
             </div>
             <div className="grid gap-6 sm:grid-cols-2 lg:col-span-2">
               <PredictionPanel prediction={prediction} />
@@ -130,14 +129,16 @@ export default function BitcoinPage() {
             </div>
           </div>
 
-          <TechnicalIndicatorsCard indicators={indicators} />
-
           <div className="grid gap-6 lg:grid-cols-3">
-            <div className="lg:col-span-2">
-              <MarketDataCard overview={overview} />
+            <div className="lg:col-span-1">
+              <AnalysisPanel analysis={analysis30m} />
             </div>
-            <GoldenTargetCard />
+            <div className="lg:col-span-2">
+              <TechnicalIndicatorsCard indicators={indicators} />
+            </div>
           </div>
+
+          <MarketDataCard overview={overview} />
         </>
       )}
     </div>
