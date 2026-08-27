@@ -20,6 +20,7 @@ import {
   type Time,
   type LineData,
   type SeriesMarker,
+  type WhitespaceData,
 } from "lightweight-charts";
 import type { BtcCandle, BtcTimeframe } from "../types";
 import type {
@@ -62,10 +63,13 @@ const COLOR = {
 
 type OverlayKey = "ema9" | "ema21" | "ema50" | "vwap";
 
-/** Real time-scale space reserved to the right of the last candle (in bars),
- *  like TradingView's "future" zone. Forecasts / projected paths / targets
- *  can later be drawn on a series at timestamps inside this reserved range. */
+/** Number of real future timestamps (whitespace) reserved on the time scale
+ *  to the right of the last candle, like TradingView's future zone. These are
+ *  actual positions the user can pan into and later draw forecasts /
+ *  projected paths / targets on. */
 const FUTURE_BARS = 18;
+/** Small visual cushion (bars) shown beyond the future whitespace zone. */
+const RIGHT_PADDING = 4;
 
 type Snapshot = {
   time: Time | undefined;
@@ -105,6 +109,7 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
   const overlayRef = useRef<Map<OverlayKey, ISeriesApi<"Line">>>(new Map());
   const zoneSeriesRef = useRef<ISeriesApi<"Baseline">[]>([]);
   const waveSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const futureSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const lastFittedTfRef = useRef<BtcTimeframe | null>(null);
   const [overlays, setOverlays] = useState<OverlayKey[]>([]);
@@ -136,12 +141,13 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
       },
       timeScale: {
         borderColor: "rgba(63,63,70,0.6)",
-        rightOffset: FUTURE_BARS,
+        rightOffset: RIGHT_PADDING,
         barSpacing: 7,
         minBarSpacing: 0.5,
-        fixRightEdge: true,
+        fixRightEdge: false,
         lockVisibleTimeRangeOnResize: true,
         shiftVisibleRangeOnNewBar: true,
+        ignoreWhitespaceIndices: true,
       },
       crosshair: {
         mode: CrosshairMode.Magnet,
@@ -193,9 +199,23 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
       crosshairMarkerVisible: false,
     });
 
+    // Series that only carries *future* whitespace points (time, no value).
+    // It gives the time scale real future timestamps so the user can pan to
+    // the right and later draw forecasts / projected paths / targets there.
+    // Whitespace is invisible and (with ignoreWhitespaceIndices) ignored by
+    // the crosshair & grid, so it never disturbs the existing chart.
+    const futureSeries = chart.addSeries(LineSeries, {
+      color: "transparent",
+      lineWidth: 1,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      crosshairMarkerVisible: false,
+    });
+
     candleSeriesRef.current = candleSeries;
     volumeSeriesRef.current = volumeSeries;
     waveSeriesRef.current = waveSeries;
+    futureSeriesRef.current = futureSeries;
     markersRef.current = createSeriesMarkers(candleSeries);
     chartRef.current = chart;
 
@@ -246,6 +266,7 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
       candleSeriesRef.current = null;
       volumeSeriesRef.current = null;
       waveSeriesRef.current = null;
+      futureSeriesRef.current = null;
       markersRef.current = null;
       overlayRef.current.clear();
       zoneSeriesRef.current = [];
@@ -289,12 +310,27 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
       }))
     );
 
+    // Update the future whitespace anchor series so the time scale always has
+    // real future timestamps the user can pan right into (and later draw
+    // forecasts / projected paths on) — even as live candles arrive. Whitespace
+    // is invisible and ignored by the crosshair & grid (ignoreWhitespaceIndices).
+    const futureSeries = futureSeriesRef.current;
+    if (futureSeries) {
+      const intervalS = TIMEFRAME_MINUTES[timeframe] * 60;
+      const lastTimeS = candles[candles.length - 1].time;
+      const whitespace: WhitespaceData<Time>[] = [];
+      for (let k = 1; k <= FUTURE_BARS; k++) {
+        whitespace.push({ time: (lastTimeS + k * intervalS) as UTCTimestamp });
+      }
+      futureSeries.setData(whitespace);
+    }
+
     // Fit only on the very first load or when the timeframe actually changed,
     // so the user's zoom is preserved across live data updates. The future
     // zone (rightOffset) is re-applied so it stays a stable part of the scale.
     if (lastFittedTfRef.current !== timeframe) {
       lastFittedTfRef.current = timeframe;
-      chart.timeScale().applyOptions({ rightOffset: FUTURE_BARS, shiftVisibleRangeOnNewBar: true });
+      chart.timeScale().applyOptions({ rightOffset: RIGHT_PADDING, shiftVisibleRangeOnNewBar: true });
       chart.timeScale().fitContent();
       chart.priceScale("right").applyOptions({ autoScale: true });
     }
