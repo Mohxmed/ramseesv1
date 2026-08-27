@@ -29,7 +29,7 @@ import type {
   MarketStructureAnalysis,
   Wave,
 } from "../analysis";
-import { TIMEFRAMES } from "../constants";
+import { TIMEFRAMES, TIMEFRAME_MINUTES } from "../constants";
 import { formatPrice } from "../utils";
 
 type Props = {
@@ -82,6 +82,16 @@ function zoneColor(zone: Zone) {
     : { line: COLOR.resistanceLine, fill: COLOR.resistanceFill };
 }
 
+function formatCountdown(ms: number): string {
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const mm = String(m).padStart(2, "0");
+  const ss = String(s).padStart(2, "0");
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
 export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liquidity, structure, waves }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -94,6 +104,7 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
   const lastFittedTfRef = useRef<BtcTimeframe | null>(null);
   const [overlays, setOverlays] = useState<OverlayKey[]>([]);
   const [crosshair, setCrosshair] = useState<Snapshot | null>(null);
+  const [closeCountdown, setCloseCountdown] = useState<number | null>(null);
 
   // ------------------------------------------------------------------ init
   useEffect(() => {
@@ -120,7 +131,7 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
       },
       timeScale: {
         borderColor: "rgba(63,63,70,0.6)",
-        rightOffset: 4,
+        rightOffset: 12,
         barSpacing: 7,
         minBarSpacing: 0.5,
         fixRightEdge: true,
@@ -279,6 +290,21 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
       chart.timeScale().fitContent();
       chart.priceScale("right").applyOptions({ autoScale: true });
     }
+  }, [candles, timeframe]);
+
+  // ----------------------------------------------------- candle-close timer
+  // Counts down to the close of the latest (still-forming) candle.
+  useEffect(() => {
+    if (!candles.length) return;
+    const intervalMs = TIMEFRAME_MINUTES[timeframe] * 60 * 1000;
+    const lastTime = candles[candles.length - 1].time;
+    const closeAt = lastTime * 1000 + intervalMs;
+    const tick = () => {
+      setCloseCountdown(Math.max(0, closeAt - Date.now()));
+    };
+    tick();
+    const id = setInterval(tick, 250);
+    return () => clearInterval(id);
   }, [candles, timeframe]);
 
   // ------------------------------------------------------- overlays (EMA/VWAP)
@@ -666,7 +692,15 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
       </div>
 
       {/* Chart */}
-      <div className="px-2 pt-2">
+      <div className="relative px-2 pt-2">
+        {closeCountdown != null && (
+          <div className="pointer-events-none absolute right-4 top-3 z-10 flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-950/85 px-3 py-1.5 text-xs backdrop-blur">
+            <span className="text-zinc-400">إغلاق شمعة {timeframe.toUpperCase()}</span>
+            <span className="font-mono font-bold tabular-nums text-zinc-50" dir="ltr">
+              {formatCountdown(closeCountdown)}
+            </span>
+          </div>
+        )}
         <div
           ref={containerRef}
           className="h-[420px] w-full sm:h-[540px] lg:h-[640px]"

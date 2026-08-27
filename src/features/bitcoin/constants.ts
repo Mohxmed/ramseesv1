@@ -16,6 +16,18 @@ export const TIMEFRAMES: BtcTimeframe[] = [
   "1d",
 ];
 
+/** Candle duration in minutes for each timeframe. */
+export const TIMEFRAME_MINUTES: Record<BtcTimeframe, number> = {
+  "1m": 1,
+  "5m": 5,
+  "15m": 15,
+  "30m": 30,
+  "1h": 60,
+  "2h": 120,
+  "4h": 240,
+  "1d": 1440,
+};
+
 export const CHART_DEFAULT_TIMEFRAME: BtcTimeframe = "30m";
 
 export const API_ENDPOINTS = {
