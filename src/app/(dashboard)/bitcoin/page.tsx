@@ -9,6 +9,11 @@ import { HistoricalStatsCard } from "@/features/bitcoin/components/HistoricalSta
 import { MarketDataCard } from "@/features/bitcoin/components/MarketData";
 import { GoldenTargetCard } from "@/features/bitcoin/components/GoldenTargetCard";
 import { AnalysisPanel } from "@/features/bitcoin/components/AnalysisPanel";
+import { LiveMarketStateCard } from "@/features/bitcoin/components/LiveMarketStateCard";
+import { ForecastCards } from "@/features/bitcoin/components/ForecastCards";
+import { OrderFlowCard } from "@/features/bitcoin/components/OrderFlowCard";
+import { FuturesCard } from "@/features/bitcoin/components/FuturesCard";
+import { StructureWavesCard } from "@/features/bitcoin/components/StructureWavesCard";
 
 export default function BitcoinPage() {
   const {
@@ -20,8 +25,19 @@ export default function BitcoinPage() {
     indicators,
     prediction,
     analysis30m,
+    orderBook,
+    orderFlow,
+    liveConnected,
+    futures,
+    marketState,
+    liquidity,
+    structure,
+    waves,
+    forecast,
     refresh,
   } = useBitcoin();
+
+  const ready = data.status === "ready" || !!overview;
 
   return (
     <div className="space-y-6">
@@ -30,9 +46,10 @@ export default function BitcoinPage() {
           <h1 className="text-3xl font-bold text-zinc-50">
             مركز قيادة بيتكوين
           </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">
-            بيانات سوق حية + توقع إحصائي قصير المدى (30/60 دقيقة) للبيتكوين.
-            بيانات حقيقية من CoinGecko وبينانس، وتُحدَّث تلقائياً.
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500">
+            بيانات سوق حية (سبوت + عقود آجلة) + تحليل متعدد الأطر + توقع إحصائي
+            قصير المدى (30م / ساعة / ساعتان) مبني على مقارنة الحالات
+            التاريخية المشابهة. بيانات حقيقية من CoinGecko وبينانس.
           </p>
         </div>
         <button
@@ -57,16 +74,49 @@ export default function BitcoinPage() {
         </div>
       )}
 
-      {(data.status === "ready" || overview) && (
+      {ready && (
         <>
           <MarketOverviewCard overview={overview} />
 
-          <BtcChart
-            candles={chartCandles}
-            timeframe={timeframe}
-            onTimeframeChange={setTimeframe}
-            analysis={analysis30m}
-          />
+          <div className="grid gap-6 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <BtcChart
+                candles={chartCandles}
+                timeframe={timeframe}
+                onTimeframeChange={setTimeframe}
+                analysis={analysis30m}
+                liquidity={liquidity}
+                structure={structure}
+                waves={waves}
+              />
+            </div>
+            <div className="grid gap-6 lg:col-span-1">
+              <LiveMarketStateCard
+                state={marketState}
+                updatedAt={marketState?.timestamp ?? Date.now()}
+                live={liveConnected === true}
+              />
+            </div>
+          </div>
+
+          <ForecastCards forecast={forecast} />
+
+          <div className="grid gap-6 lg:grid-cols-3">
+            <div className="lg:col-span-1">
+              <StructureWavesCard structure={structure} waves={waves ?? []} />
+            </div>
+            <div className="lg:col-span-1">
+              <OrderFlowCard
+                orderBook={orderBook}
+                orderFlow={orderFlow}
+                liquidity={liquidity}
+                live={liveConnected === true}
+              />
+            </div>
+            <div className="lg:col-span-1">
+              <FuturesCard futures={futures} />
+            </div>
+          </div>
 
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="lg:col-span-1">

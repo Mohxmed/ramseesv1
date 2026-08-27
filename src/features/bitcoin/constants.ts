@@ -11,6 +11,7 @@ export const TIMEFRAMES: BtcTimeframe[] = [
   "15m",
   "30m",
   "1h",
+  "2h",
   "4h",
   "1d",
 ];
@@ -21,22 +22,37 @@ export const API_ENDPOINTS = {
   SPOT_TICKER:
     "https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT",
   SPOT_KLINES: "https://api.binance.com/api/v3/klines",
+  SPOT_DEPTH: "https://api.binance.com/api/v3/depth?symbol=BTCUSDT&limit=20",
+  SPOT_BOOK_TICKER: "https://api.binance.com/api/v3/ticker/bookTicker?symbol=BTCUSDT",
+  SPOT_AGG_TRADES: "https://api.binance.com/api/v3/aggTrades?symbol=BTCUSDT",
   MARKET_OVERVIEW:
     "https://api.coingecko.com/api/v3/coins/bitcoin?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false",
   GLOBAL_MARKET: "https://api.coingecko.com/api/v3/global",
   FUTURES_FUNDING:
-    "https://fapi.binance.com/fapi/v1/fundingRate?symbol=BTCUSDT&limit=1",
+    "https://fapi.binance.com/fapi/v1/fundingRate?symbol=BTCUSDT&limit=8",
+  FUTURES_FUNDING_RATE:
+    "https://fapi.binance.com/fapi/v1/premiumIndex?symbol=BTCUSDT",
   FUTURES_OPEN_INTEREST:
     "https://fapi.binance.com/fapi/v1/openInterest?symbol=BTCUSDT",
+  FUTURES_KLINES: "https://fapi.binance.com/fapi/v1/klines",
   FUTURES_TICKER:
     "https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=BTCUSDT",
+  FUTURES_OPEN_INTEREST_HIST:
+    "https://fapi.binance.com/futures/data/openInterestHist?symbol=BTCUSDT&period=30m",
   LONG_SHORT_RATIO:
-    "https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=BTCUSDT&period=5m&limit=1",
+    "https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=BTCUSDT",
 } as const;
 
 export const KLINES_LIMIT = 500;
+export const MULTI_TF_LIMIT = 300;
+export const SIMILARITY_LIMIT = 1000;
 
 export const PREDICTION_WINDOW_30 = 30; // minutes
 export const PREDICTION_WINDOW_60 = 60; // minutes
+export const PREDICTION_WINDOW_120 = 120; // minutes
 
 export const AUTO_REFRESH_MS = 30_000;
+// Aggressive order-flow aggregation window (seconds).
+export const ORDER_FLOW_WINDOW_S = 60;
+export const WS_BASE = "wss://stream.binance.com:9443/ws";
+

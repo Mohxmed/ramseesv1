@@ -10,15 +10,25 @@ import {
   BaselineSeries,
   LineStyle,
   CrosshairMode,
+  createSeriesMarkers,
   type IChartApi,
   type ISeriesApi,
+  type ISeriesMarkersPluginApi,
   type BaselineData,
   type UTCTimestamp,
   type MouseEventParams,
   type Time,
+  type LineData,
+  type SeriesMarker,
 } from "lightweight-charts";
 import type { BtcCandle, BtcTimeframe } from "../types";
-import type { SupportResistanceResult, Zone } from "../analysis";
+import type {
+  SupportResistanceResult,
+  Zone,
+  LiquidityAnalysis,
+  MarketStructureAnalysis,
+  Wave,
+} from "../analysis";
 import { TIMEFRAMES } from "../constants";
 import { formatPrice } from "../utils";
 
@@ -27,6 +37,9 @@ type Props = {
   timeframe: BtcTimeframe;
   onTimeframeChange: (tf: BtcTimeframe) => void;
   analysis?: SupportResistanceResult | null;
+  liquidity?: LiquidityAnalysis | null;
+  structure?: MarketStructureAnalysis | null;
+  waves?: Wave[];
 };
 
 const COLOR = {
@@ -69,13 +82,15 @@ function zoneColor(zone: Zone) {
     : { line: COLOR.resistanceLine, fill: COLOR.resistanceFill };
 }
 
-export function BtcChart({ candles, timeframe, onTimeframeChange, analysis }: Props) {
+export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liquidity, structure, waves }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const overlayRef = useRef<Map<OverlayKey, ISeriesApi<"Line">>>(new Map());
   const zoneSeriesRef = useRef<ISeriesApi<"Baseline">[]>([]);
+  const waveSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const lastFittedTfRef = useRef<BtcTimeframe | null>(null);
   const [overlays, setOverlays] = useState<OverlayKey[]>([]);
   const [crosshair, setCrosshair] = useState<Snapshot | null>(null);
@@ -153,8 +168,18 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis }: Pr
       scaleMargins: { top: 0.82, bottom: 0.02 },
     });
 
+    const waveSeries = chart.addSeries(LineSeries, {
+      color: "#f0abfc",
+      lineWidth: 2,
+      lastValueVisible: false,
+      priceLineVisible: false,
+      crosshairMarkerVisible: false,
+    });
+
     candleSeriesRef.current = candleSeries;
     volumeSeriesRef.current = volumeSeries;
+    waveSeriesRef.current = waveSeries;
+    markersRef.current = createSeriesMarkers(candleSeries);
     chartRef.current = chart;
 
     // Crosshair legend (OHLC + time + volume).
@@ -203,6 +228,8 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis }: Pr
       chartRef.current = null;
       candleSeriesRef.current = null;
       volumeSeriesRef.current = null;
+      waveSeriesRef.current = null;
+      markersRef.current = null;
       overlayRef.current.clear();
       zoneSeriesRef.current = [];
       lastFittedTfRef.current = null;
@@ -389,7 +416,80 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis }: Pr
       axisLabelVisible: true,
       title: "السعر",
     });
-  }, [analysis, candles]);
+
+    // Liquidity zones (distinct purple styling)
+    if (liquidity && liquidity.zones.length > 0) {
+      const targetZones = liquidity.zones
+        .slice()
+        .sort((a, b) => b.strength - a.strength)
+        .slice(0, 6);
+      for (const zone of targetZones) {
+        const fill = zone.kind === "support" ? "rgba(168,85,247,0.10)" : "rgba(168,85,247,0.10)";
+        const zoneSeries = chart.addSeries(BaselineSeries, {
+          baseValue: { type: "price", price: zone.lower },
+          topLineColor: "transparent",
+          topFillColor1: fill,
+          topFillColor2: fill,
+          bottomLineColor: "transparent",
+          bottomFillColor1: "transparent",
+          bottomFillColor2: "transparent",
+          lineWidth: 1,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          crosshairMarkerVisible: false,
+        });
+        zoneSeries.setData([
+          { time: firstTime, value: zone.upper },
+          { time: lastTime, value: zone.upper },
+        ] as BaselineData[]);
+        zoneSeriesRef.current.push(zoneSeries);
+
+        candleSeries.createPriceLine({
+          price: zone.center,
+          color: "#a855f7",
+          lineWidth: 1,
+          lineStyle: LineStyle.Dotted,
+          axisLabelVisible: true,
+          title: "سيولة",
+        });
+      }
+    }
+
+    // Current waves as a connecting polyline (30m-domain)
+    if (waves && waves.length > 1 && waveSeriesRef.current) {
+      const pts = waves
+        .filter((w) => !!w.startTime && !!w.endTime)
+        .map((w) => ({
+          time: Math.floor(w.startTime / 1000) as UTCTimestamp,
+          value: w.startPrice,
+        }));
+      const last = waves[waves.length - 1];
+      if (last && last.endTime) {
+        pts.push({
+          time: Math.floor(last.endTime / 1000) as UTCTimestamp,
+          value: last.endPrice,
+        });
+      }
+      waveSeriesRef.current.setData(pts as LineData[]);
+    }
+
+    // Market structure markers (HH/HL/LH/LL) on the candle series
+    if (structure && structure.points.length > 0) {
+      const markers: SeriesMarker<Time>[] = structure.points
+        .slice(-12)
+        .map((p) => {
+          const bull = p.type === "HH" || p.type === "HL";
+          return {
+            time: Math.floor(p.time / 1000) as UTCTimestamp,
+            position: bull ? ("belowBar" as const) : ("aboveBar" as const),
+            color: bull ? "#34d399" : "#f87171",
+            shape: ("arrowUp" as const),
+            text: p.type,
+          };
+        });
+      markersRef.current?.setMarkers(markers);
+    }
+  }, [analysis, candles, liquidity, structure, waves]);
 
   // ------------------------------------------------------------ navigation
   const autoScale = useCallback(() => {

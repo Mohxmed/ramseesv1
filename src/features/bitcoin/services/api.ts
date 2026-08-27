@@ -116,6 +116,47 @@ export type LongShortRatioRaw = {
   timestamp: number;
 }[];
 
+export type DepthRaw = {
+  lastUpdateId: number;
+  bids: [string, string][];
+  asks: [string, string][];
+};
+
+export type BookTickerRaw = {
+  symbol: string;
+  bidPrice: string;
+  bidQty: string;
+  askPrice: string;
+  askQty: string;
+  time: number;
+};
+
+export type AggTradeRaw = {
+  a: number;
+  p: string;
+  q: string;
+  f: number;
+  l: number;
+  T: number;
+  m: boolean;
+  M: boolean;
+};
+
+export type OpenInterestHistRaw = {
+  sumOpenInterest: string;
+  sumOpenInterestValue: string;
+  timestamp: number;
+}[];
+
+export type PremiumIndexRaw = {
+  symbol: string;
+  markPrice: string;
+  indexPrice: string;
+  estimatedSettlePrice: string;
+  lastFundingRate: string;
+  nextFundingTime: number;
+};
+
 export const spotApi = {
   async ticker24h(): Promise<SpotTickerRaw> {
     return fetchJson<SpotTickerRaw>(API_ENDPOINTS.SPOT_TICKER);
@@ -127,6 +168,22 @@ export const spotApi = {
   ): Promise<KlineRaw[]> {
     const url = `${API_ENDPOINTS.SPOT_KLINES}?symbol=BTCUSDT&interval=${timeframe}&limit=${limit}`;
     return fetchJson<KlineRaw[]>(url);
+  },
+
+  async depth(limit = 20): Promise<DepthRaw> {
+    return fetchJson<DepthRaw>(
+      `https://api.binance.com/api/v3/depth?symbol=BTCUSDT&limit=${limit}`
+    );
+  },
+
+  async bookTicker(): Promise<BookTickerRaw> {
+    return fetchJson<BookTickerRaw>(API_ENDPOINTS.SPOT_BOOK_TICKER);
+  },
+
+  async aggTrades(limit = 200): Promise<AggTradeRaw[]> {
+    return fetchJson<AggTradeRaw[]>(
+      `https://api.binance.com/api/v3/aggTrades?symbol=BTCUSDT&limit=${limit}`
+    );
   },
 };
 
@@ -149,11 +206,36 @@ export const futuresApi = {
     return fetchJson<OpenInterestRaw>(API_ENDPOINTS.FUTURES_OPEN_INTEREST);
   },
 
+  async openInterestHist(
+    limit = 60
+  ): Promise<OpenInterestHistRaw> {
+    return fetchJson<OpenInterestHistRaw>(
+      `${API_ENDPOINTS.FUTURES_OPEN_INTEREST_HIST}&limit=${limit}`
+    );
+  },
+
+  async premiumIndex(): Promise<PremiumIndexRaw> {
+    return fetchJson<PremiumIndexRaw>(API_ENDPOINTS.FUTURES_FUNDING_RATE);
+  },
+
+  async klines(
+    timeframe: BtcTimeframe,
+    limit: number = KLINES_LIMIT
+  ): Promise<KlineRaw[]> {
+    const url = `${API_ENDPOINTS.FUTURES_KLINES}?symbol=BTCUSDT&interval=${timeframe}&limit=${limit}`;
+    return fetchJson<KlineRaw[]>(url);
+  },
+
   async ticker24h(): Promise<FuturesTickerRaw> {
     return fetchJson<FuturesTickerRaw>(API_ENDPOINTS.FUTURES_TICKER);
   },
 
-  async longShortRatio(): Promise<LongShortRatioRaw> {
-    return fetchJson<LongShortRatioRaw>(API_ENDPOINTS.LONG_SHORT_RATIO);
+  async longShortRatio(
+    period = "30m",
+    limit = 60
+  ): Promise<LongShortRatioRaw> {
+    return fetchJson<LongShortRatioRaw>(
+      `${API_ENDPOINTS.LONG_SHORT_RATIO}?period=${period}&limit=${limit}`
+    );
   },
 };

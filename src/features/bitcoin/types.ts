@@ -1,4 +1,4 @@
-export type BtcTimeframe = "1m" | "5m" | "15m" | "30m" | "1h" | "4h" | "1d";
+export type BtcTimeframe = "1m" | "5m" | "15m" | "30m" | "1h" | "2h" | "4h" | "1d";
 
 export type BtcCandle = {
   time: number; // unix seconds
@@ -7,6 +7,8 @@ export type BtcCandle = {
   low: number;
   close: number;
   volume: number;
+  /** Base-asset volume filled by aggressive (taker) buy orders. */
+  takerBuyVolume?: number;
 };
 
 export type SpotTicker = {
@@ -102,4 +104,156 @@ export type PredictionResult = {
   h30: HistoricalStats;
   h60: HistoricalStats;
   source: string;
+};
+
+// ---------------------------------------------------------------------------
+// Live Market Intelligence types
+// ---------------------------------------------------------------------------
+
+export type Direction = "up" | "down";
+export type Intensity = "strong" | "moderate" | "neutral" | "weak";
+
+export type TrendReading = "bullish" | "bearish" | "neutral";
+export type MomentumReading = Intensity;
+export type VolatilityReading = "high" | "medium" | "low";
+export type VolumeRegimeReading = "high" | "normal" | "low";
+export type OrderFlowReading = "buy" | "sell" | "balanced";
+export type FundingRegimeReading = "strongPositive" | "positive" | "neutral" | "negative" | "strongNegative";
+export type LiquidationPressureReading = "high" | "moderate" | "low";
+export type LiquidityReading = "high" | "medium" | "low";
+
+/** Snapshot of the instantaneous order book (best prices / spread / depth). */
+export type OrderBookSnapshot = {
+  bestBid: number;
+  bestAsk: number;
+  bidQty: number;
+  askQty: number;
+  spread: number; // absolute
+  spreadPercent: number; // % of mid
+  /** Cumulative bid liquidity within a few percent of mid. */
+  bidDepth: number;
+  /** Cumulative ask liquidity within a few percent of mid. */
+  askDepth: number;
+  depthImbalance: number; // (bid-ask)/(bid+ask), -1..1
+  timestamp: number;
+};
+
+/** Aggressive trade / order-flow aggregates over a rolling window. */
+export type OrderFlowData = {
+  buyVolume: number;
+  sellVolume: number;
+  buySellDelta: number; // buy - sell (base units)
+  buySellRatio: number; // buy/sell
+  takerBuyRatio: number; // share of volume that was taker-buy, 0..1
+  largeBuyVolume: number;
+  largeSellVolume: number;
+  largeTradeCount: number;
+  sampleSeconds: number;
+  timestamp: number;
+};
+
+/** Futures market context (market-wide, never an account). */
+export type FuturesContext = {
+  openInterest: number;
+  markPrice: number;
+  indexPrice: number;
+  fundingRate: number; // %
+  fundingChange: number | null; // latest vs previous, pp
+  fundingRegime: FundingRegimeReading;
+  longShortRatio: number;
+  longAccountShare: number | null; // 0..1
+  futuresVolume: number; // quote
+  basis: number | null; // %
+  basisBps: number | null;
+  oiChange20m: number | null; // % change vs 20m ago
+  oiChange1h: number | null;
+  priceOiContext: string; // e.g. "price-up-oi-up"
+  cumulativeLiquidations: number | null;
+  fundingHistory: { time: number; rate: number }[];
+  oiHistory: { time: number; value: number }[];
+  timestamp: number;
+};
+
+export type MarketState = {
+  price: number;
+  timestamp: number;
+  trend: TrendReading;
+  momentum: MomentumReading;
+  volatility: VolatilityReading;
+  volumeRegime: VolumeRegimeReading;
+  liquidity: LiquidityReading;
+  orderFlow: OrderFlowReading;
+  marketStructure: TrendReading;
+  oiTrend: "increasing" | "decreasing" | "flat";
+  fundingRegime: FundingRegimeReading;
+  liquidationPressure: LiquidationPressureReading;
+  overallBias: TrendReading;
+  biasScore: number; // -100..100 (negative = bearish)
+  components: {
+    label: string;
+    value: string;
+    reading: string;
+    healthy: boolean;
+  }[];
+};
+
+export type SimilarCase = {
+  distance: number;
+  forwardReturn30: number;
+  forwardReturn60: number;
+  forwardReturn120: number;
+};
+
+export type ConditionalStats = {
+  similarCases: number;
+  after30: {
+    up: number;
+    down: number;
+    avgReturn: number;
+  };
+  after60: {
+    up: number;
+    down: number;
+    avgReturn: number;
+  };
+  after120: {
+    up: number;
+    down: number;
+    avgReturn: number;
+  };
+  avgDistance: number | null;
+  currentStateSummary: string;
+  generatedAt: number;
+};
+
+export type ForecastHorizon = {
+  minutes: number;
+  probabilityUp: number;
+  probabilityDown: number;
+  expectedReturn: number; // %
+  expectedPrice: number;
+  expectedRangeLow: number;
+  expectedRangeHigh: number;
+  confidence: number; // 0..100
+  drift: number; // % expected direction-weighted
+};
+
+export type Forecast = {
+  generatedAt: number;
+  price: number;
+  horizons: ForecastHorizon[]; // 30, 60, 120
+  conditional: ConditionalStats | null;
+  source: string;
+};
+
+export type AnalysisBundle = {
+  marketState: MarketState | null;
+  orderBook: OrderBookSnapshot | null;
+  orderFlow: OrderFlowData | null;
+  futures: FuturesContext | null;
+  forecast: Forecast | null;
+  multiTimeframe: Partial<Record<BtcTimeframe, { candles: BtcCandle[]; forecast?: ForecastHorizon }>>;
+  stalenessMs: number;
+  lastUpdated: number;
+  refreshTrigger: number;
 };
