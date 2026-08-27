@@ -131,7 +131,7 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
       },
       timeScale: {
         borderColor: "rgba(63,63,70,0.6)",
-        rightOffset: 12,
+        rightOffset: 8,
         barSpacing: 7,
         minBarSpacing: 0.5,
         fixRightEdge: true,
