@@ -76,7 +76,6 @@ function LeafRow({
   const entry = catalogById(node.signalId);
   const isNumeric = entry?.kind === "numeric";
   const operators = operatorOptions(node.signalId);
-  const opsShown = isNumeric ? NUMERIC_OPERATORS : operators;
   const ev = evalAt?.(path);
   const live = signals?.get(node.signalId);
   const meta = ev ? STATE_META[ev.result] : undefined;
@@ -128,7 +127,7 @@ function LeafRow({
           }
           className="w-[132px]"
         >
-          {opsShown.map((op) => (
+          {operators.map((op) => (
             <option key={op} value={op}>
               {OPERATOR_LABELS[op]}
             </option>
