@@ -87,7 +87,7 @@ export function PredictionPanel({
   }
 
   return (
-    <section className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6">
+    <section className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6 sm:col-span-2">
       <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-zinc-200">
           التوقع الإحصائي قصير المدى (بيانات حقيقية)
