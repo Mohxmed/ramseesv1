@@ -63,7 +63,19 @@ export const PREDICTION_WINDOW_30 = 30; // minutes
 export const PREDICTION_WINDOW_60 = 60; // minutes
 export const PREDICTION_WINDOW_120 = 120; // minutes
 
-export const AUTO_REFRESH_MS = 30_000;
+// Live data refresh cadence, tuned to the read-only rate limits we actually hit:
+//
+//  * FAST tier  (~5s): Binance spot + futures *live* endpoints (ticker, klines,
+//    depth, bookTicker, aggTrades, premiumIndex, openInterest, fundingRate).
+//    All of these are within Binance's IP weight limits at a 5s cadence, and
+//    they are the metrics that genuinely change every few seconds (price,
+//    chart candle, mark price, funding, open interest, order book).
+//  * SLOW tier  (~60s): CoinGecko (public API is rate-limited to ~5-15 calls/min,
+//    so it cannot be polled every 5s), the full multi-timeframe kline snapshot,
+//    and the 30-minute-frequency historical datasets (openInterestHist,
+//    longShortRatio, S/R, structure, liquidity, waves, prediction/forecast).
+export const FAST_REFRESH_MS = 5_000;
+export const SLOW_REFRESH_MS = 60_000;
 // Aggressive order-flow aggregation window (seconds).
 export const ORDER_FLOW_WINDOW_S = 60;
 export const WS_BASE = "wss://stream.binance.com:9443/ws";

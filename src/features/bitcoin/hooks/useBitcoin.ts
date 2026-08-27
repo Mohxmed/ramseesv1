@@ -30,7 +30,8 @@ import {
 import { extractFeatureVector, findSimilarCases, buildForecast } from "../prediction";
 import { useLiveFeed } from "./useLiveFeed";
 import {
-  AUTO_REFRESH_MS,
+  FAST_REFRESH_MS,
+  SLOW_REFRESH_MS,
   CHART_DEFAULT_TIMEFRAME,
   MULTI_TF_LIMIT,
   SIMILARITY_LIMIT,
@@ -112,7 +113,127 @@ export function useBitcoin() {
     setAnalysis30m(analyzeSupportResistance(kLines));
   }, []);
 
-  const fetchAll = useCallback(async () => {
+  // Fast tier: refresh only the live, lightweight Binance endpoints (~5s).
+  // These are the values that genuinely change every few seconds — spot price,
+  // the chart's active candle, best bid/ask, depth, trades, and the live
+  // futures mark/funding/open-interest. Recomputes just the cheap derived state
+  // and leaves the heavy multi-TF analysis & CoinGecko to the slow tier below.
+  const fetchFast = useCallback(async () => {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    try {
+      const [rawTicker, rawKlines, chartRaw, bookRaw, bookTickerRaw, tradesRaw] =
+        await Promise.all([
+          spotApi.ticker24h(),
+          spotApi.klines("1m", SIMILARITY_LIMIT),
+          spotApi.klines(timeframe, MULTI_TF_LIMIT),
+          spotApi.depth(20).catch(() => null),
+          spotApi.bookTicker().catch(() => null),
+          spotApi.aggTrades(300).catch(() => null),
+        ]);
+      const spot = normalizeSpotTicker(rawTicker);
+      const all1m = normalizeKlines(rawKlines);
+      const chartTf = normalizeKlines(chartRaw);
+      setCandles(all1m);
+      setChartCandles(chartTf);
+      loadIndicators(chartTf);
+
+      // Live order book (depth snapshot + bookTicker best bid/ask).
+      let book: OrderBookSnapshot | null = bookRaw
+        ? normalizeOrderBook(bookRaw)
+        : null;
+      if (bookTickerRaw) {
+        const bt = normalizeBookTicker(bookTickerRaw);
+        if (book) {
+          book.bestBid = bt.bestBid;
+          book.bestAsk = bt.bestAsk;
+          book.bidQty = bt.bidQty;
+          book.askQty = bt.askQty;
+          book.spread = bt.bestAsk - bt.bestBid;
+          book.spreadPercent =
+            bt.bestBid > 0 ? ((bt.bestAsk - bt.bestBid) / bt.bestBid) * 100 : 0;
+          book.timestamp = Date.now();
+        } else {
+          const spread = bt.bestAsk - bt.bestBid;
+          book = {
+            bestBid: bt.bestBid,
+            bestAsk: bt.bestAsk,
+            bidQty: bt.bidQty,
+            askQty: bt.askQty,
+            spread,
+            spreadPercent: bt.bestBid > 0 ? (spread / bt.bestBid) * 100 : 0,
+            bidDepth: 0,
+            askDepth: 0,
+            depthImbalance: 0,
+            timestamp: Date.now(),
+          };
+        }
+      }
+      // Apply live book ticker (best bid/ask) if present.
+      if (book && liveBookRef.current) {
+        const spread = liveBookRef.current.bestAsk - liveBookRef.current.bestBid;
+        book.bestBid = liveBookRef.current.bestBid;
+        book.bestAsk = liveBookRef.current.bestAsk;
+        book.spread = spread;
+        book.spreadPercent =
+          liveBookRef.current.bestBid > 0
+            ? (spread / liveBookRef.current.bestBid) * 100
+            : 0;
+      }
+      setOrderBook(book);
+
+      const flowRaw = tradesRaw ? normalizeOrderFlow(tradesRaw) : null;
+      setRestFlow(flowRaw);
+
+      // Live futures mark / funding / open-interest (lightweight fapi calls).
+      const [premiumRaw, oiRaw, fundingRaw, futTickerRaw] = await Promise.all([
+        futuresApi.premiumIndex().catch(() => null),
+        futuresApi.openInterest().catch(() => null),
+        futuresApi.fundingRate().catch(() => [] as FundingRateRaw),
+        futuresApi.ticker24h().catch(() => null),
+      ]);
+      const pm = premiumRaw ? normalizePremiumIndex(premiumRaw) : null;
+      const fundingHistory = fundingRaw
+        .map((f) => ({
+          time: Math.floor(f.fundingTime / 1000),
+          rate: parseFloat(f.fundingRate) * 100,
+        }))
+        .filter((f) => isFinite(f.rate))
+        .reverse();
+      const futuresCtx = computeFuturesContext({
+        spotPrice: spot.price,
+        markPrice:
+          pm?.markPrice ??
+          (futTickerRaw ? parseFloat(futTickerRaw.markPrice) : null),
+        indexPrice: pm?.indexPrice ?? null,
+        fundingRate:
+          fundingHistory.length
+            ? fundingHistory[0].rate
+            : pm?.lastFundingRate != null
+            ? pm.lastFundingRate * 100
+            : null,
+        lastFundingRate: pm?.lastFundingRate != null ? pm.lastFundingRate * 100 : null,
+        longShortRatio: null,
+        longAccountShare: null,
+        futuresVolume: futTickerRaw ? parseFloat(futTickerRaw.quoteVolume) : null,
+        openInterest: oiRaw ? parseFloat(oiRaw.openInterest) : null,
+        oiHistory: [],
+        fundingHistory,
+        spotKlines: all1m,
+      });
+      setFutures(futuresCtx);
+
+      setData({ status: "ready" });
+      setRefreshTrigger((t) => t + 1);
+    } catch {
+      // Non-fatal: keep the last known live state; full errors surface in the
+      // slow tier so the dashboard never blanks out on a single bad tick.
+    } finally {
+      busyRef.current = false;
+    }
+  }, [timeframe, loadIndicators]);
+
+  const fetchSlow = useCallback(async () => {
     if (busyRef.current) return;
     busyRef.current = true;
     try {
@@ -319,14 +440,21 @@ export function useBitcoin() {
   }, [timeframe, loadIndicators, loadPrediction, loadAnalysis30m]);
 
   useEffect(() => {
-    fetchAll();
-    const interval = setInterval(() => fetchAll(), AUTO_REFRESH_MS);
-    return () => clearInterval(interval);
-  }, [fetchAll]);
+    // Initial load: pull the full snapshot, then start the live feed going.
+    fetchSlow();
+    fetchFast();
+    const slow = setInterval(() => fetchSlow(), SLOW_REFRESH_MS);
+    const fast = setInterval(() => fetchFast(), FAST_REFRESH_MS);
+    return () => {
+      clearInterval(slow);
+      clearInterval(fast);
+    };
+  }, [fetchSlow, fetchFast]);
 
   const refresh = useCallback(() => {
-    fetchAll();
-  }, [fetchAll]);
+    fetchFast();
+    fetchSlow();
+  }, [fetchFast, fetchSlow]);
 
   return {
     data,
