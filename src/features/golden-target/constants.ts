@@ -2,7 +2,7 @@ import { type MoveNumber } from "./types";
 
 export const GOLDEN_TARGET_CONFIG = {
   TOTAL_MOVES: 20 as const,
-  STARTING_TARGET: 1 as const,
+  STARTING_TARGET: 2 as const,
   GROWTH_RATE: 100 as const,
   TARGET_MULTIPLIER: 2 as const,
 } as const;

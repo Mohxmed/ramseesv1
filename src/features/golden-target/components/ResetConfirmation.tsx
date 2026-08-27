@@ -23,7 +23,7 @@ export function ResetConfirmation({
         <h2 className="text-lg font-bold text-zinc-50">إعادة تعيين الهدف الذهبي</h2>
         <p className="mt-2 text-sm text-zinc-400">
           سيتم إعادة تعيين كل التقدم إلى البداية: الحركة الحالية ستكون 1، القيمة
-          1، وعدد الحركات المكتملة 0. لا يمكن التراجع عن هذا الإجراء.
+          2، وعدد الحركات المكتملة 0. لا يمكن التراجع عن هذا الإجراء.
         </p>
         <div className="mt-6 flex gap-3">
           <button
