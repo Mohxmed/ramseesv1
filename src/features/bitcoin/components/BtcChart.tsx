@@ -1,21 +1,26 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createChart,
   ColorType,
   CandlestickSeries,
   HistogramSeries,
+  LineSeries,
   BaselineSeries,
   LineStyle,
+  CrosshairMode,
   type IChartApi,
   type ISeriesApi,
   type BaselineData,
   type UTCTimestamp,
+  type MouseEventParams,
+  type Time,
 } from "lightweight-charts";
 import type { BtcCandle, BtcTimeframe } from "../types";
 import type { SupportResistanceResult, Zone } from "../analysis";
 import { TIMEFRAMES } from "../constants";
+import { formatPrice } from "../utils";
 
 type Props = {
   candles: BtcCandle[];
@@ -26,14 +31,31 @@ type Props = {
 
 const COLOR = {
   supportLine: "#10b981",
-  supportFill: "rgba(16,185,129,0.10)",
+  supportFill: "rgba(16,185,129,0.12)",
   resistanceLine: "#ef4444",
-  resistanceFill: "rgba(239,68,68,0.10)",
+  resistanceFill: "rgba(239,68,68,0.12)",
   nearestSupportLine: "#34d399",
-  nearestSupportFill: "rgba(52,211,153,0.22)",
+  nearestSupportFill: "rgba(52,211,153,0.25)",
   nearestResistanceLine: "#f87171",
-  nearestResistanceFill: "rgba(248,113,113,0.22)",
+  nearestResistanceFill: "rgba(248,113,113,0.25)",
   currentPrice: "#e4e4e7",
+  up: "#10b981",
+  down: "#ef4444",
+  ema9: "#38bdf8",
+  ema21: "#fbbf24",
+  ema50: "#a78bfa",
+  vwap: "#22d3ee",
+};
+
+type OverlayKey = "ema9" | "ema21" | "ema50" | "vwap";
+
+type Snapshot = {
+  time: Time | undefined;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
 };
 
 function zoneColor(zone: Zone) {
@@ -52,29 +74,60 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis }: Pr
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const overlayRef = useRef<Map<OverlayKey, ISeriesApi<"Line">>>(new Map());
   const zoneSeriesRef = useRef<ISeriesApi<"Baseline">[]>([]);
+  const lastFittedTfRef = useRef<BtcTimeframe | null>(null);
+  const [overlays, setOverlays] = useState<OverlayKey[]>([]);
+  const [crosshair, setCrosshair] = useState<Snapshot | null>(null);
 
+  // ------------------------------------------------------------------ init
   useEffect(() => {
-    if (!containerRef.current) return;
+    const el = containerRef.current;
+    if (!el) return;
 
-    const chart = createChart(containerRef.current, {
+    const chart = createChart(el, {
+      autoSize: true,
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
         textColor: "#a1a1aa",
         fontFamily: "'Cairo', sans-serif",
+        fontSize: 12,
       },
       grid: {
         vertLines: { color: "rgba(39,39,42,0.4)" },
         horzLines: { color: "rgba(39,39,42,0.4)" },
       },
-      rightPriceScale: { borderColor: "rgba(63,63,70,0.5)" },
-      timeScale: { borderColor: "rgba(63,63,70,0.5)" },
-      crosshair: {
-        mode: 0,
-        vertLine: { color: "#52525b" },
-        horzLine: { color: "#52525b" },
+      rightPriceScale: {
+        borderColor: "rgba(63,63,70,0.6)",
+        minimumWidth: 72,
+        scaleMargins: { top: 0.08, bottom: 0.28 },
+        ensureEdgeTickMarksVisible: true,
       },
-      autoSize: true,
+      timeScale: {
+        borderColor: "rgba(63,63,70,0.6)",
+        rightOffset: 4,
+        barSpacing: 7,
+        minBarSpacing: 0.5,
+        fixRightEdge: true,
+        lockVisibleTimeRangeOnResize: true,
+      },
+      crosshair: {
+        mode: CrosshairMode.Magnet,
+        vertLine: { color: "#52525b", width: 1, labelBackgroundColor: "#27272a" },
+        horzLine: { color: "#52525b", width: 1, labelBackgroundColor: "#27272a" },
+      },
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: false,
+      },
+      handleScale: {
+        mouseWheel: true,
+        pinch: true,
+        axisPressedMouseMove: { time: true, price: true },
+        axisDoubleClickReset: { time: true, price: true },
+      },
       localization: {
         locale: "ar",
         timeFormatter: (t: number) => new Date(t * 1000).toLocaleString("ar"),
@@ -82,41 +135,91 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis }: Pr
     });
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: "#10b981",
-      downColor: "#ef4444",
-      borderUpColor: "#10b981",
-      borderDownColor: "#ef4444",
-      wickUpColor: "#10b981",
-      wickDownColor: "#ef4444",
+      upColor: COLOR.up,
+      downColor: COLOR.down,
+      borderUpColor: COLOR.up,
+      borderDownColor: COLOR.down,
+      wickUpColor: COLOR.up,
+      wickDownColor: COLOR.down,
     });
 
     const volumeSeries = chart.addSeries(HistogramSeries, {
       priceFormat: { type: "volume" },
-      priceScaleId: "",
+      priceScaleId: "vol",
+      lastValueVisible: false,
+      priceLineVisible: false,
     });
-    volumeSeries.priceScale().applyOptions({
-      scaleMargins: { top: 0.8, bottom: 0 },
+    chart.priceScale("vol").applyOptions({
+      scaleMargins: { top: 0.82, bottom: 0.02 },
     });
 
     candleSeriesRef.current = candleSeries;
     volumeSeriesRef.current = volumeSeries;
     chartRef.current = chart;
 
+    // Crosshair legend (OHLC + time + volume).
+    chart.subscribeCrosshairMove((param: MouseEventParams<Time>) => {
+      const candle = param.seriesData.get(candleSeries) as
+        | { open: number; high: number; low: number; close: number }
+        | undefined;
+      const volume = param.seriesData.get(volumeSeries) as { value: number } | undefined;
+      setCrosshair({
+        time: param.time,
+        open: candle?.open ?? 0,
+        high: candle?.high ?? 0,
+        low: candle?.low ?? 0,
+        close: candle?.close ?? 0,
+        volume: volume?.value ?? 0,
+      });
+    });
+
+    // Ctrl + Wheel => vertical price zoom (uses the price scale API, not canvas).
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const ps = chart.priceScale("right");
+      const r = ps.getVisibleRange();
+      if (!r) return;
+      const factor = e.deltaY > 0 ? 1.12 : 0.89;
+      const mid = (r.from + r.to) / 2;
+      const half = ((r.to - r.from) / 2) * factor;
+      ps.applyOptions({ autoScale: false });
+      ps.setVisibleRange({ from: Math.max(0, mid - half), to: mid + half });
+    };
+    el.addEventListener("wheel", onWheel, { passive: false, capture: true });
+
+    // Double-click anywhere on the chart resets time + price to fit all data.
+    const onDoubleClick = (e: MouseEvent) => {
+      if (e.defaultPrevented) return;
+      e.preventDefault();
+      chart.priceScale("right").applyOptions({ autoScale: true });
+      chart.timeScale().fitContent();
+    };
+    el.addEventListener("dblclick", onDoubleClick);
+
     return () => {
       chart.remove();
       chartRef.current = null;
       candleSeriesRef.current = null;
       volumeSeriesRef.current = null;
+      overlayRef.current.clear();
       zoneSeriesRef.current = [];
+      lastFittedTfRef.current = null;
+      el.removeEventListener("wheel", onWheel, { capture: true } as EventListenerOptions);
+      el.removeEventListener("dblclick", onDoubleClick);
     };
   }, []);
 
-  // Candle + volume data.
+  // ------------------------------------------------------- candle + volume
   useEffect(() => {
-    if (!candleSeriesRef.current || !volumeSeriesRef.current) return;
+    const candleSeries = candleSeriesRef.current;
+    const volumeSeries = volumeSeriesRef.current;
+    const chart = chartRef.current;
+    if (!candleSeries || !volumeSeries || !chart) return;
     if (candles.length === 0) return;
 
-    candleSeriesRef.current.setData(
+    candleSeries.setData(
       candles.map((c) => ({
         time: c.time as UTCTimestamp,
         open: c.open,
@@ -126,7 +229,15 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis }: Pr
       }))
     );
 
-    volumeSeriesRef.current.setData(
+    candleSeries.update({
+      time: candles[candles.length - 1].time as UTCTimestamp,
+      open: candles[candles.length - 1].open,
+      high: candles[candles.length - 1].high,
+      low: candles[candles.length - 1].low,
+      close: candles[candles.length - 1].close,
+    });
+
+    volumeSeries.setData(
       candles.map((c) => ({
         time: c.time as UTCTimestamp,
         value: c.volume,
@@ -134,17 +245,93 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis }: Pr
       }))
     );
 
-    chartRef.current?.timeScale().fitContent();
-  }, [candles]);
+    // Fit only on the very first load or when the timeframe actually changed,
+    // so the user's zoom is preserved across live data updates.
+    if (lastFittedTfRef.current !== timeframe) {
+      lastFittedTfRef.current = timeframe;
+      chart.timeScale().fitContent();
+      chart.priceScale("right").applyOptions({ autoScale: true });
+    }
+  }, [candles, timeframe]);
 
-  // Support / Resistance zone overlays + current price line.
+  // ------------------------------------------------------- overlays (EMA/VWAP)
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || candles.length === 0) return;
+
+    // Remove overlay series no longer active.
+    for (const key of Array.from(overlayRef.current.keys())) {
+      if (!overlays.includes(key)) {
+        chart.removeSeries(overlayRef.current.get(key)!);
+        overlayRef.current.delete(key);
+      }
+    }
+    if (overlays.length === 0) return;
+
+    const closes = candles.map((c) => c.close);
+    const times = candles.map((c) => c.time as UTCTimestamp);
+
+    const ema = (period: number) => {
+      const out: number[] = [];
+      let prev = closes[0];
+      const k = 2 / (period + 1);
+      for (let i = 0; i < closes.length; i++) {
+        prev = i === 0 ? closes[0] : closes[i] * k + prev * (1 - k);
+        out.push(prev);
+      }
+      return out;
+    };
+
+    const vwap: number[] = [];
+    {
+      let cumPV = 0;
+      let cumVol = 0;
+      for (const c of candles) {
+        const typ = (c.high + c.low + c.close) / 3;
+        cumPV += typ * c.volume;
+        cumVol += c.volume;
+        vwap.push(cumVol > 0 ? cumPV / cumVol : typ);
+      }
+    }
+
+    const color: Record<OverlayKey, string> = {
+      ema9: COLOR.ema9,
+      ema21: COLOR.ema21,
+      ema50: COLOR.ema50,
+      vwap: COLOR.vwap,
+    };
+    const build: Record<OverlayKey, () => number[]> = {
+      ema9: () => ema(9),
+      ema21: () => ema(21),
+      ema50: () => ema(50),
+      vwap: () => vwap,
+    };
+
+    for (const key of overlays) {
+      let series = overlayRef.current.get(key);
+      if (!series) {
+        series = chart.addSeries(LineSeries, {
+          color: color[key],
+          lineWidth: 1,
+          priceLineVisible: false,
+          lastValueVisible: false,
+          crosshairMarkerVisible: false,
+        });
+        overlayRef.current.set(key, series);
+      }
+      const values = build[key]();
+      series.setData(times.map((t, i) => ({ time: t, value: values[i] })));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candles, overlays]);
+
+  // -------------------------------------------------------------------- S/R
   useEffect(() => {
     const chart = chartRef.current;
     const candleSeries = candleSeriesRef.current;
     if (!chart || !candleSeries) return;
     if (candles.length === 0) return;
 
-    // Clean previous overlays (price lines only ever added here).
     for (const s of zoneSeriesRef.current) chart.removeSeries(s);
     for (const line of candleSeries.priceLines()) candleSeries.removePriceLine(line);
     zoneSeriesRef.current = [];
@@ -158,7 +345,6 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis }: Pr
         const { line, fill } = zoneColor(zone);
         const width = zone.isNearest ? 2 : 1;
 
-        // Horizontal band between zone.lower (base) and zone.upper (line).
         const zoneSeries = chart.addSeries(BaselineSeries, {
           baseValue: { type: "price", price: zone.lower },
           topLineColor: "transparent",
@@ -178,7 +364,6 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis }: Pr
         ] as BaselineData[]);
         zoneSeriesRef.current.push(zoneSeries);
 
-        // Crisp center level.
         candleSeries.createPriceLine({
           price: zone.center,
           color: line,
@@ -196,7 +381,6 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis }: Pr
       }
     }
 
-    // Current price dashed line.
     candleSeries.createPriceLine({
       price: analysis ? analysis.currentPrice : candles[candles.length - 1].close,
       color: COLOR.currentPrice,
@@ -207,47 +391,243 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis }: Pr
     });
   }, [analysis, candles]);
 
+  // ------------------------------------------------------------ navigation
+  const autoScale = useCallback(() => {
+    chartRef.current?.priceScale("right").applyOptions({ autoScale: true });
+  }, []);
+
+  const fit = useCallback(() => {
+    chartRef.current?.timeScale().fitContent();
+  }, []);
+
+  const reset = useCallback(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    chart.timeScale().fitContent();
+    chart.priceScale("right").applyOptions({ autoScale: true });
+  }, []);
+
+  const lastCandle = candles[candles.length - 1];
+  const displaySnapshot = crosshair && crosshair.close > 0 ? crosshair : null;
+  const quote =
+    displaySnapshot ?? {
+      time: lastCandle ? (lastCandle.time as Time) : undefined,
+      open: lastCandle?.open ?? 0,
+      high: lastCandle?.high ?? 0,
+      low: lastCandle?.low ?? 0,
+      close: lastCandle?.close ?? 0,
+      volume: lastCandle?.volume ?? 0,
+    };
+
+  const toggleOverlay = useCallback(
+    (key: OverlayKey) => {
+      setOverlays((prev) => {
+        if (prev.includes(key)) return prev.filter((k) => k !== key);
+        return [...prev, key];
+      });
+    },
+    []
+  );
+
+  const overlayButtons: { key: OverlayKey; label: string }[] = [
+    { key: "ema9", label: "EMA 9" },
+    { key: "ema21", label: "EMA 21" },
+    { key: "ema50", label: "EMA 50" },
+    { key: "vwap", label: "VWAP" },
+  ];
+
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold text-zinc-200">مخطط الشموع — BTC/USDT</h2>
-        <div className="flex flex-wrap gap-1">
-          {TIMEFRAMES.map((tf) => (
-            <button
-              key={tf}
-              type="button"
-              onClick={() => onTimeframeChange(tf)}
-              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                tf === timeframe
-                  ? "bg-zinc-700 text-zinc-50"
-                  : "bg-zinc-800/60 text-zinc-400 hover:bg-zinc-700/60 hover:text-zinc-200"
+    <div className="min-w-0 rounded-2xl border border-zinc-800 bg-zinc-900/40">
+      {/* Chart header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <span className="inline-block h-2.5 w-2.5 rounded-full bg-zinc-400" />
+          <h2 className="text-sm font-semibold text-zinc-100">BTC/USDT</h2>
+          {analysis && (
+            <span className="hidden text-[11px] text-zinc-500 sm:inline">
+              {analysis.candleCount} شمعة 30m
+            </span>
+          )}
+        </div>
+        <div className="text-left">
+          <div className="text-lg font-bold leading-tight text-zinc-50">
+            {quote.close > 0 ? formatPrice(quote.close) : "—"}
+          </div>
+          {quote.close > 0 && quote.open > 0 && (
+            <div
+              className={`text-[11px] font-medium ${
+                quote.close >= quote.open ? "text-emerald-400" : "text-red-400"
               }`}
             >
-              {tf.toUpperCase()}
-            </button>
-          ))}
+              {((quote.close - quote.open) / quote.open) * 100 >= 0 ? "+" : ""}
+              {(((quote.close - quote.open) / quote.open) * 100).toFixed(2)}%
+            </div>
+          )}
         </div>
       </div>
-      <div ref={containerRef} className="h-[400px] w-full" />
-      {analysis && (
-        <div className="mt-3 flex flex-wrap items-center gap-4 text-[11px] text-zinc-400">
+
+      {/* Timeframe selector */}
+      <div className="flex flex-nowrap items-center gap-1 overflow-x-auto border-b border-zinc-800 px-4 py-2 [scrollbar-width:thin]">
+        {TIMEFRAMES.map((tf) => (
+          <button
+            key={tf}
+            type="button"
+            onClick={() => onTimeframeChange(tf)}
+            className={`shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+              tf === timeframe
+                ? "bg-zinc-700 text-zinc-50"
+                : "bg-transparent text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200"
+            }`}
+          >
+            {tf.toUpperCase()}
+          </button>
+        ))}
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-zinc-800 px-4 py-2">
+        <div className="flex flex-wrap items-center gap-1">
+          {overlayButtons.map((b) => {
+            const active = overlays.includes(b.key);
+            return (
+              <button
+                key={b.key}
+                type="button"
+                onClick={() => toggleOverlay(b.key)}
+                title={b.label}
+                className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                  active
+                    ? "bg-zinc-700 text-zinc-50"
+                    : "bg-transparent text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200"
+                }`}
+              >
+                {b.label}
+              </button>
+            );
+          })}
+        </div>
+        <div className="ml-auto flex flex-wrap items-center gap-1">
+          <button
+            type="button"
+            onClick={autoScale}
+            title="مقياس تلقائي"
+            className="rounded-md bg-transparent px-2.5 py-1 text-[11px] font-medium text-zinc-300 transition-colors hover:bg-zinc-800/60 hover:text-zinc-100"
+          >
+            Auto Scale
+          </button>
+          <button
+            type="button"
+            onClick={fit}
+            title="ملاءمة المحتوى"
+            className="rounded-md bg-transparent px-2.5 py-1 text-[11px] font-medium text-zinc-300 transition-colors hover:bg-zinc-800/60 hover:text-zinc-100"
+          >
+            Fit
+          </button>
+          <button
+            type="button"
+            onClick={reset}
+            title="إعادة الضبط"
+            className="rounded-md bg-transparent px-2.5 py-1 text-[11px] font-medium text-zinc-300 transition-colors hover:bg-zinc-800/60 hover:text-zinc-100"
+          >
+            Reset
+          </button>
+        </div>
+      </div>
+
+      {/* Crosshair / OHLC readout */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-zinc-800 px-4 py-1.5 text-[11px] text-zinc-400">
+        <span className="text-zinc-200">
+          {quote.time
+            ? new Date(Number(quote.time) * 1000).toLocaleString("ar")
+            : "—"}
+        </span>
+        <span>
+          ف: <span className="text-zinc-200">{formatPrice(quote.open)}</span>
+        </span>
+        <span>
+          ع: <span className="text-emerald-400">{formatPrice(quote.high)}</span>
+        </span>
+        <span>
+          د: <span className="text-red-400">{formatPrice(quote.low)}</span>
+        </span>
+        <span>
+          إ: <span className="text-zinc-200">{formatPrice(quote.close)}</span>
+        </span>
+        <span className="hidden sm:inline">
+          حجم:{" "}
+          <span className="text-zinc-200">
+            {quote.volume >= 1e6
+              ? (quote.volume / 1e6).toFixed(2) + "M"
+              : quote.volume >= 1e3
+              ? (quote.volume / 1e3).toFixed(1) + "K"
+              : quote.volume.toFixed(0)}
+          </span>
+        </span>
+      </div>
+
+      {/* Chart */}
+      <div className="px-2 pt-2">
+        <div
+          ref={containerRef}
+          className="h-[420px] w-full sm:h-[540px] lg:h-[640px]"
+        />
+      </div>
+
+      {/* Nearest S/R + legend footer */}
+      <div className="flex flex-wrap items-start justify-between gap-3 border-t border-zinc-800 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-zinc-400">
           <span className="inline-flex items-center gap-1.5">
             <span className="inline-block h-2.5 w-2.5 rounded-sm bg-emerald-500/40" />
-            منطقة دعم
+            دعم
           </span>
           <span className="inline-flex items-center gap-1.5">
             <span className="inline-block h-2.5 w-2.5 rounded-sm bg-red-500/40" />
-            منطقة مقاومة
+            مقاومة
           </span>
           <span className="inline-flex items-center gap-1.5">
             <span className="inline-block h-0.5 w-4 border-t-2 border-dashed border-zinc-300" />
-            السعر الحالي
+            السعر
           </span>
-          <span className="text-zinc-600">
-            {analysis.candleCount} شمعة 30m · تُحدَّث تلقائياً
-          </span>
+          {overlays.includes("ema9") && (
+            <span className="inline-flex items-center gap-1.5">
+              <span className="inline-block h-0.5 w-4 bg-[#38bdf8]" /> EMA9
+            </span>
+          )}
+          {overlays.includes("ema21") && (
+            <span className="inline-flex items-center gap-1.5">
+              <span className="inline-block h-0.5 w-4 bg-[#fbbf24]" /> EMA21
+            </span>
+          )}
+          {overlays.includes("ema50") && (
+            <span className="inline-flex items-center gap-1.5">
+              <span className="inline-block h-0.5 w-4 bg-[#a78bfa]" /> EMA50
+            </span>
+          )}
+          {overlays.includes("vwap") && (
+            <span className="inline-flex items-center gap-1.5">
+              <span className="inline-block h-0.5 w-4 bg-[#22d3ee]" /> VWAP
+            </span>
+          )}
         </div>
-      )}
+        <div className="flex flex-col items-end gap-1 text-[11px]">
+          {analysis?.nearestResistance && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-zinc-500">أقرب مقاومة</span>
+              <span className="font-semibold text-red-300">
+                {formatPrice(analysis.nearestResistance.center)}
+              </span>
+            </div>
+          )}
+          {analysis?.nearestSupport && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-zinc-500">أقرب دعم</span>
+              <span className="font-semibold text-emerald-300">
+                {formatPrice(analysis.nearestSupport.center)}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -268,7 +648,6 @@ function pickZones(analysis: SupportResistanceResult): Zone[] {
     selected.push(z);
   }
 
-  // Ensure nearest levels are always present even if low strength.
   for (const nz of [analysis.nearestSupport, analysis.nearestResistance]) {
     if (nz && !ids.has(nz.id)) {
       ids.add(nz.id);

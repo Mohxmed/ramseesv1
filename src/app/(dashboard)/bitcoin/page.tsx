@@ -61,23 +61,23 @@ export default function BitcoinPage() {
         <>
           <MarketOverviewCard overview={overview} />
 
-          <div className="grid gap-6 lg:grid-cols-3">
-            <div className="lg:col-span-2">
-              <BtcChart
-                candles={chartCandles}
-                timeframe={timeframe}
-                onTimeframeChange={setTimeframe}
-                analysis={analysis30m}
-              />
-            </div>
-            <AnalysisPanel analysis={analysis30m} />
-          </div>
+          <BtcChart
+            candles={chartCandles}
+            timeframe={timeframe}
+            onTimeframeChange={setTimeframe}
+            analysis={analysis30m}
+          />
 
-          <div className="grid gap-6 lg:grid-cols-2">
-            <PredictionPanel prediction={prediction} />
-            {prediction && (
-              <HistoricalStatsCard h30={prediction.h30} h60={prediction.h60} />
-            )}
+          <div className="grid gap-6 lg:grid-cols-3">
+            <div className="lg:col-span-1">
+              <AnalysisPanel analysis={analysis30m} />
+            </div>
+            <div className="grid gap-6 sm:grid-cols-2 lg:col-span-2">
+              <PredictionPanel prediction={prediction} />
+              {prediction && (
+                <HistoricalStatsCard h30={prediction.h30} h60={prediction.h60} />
+              )}
+            </div>
           </div>
 
           <TechnicalIndicatorsCard indicators={indicators} />
