@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { Sidebar } from "./sidebar";
@@ -136,6 +137,13 @@ export function DashboardShell({
           >
             <MenuIcon className="h-6 w-6" />
           </button>
+          <Image
+            src="/favicon.jpg"
+            alt="شعار RAMSEES"
+            width={28}
+            height={28}
+            className="h-7 w-7 rounded-md object-cover"
+          />
           <span className="text-sm font-bold text-zinc-50">RAMSEES</span>
         </header>
 

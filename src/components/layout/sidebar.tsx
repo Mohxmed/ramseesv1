@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { NAVIGATION } from "@/config/navigation";
 import { useAuth } from "@/features/auth/hooks/useAuth";
@@ -81,8 +82,14 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
           collapsed ? "justify-center px-0" : "px-5"
         }`}
       >
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400 to-teal-600 text-sm font-bold text-zinc-950">
-          R
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg">
+          <Image
+            src="/favicon.jpg"
+            alt="شعار RAMSEES"
+            width={36}
+            height={36}
+            className="h-full w-full object-cover"
+          />
         </div>
         {!collapsed && (
           <div className="mr-3 min-w-0">

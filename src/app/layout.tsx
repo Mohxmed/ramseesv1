@@ -12,6 +12,10 @@ const cairo = Cairo({
 export const metadata: Metadata = {
   title: "RAMSEES - نظام تداول البيتكوين",
   description: "نظام شخصي لتداول وتحليل البيتكوين",
+  icons: {
+    icon: "/favicon.jpg",
+    shortcut: "/favicon.jpg",
+  },
 };
 
 export default function RootLayout({
