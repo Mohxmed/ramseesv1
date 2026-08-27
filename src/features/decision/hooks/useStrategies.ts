@@ -188,18 +188,27 @@ export function useStrategies() {
   }, []);
 
   const createStrategy = useCallback(
-    (templateId?: string) => {
-      const base = STRATEGY_TEMPLATES.find((t) => t.id === templateId);
+    (opts: { name?: string; templateId?: string; enabled?: boolean } = {}) => {
+      const base = STRATEGY_TEMPLATES.find((t) => t.id === opts.templateId);
+      const fallback = defaultStrategy(true)[0];
       const s: Strategy = base
         ? {
             id: newId("s"),
-            name: base.name,
+            name: opts.name && opts.name.trim() ? opts.name.trim() : base.name,
             flows: base.flows.map((f) => ({ ...f, root: cloneNode(f.root) })),
-            enabled: true,
+            enabled: opts.enabled !== false,
             createdAt: Date.now(),
             updatedAt: Date.now(),
           }
-        : { ...defaultStrategy(true)[0], id: newId("s"), createdAt: Date.now(), updatedAt: Date.now() };
+        : {
+            ...fallback,
+            id: newId("s"),
+            name:
+              opts.name && opts.name.trim() ? opts.name.trim() : fallback.name,
+            enabled: opts.enabled !== false,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          };
       setStrategies((prev) => [...prev, s]);
       setActiveId(s.id);
       return s.id;
