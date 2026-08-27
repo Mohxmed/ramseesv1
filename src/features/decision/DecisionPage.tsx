@@ -13,6 +13,8 @@ import { StrategyFlows } from "./components/StrategyFlows";
 import { WhyNot } from "./components/WhyNot";
 import { SAVED_PILL } from "./components/badges";
 import { defaultStrategy } from "./templates";
+import { BtcChart } from "../bitcoin/components/BtcChart";
+import type { DecisionOverlay } from "../bitcoin/components/BtcChart";
 
 export function DecisionPage() {
   const dc = useDecisionCenter();
@@ -47,6 +49,35 @@ export function DecisionPage() {
     () => dc.signals.map((s) => ({ id: s.id, status: s.status })),
     [dc.signals]
   );
+
+  // Entry / Stop-Loss / Take-Profit overlay for the chart — derived from the
+  // live evaluation + real S/R levels and the current price. Only shown when a
+  // BUY or SELL flow is actually VALID; otherwise nothing is drawn (honest,
+  // no fabricated levels).
+  const decisionOverlay: DecisionOverlay | null = useMemo(() => {
+    const ev = dc.evaluation;
+    const analysis = deps.analysis;
+    const price = deps.overview?.price ?? analysis?.currentPrice ?? null;
+    if (!analysis || price == null) return null;
+    const sup = analysis.nearestSupport?.center;
+    const res = analysis.nearestResistance?.center;
+    if (sup == null || res == null) return null;
+
+    const buyValid = ev?.flows.some(
+      (f) => f.enabled && f.type === "BUY" && f.result === "true"
+    );
+    const sellValid = ev?.flows.some(
+      (f) => f.enabled && f.type === "SELL" && f.result === "true"
+    );
+
+    if (buyValid && res > price) {
+      return { entry: price, stopLoss: sup, takeProfit: res, title: "BUY" };
+    }
+    if (sellValid && sup < price) {
+      return { entry: price, stopLoss: res, takeProfit: sup, title: "SELL" };
+    }
+    return null;
+  }, [dc.evaluation, deps.analysis, deps.overview]);
 
   const onSave = useCallback(() => {
     if (strategy) persisted.saveStrategy(strategy);
@@ -93,6 +124,19 @@ export function DecisionPage() {
       <DecisionSummary evaluation={dc.evaluation} />
 
       <MarketSnapshot deps={deps} />
+
+      {dc.cmd.chartCandles && dc.cmd.chartCandles.length > 0 && (
+        <BtcChart
+          candles={dc.cmd.chartCandles}
+          timeframe={dc.cmd.timeframe}
+          onTimeframeChange={dc.cmd.setTimeframe}
+          analysis={deps.analysis}
+          liquidity={deps.liquidity}
+          structure={deps.structure}
+          waves={deps.waves}
+          decision={decisionOverlay}
+        />
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="space-y-4">

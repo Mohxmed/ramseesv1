@@ -33,6 +33,13 @@ import type {
 import { TIMEFRAMES, TIMEFRAME_MINUTES } from "../constants";
 import { formatPrice } from "../utils";
 
+export type DecisionOverlay = {
+  entry?: number;
+  stopLoss?: number;
+  takeProfit?: number;
+  title?: string;
+};
+
 type Props = {
   candles: BtcCandle[];
   timeframe: BtcTimeframe;
@@ -41,6 +48,8 @@ type Props = {
   liquidity?: LiquidityAnalysis | null;
   structure?: MarketStructureAnalysis | null;
   waves?: Wave[];
+  /** Additive decision price-line overlay (entry / SL / TP) from Decision Center. */
+  decision?: DecisionOverlay | null;
 };
 
 const COLOR = {
@@ -59,6 +68,9 @@ const COLOR = {
   ema21: "#fbbf24",
   ema50: "#a78bfa",
   vwap: "#22d3ee",
+  decisionEntry: "#0ea5e9",
+  decisionStop: "#fb923c",
+  decisionTarget: "#34d399",
 };
 
 type OverlayKey = "ema9" | "ema21" | "ema50" | "vwap";
@@ -101,7 +113,7 @@ function formatCountdown(ms: number): string {
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
-export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liquidity, structure, waves }: Props) {
+export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liquidity, structure, waves, decision }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -561,6 +573,43 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
     }
   }, [analysis, candles, liquidity, structure, waves]);
 
+  // --------------------------------------------------- decision overlay
+  // Additive, non-breaking: when the Decision Center supplies an entry / SL / TP
+  // decision, render them as labelled price lines. Runs after the S/R effect so
+  // it re-applies its lines whenever the chart rebuilds, without touching any
+  // existing S/R / liquidity / price overlays.
+  useEffect(() => {
+    const candleSeries = candleSeriesRef.current;
+    if (!candleSeries || candles.length === 0) return;
+
+    // Remove only our own previous decision lines (keyed by a unique prefix).
+    const DEC_TITLES = new Set(["DEC:ENTRY", "DEC:SL", "DEC:TP"]);
+    for (const line of candleSeries.priceLines()) {
+      if (line.options().title && DEC_TITLES.has(line.options().title)) {
+        candleSeries.removePriceLine(line);
+      }
+    }
+
+    if (!decision) return;
+
+    const addLine = (price: number | undefined, color: string, title: string, style: LineStyle) => {
+      if (price == null || Number.isNaN(price)) return;
+      candleSeries.createPriceLine({
+        price,
+        color,
+        lineWidth: 1,
+        lineStyle: style,
+        axisLabelVisible: true,
+        title,
+      });
+    };
+
+    addLine(decision.entry, COLOR.decisionEntry, "DEC:ENTRY", LineStyle.Dashed);
+    addLine(decision.stopLoss, COLOR.decisionStop, "DEC:SL", LineStyle.Dotted);
+    addLine(decision.takeProfit, COLOR.decisionTarget, "DEC:TP", LineStyle.Solid);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analysis, candles, liquidity, structure, waves, decision]);
+
   // ------------------------------------------------------------ navigation
   const autoScale = useCallback(() => {
     chartRef.current?.priceScale("right").applyOptions({ autoScale: true });
@@ -784,6 +833,12 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
           {overlays.includes("vwap") && (
             <span className="inline-flex items-center gap-1.5">
               <span className="inline-block h-0.5 w-4 bg-[#22d3ee]" /> VWAP
+            </span>
+          )}
+          {decision && (
+            <span className="inline-flex items-center gap-1.5 text-[10px] text-sky-300">
+              <span className="inline-block h-0.5 w-4 border-t-2 border-dashed border-[#0ea5e9]" />
+              {decision.title ?? "Decision"}
             </span>
           )}
         </div>
