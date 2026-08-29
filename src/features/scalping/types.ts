@@ -149,6 +149,12 @@ export type ScalpDecisionView = {
   shortProbability: number;
   /** true when probability is backtest-backed; false = heuristic (display!). */
   probabilityCalibrated: boolean;
+  /** 0..100 strength for each direction (symmetric halves of the vote). */
+  longScore: number;
+  shortScore: number;
+  /** Top features driving each direction (labels), most influential first. */
+  longDrivers: string[];
+  shortDrivers: string[];
   /** Signed net expected move (%) or null when not tradeable. */
   expectedNetMovePct: number | null;
   /** Breakdown of costs as % of price. */
@@ -169,6 +175,30 @@ export type ScalpRecorderView = {
   hitRate: number;
   calibrationError: number;
   brier: number;
+  /** LONG/SHORT/NO_TRADE distribution (bias monitor). */
+  distribution: {
+    total: number;
+    long: { count: number; pct: number };
+    short: { count: number; pct: number };
+    noTrade: { count: number; pct: number };
+  };
+  /** Per-direction win-rate + calibration. */
+  perDirection: {
+    LONG: DirectionPerformanceView;
+    SHORT: DirectionPerformanceView;
+  };
+  /** Non-empty when the distribution is pathologically one-sided. */
+  biasWarning: string | null;
+};
+
+/** Per-direction performance surfaced in the recorder/UI. */
+export type DirectionPerformanceView = {
+  count: number;
+  resolved: number;
+  winRate: number | null;
+  meanProbability: number | null;
+  calibrationError: number | null;
+  brier: number | null;
 };
 
 // ---------------------------------------------------------------------------

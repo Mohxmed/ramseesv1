@@ -48,6 +48,36 @@ export type RecorderStats = {
   hitRate: number;
 };
 
+/** Directional outcome distribution + per-direction calibration (bias monitor). */
+export type DirectionalDistribution = {
+  total: number;
+  long: { count: number; pct: number };
+  short: { count: number; pct: number };
+  noTrade: { count: number; pct: number };
+};
+
+export type DirectionPerformance = {
+  count: number;
+  resolved: number;
+  /** Fraction of resolved that won in THIS direction. */
+  winRate: number | null;
+  /** Mean emitted probability for this direction. */
+  meanProbability: number | null;
+  /** |meanProbability - winRate| as a calibration-error proxy. */
+  calibrationError: number | null;
+  brier: number | null;
+};
+
+export type PerDirectionStats = {
+  LONG: DirectionPerformance;
+  SHORT: DirectionPerformance;
+};
+
+/** Which value of `outcomeLong` counts as a win for the given direction. */
+function winOutcome(dir: RecordedDirection, outcomeLong: 0 | 1): boolean {
+  return dir === "LONG" ? outcomeLong === 1 : outcomeLong === 0;
+}
+
 export class EventRecorder {
   private events: RecordedEvent[] = [];
   private nextId = 1;
@@ -124,6 +154,52 @@ export class EventRecorder {
 
   recent(limit = 20): RecordedEvent[] {
     return this.events.slice(-limit).reverse();
+  }
+
+  /** LONG / SHORT / NO_TRADE counts + percentages over the recorded window. */
+  distribution(): DirectionalDistribution {
+    const long = this.events.filter((e) => e.direction === "LONG").length;
+    const short = this.events.filter((e) => e.direction === "SHORT").length;
+    const noTrade = this.events.length - long - short;
+    const total = this.events.length || 1;
+    return {
+      total: this.events.length,
+      long: { count: long, pct: (long / total) * 100 },
+      short: { count: short, pct: (short / total) * 100 },
+      noTrade: { count: noTrade, pct: (noTrade / total) * 100 },
+    };
+  }
+
+  /** Per-direction win rate + calibration over resolved directional events. */
+  perDirection(): PerDirectionStats {
+    const build = (dir: RecordedDirection): DirectionPerformance => {
+      const evs = this.events.filter((e) => e.direction === dir);
+      const resolved = evs.filter((e) => e.outcomeLong != null);
+      const wins = resolved.filter((e) => winOutcome(dir, e.outcomeLong as 0 | 1)).length;
+      const winRate = resolved.length ? wins / resolved.length : null;
+      const probs = resolved
+        .map((e) => e.primaryProbability?.probability ?? null)
+        .filter((p): p is number => p != null);
+      const meanProbability = probs.length ? probs.reduce((a, b) => a + b, 0) / probs.length : null;
+      let brier = null;
+      if (resolved.length && probs.length) {
+        brier = resolved.reduce((acc, e) => {
+          const p = e.primaryProbability?.probability;
+          if (p == null) return acc;
+          const outcome = winOutcome(dir, e.outcomeLong as 0 | 1) ? 1 : 0;
+          return acc + (p - outcome) ** 2;
+        }, 0) / resolved.length;
+      }
+      return {
+        count: evs.length,
+        resolved: resolved.length,
+        winRate,
+        meanProbability,
+        calibrationError: winRate != null && meanProbability != null ? Math.abs(meanProbability - winRate) : null,
+        brier,
+      };
+    };
+    return { LONG: build("LONG"), SHORT: build("SHORT") };
   }
 
   clear(): void {

@@ -156,7 +156,7 @@ export function useScalping(): ScalpingSnapshot {
         wsStale: cmd.wsHealth?.stale ?? false,
       });
 
-      const decisionView = toDecisionView(decision);
+      const decisionView = toDecisionView(decision, features);
 
       // Recorder: capture every decision + resolve forward outcomes.
       recorder.resolveLatest(price ?? now, SCALPING_CONFIG.forecastHorizonsS[0]);
@@ -171,6 +171,9 @@ export function useScalping(): ScalpingSnapshot {
       });
       const cal = recorder.calibration();
       const recStats = recorder.stats();
+      const distribution = recorder.distribution();
+      const perDirection = recorder.perDirection();
+      const biasWarning = deriveBiasWarning(distribution);
       const recorderView: ScalpRecorderView = {
         count: recStats.count,
         directional: recStats.directional,
@@ -179,6 +182,9 @@ export function useScalping(): ScalpingSnapshot {
         hitRate: recStats.hitRate,
         calibrationError: cal.calibrationError,
         brier: cal.brier,
+        distribution,
+        perDirection,
+        biasWarning,
       };
 
       // Legacy backtest-ready logging — only on a directional change.
@@ -235,8 +241,16 @@ function cmdFresh(cmd: { data: { status: string } }): boolean {
 }
 
 /** Map the composed decision into the UI-safe view shape. */
-function toDecisionView(d: ScalpingDecision): ScalpDecisionView {
+function toDecisionView(d: ScalpingDecision, features: ScalpingFeature[]): ScalpDecisionView {
   const ev = d.expectedValue;
+  const signed = d.signed;
+  const strongestVote = SCALPING_CONFIG.score.strongestVote;
+  // Symmetric directional scores: the positive half drives LONG strength, the
+  // negative half SHORT strength. Never inflated, never gated by the decision.
+  const longScore = clampScore((Math.max(0, signed) / strongestVote) * 100);
+  const shortScore = clampScore((Math.max(0, -signed) / strongestVote) * 100);
+  const longDrivers = topDrivers(features, "LONG", 5);
+  const shortDrivers = topDrivers(features, "SHORT", 5);
   return {
     direction: d.direction,
     blocked: d.blocked,
@@ -246,6 +260,10 @@ function toDecisionView(d: ScalpingDecision): ScalpDecisionView {
     longProbability: d.outcome.long.probability,
     shortProbability: d.outcome.short.probability,
     probabilityCalibrated: d.outcome.long.calibrated,
+    longScore,
+    shortScore,
+    longDrivers,
+    shortDrivers,
     expectedNetMovePct: ev?.net != null && ev.positive ? ev.net * 100 : null,
     costBps: ev
       ? {
@@ -266,6 +284,43 @@ function toDecisionView(d: ScalpingDecision): ScalpDecisionView {
     regimeKey: d.regime.regime,
     regimeConfidence: d.regime.confidence,
   };
+}
+
+/** Top features whose contribution supports the given direction (by |contrib|). */
+function topDrivers(features: ScalpingFeature[], dir: "LONG" | "SHORT", n = 5): string[] {
+  const sign = dir === "LONG" ? 1 : -1;
+  return features
+    .filter((f) => f.normalized != null && f.contribution * sign > 0)
+    .sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution))
+    .slice(0, n)
+    .map((f) => f.label);
+}
+
+function clampScore(v: number): number {
+  return Math.round(Math.max(0, Math.min(100, v)));
+}
+
+/** Distribution monitor: flag a pathologically one-sided output. */
+function deriveBiasWarning(dist: ScalpRecorderView["distribution"]): string | null {
+  const total = dist.total;
+  if (total < 12) return null; // too few samples to judge yet
+  const directional = dist.long.count + dist.short.count;
+  if (directional < 5) return null; // mostly NO_TRADE, not a directional bias signal
+  const longPct = dist.long.pct;
+  const shortPct = dist.short.pct;
+  if (longPct < 2 && shortPct > 5) {
+    return `DIRECTIONAL BIAS WARNING — صفر إشارات شراء تقريبًا: LONG ${longPct.toFixed(0)}% / SHORT ${shortPct.toFixed(0)}% / NO TRADE ${dist.noTrade.pct.toFixed(0)}%. افحص إشارات/حدود ميزات الشراء.`;
+  }
+  if (shortPct < 2 && longPct > 5) {
+    return `DIRECTIONAL BIAS WARNING — صفر إشارات بيع تقريبًا: SHORT ${shortPct.toFixed(0)}% / LONG ${longPct.toFixed(0)}% / NO TRADE ${dist.noTrade.pct.toFixed(0)}%. افحص إشارات/حدود ميزات البيع.`;
+  }
+  if (directional >= 8) {
+    const dominant = Math.max(longPct, shortPct);
+    if (dominant / Math.max(1, Math.min(longPct, shortPct)) > 3) {
+      return `DIRECTIONAL BIAS WARNING — انحياز قوي صفري/اتجاهي (LONG ${longPct.toFixed(0)}% / SHORT ${shortPct.toFixed(0)}%).`;
+    }
+  }
+  return null;
 }
 
 function toRecordedDirection(dir: DecisionDirection): RecordedDirection {

@@ -349,27 +349,37 @@ export const FEATURE_REGISTRY: FeatureRegistryItem[] = [
       if (!sr || price == null) return f;
       const sup = sr.nearestSupport?.center;
       const res = sr.nearestResistance?.center;
-      const distToSup: number | null = sup != null ? pctChange(sup, price) : null; // positive = above support
-      const distToRes: number | null = res != null ? pctChange(res, price) : null; // positive = below resistance (room up)
+      // Correct distance conventions with the S/R engine's data semantics:
+      //   nearestResistance.center is ABOVE price; nearestSupport.center is BELOW.
+      //   roomUp   = % distance from price UP to the nearest resistance overhead.
+      //   roomDown = % distance from price DOWN to the nearest support below.
+      // Both are >= 0 whenever the corresponding zone exists.
+      const roomUp: number | null = res != null ? ((res - price) / price) * 100 : null;
+      const roomDown: number | null = sup != null ? ((price - sup) / price) * 100 : null;
       let norm = 0;
-      if (distToRes != null && distToRes < 0.15) norm = -0.5; // near resistance overhead
-      else if (distToSup != null && Math.abs(distToSup) < 0.15) norm = 0.5; // sitting on support
-      else if (distToRes != null && distToSup != null) {
-        const roomUp = distToRes;
-        const roomDown = -distToSup;
-        // More upside room than downside => bullish step.
-        norm = clamp(roomUp - roomDown < 0 ? 0.15 : -0.15, -0.3, 0.3);
+      const brokeResistance: boolean = res != null && price >= res;
+      const brokeSupport: boolean = sup != null && price <= sup;
+      if (brokeResistance) {
+        norm = 0.5; // closed above resistance → bullish breakout
+      } else if (brokeSupport) {
+        norm = -0.5; // closed below support → bearish breakdown
+      } else if (roomUp != null && roomUp < 0.15) {
+        norm = -0.3; // resistance directly overhead (limited room, rejection risk)
+      } else if (roomDown != null && roomDown < 0.15) {
+        norm = 0.3; // sitting on support (limited room down, bounce potential)
+      } else if (roomUp != null && roomDown != null) {
+        // More upside room than downside ⇒ bullish step; symmetric otherwise.
+        norm = roomUp > roomDown ? 0.15 : roomUp < roomDown ? -0.15 : 0;
       }
-      f.raw = distToRes ?? null;
-      f.normalized = norm;
-      f.direction = dirOfSigned(norm, 0.1);
-      f.state = Math.abs(norm) < 0.15 ? "weak" : "moderate";
-      f.score = magScore(Math.abs(norm), 0.5);
-      f.contribution = norm;
+      f.raw = roomUp ?? roomDown ?? null;
+      f.normalized = clamp(norm, -0.5, 0.5);
+      f.direction = dirOfSigned(f.normalized, 0.1);
+      f.state = Math.abs(f.normalized) < 0.15 ? "weak" : Math.abs(f.normalized) < 0.4 ? "moderate" : "strong";
+      f.score = magScore(Math.abs(f.normalized), 0.5);
+      f.contribution = f.normalized;
       f.confidence = sup != null && res != null ? 60 : 30;
       f.freshnessMs = sr.generatedAt ? Date.now() - sr.generatedAt : null;
       f.stale = f.freshnessMs != null && f.freshnessMs > 90_000;
-      void distToSup;
       return f;
     },
   },

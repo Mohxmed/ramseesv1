@@ -9,6 +9,7 @@ import { WhyPanel } from "./components/WhyPanel";
 import { ExecutionPanel } from "./components/ExecutionPanel";
 import { RegimePanel } from "./components/RegimePanel";
 import { DecisionPanel } from "./components/DecisionPanel";
+import { DirectionalDiagnosticsPanel } from "./components/DirectionalDiagnosticsPanel";
 import { FuturesStatePanel } from "./components/FuturesStatePanel";
 import { LiquidationFlowPanel } from "./components/LiquidationFlowPanel";
 import { PriceOiPanel } from "./components/PriceOiPanel";
@@ -52,6 +53,7 @@ export function ScalpingPage() {
               <RegimePanel decision={snap.decision} />
               <ForecastPanel forecast={snap.forecast} />
               <DecisionPanel decision={snap.decision} recorder={snap.recorder} />
+              <DirectionalDiagnosticsPanel decision={snap.decision} recorder={snap.recorder} />
               <WhyPanel signal={snap.signal} />
               <FeatureTable features={snap.features} stale={false} />
 
