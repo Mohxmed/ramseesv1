@@ -50,24 +50,24 @@ export function DecisionSummary({ evaluation }: { evaluation: StrategyEvaluation
         <div className="flex items-center gap-4 text-center">
           <div>
             <div className="text-lg font-bold text-zinc-100">{evaluation.completion.toFixed(0)}%</div>
-            <div className="text-[10px] text-zinc-500">Condition Completion</div>
+            <div className="text-[10px] text-zinc-500">إكمال الشروط</div>
           </div>
           <div>
             <div className="text-lg font-bold text-zinc-100">
               {evaluation.flows.filter((f) => f.enabled && f.result === "true").length}
             </div>
-            <div className="text-[10px] text-zinc-500">Flows TRUE</div>
+            <div className="text-[10px] text-zinc-500">تدفقات متحققة</div>
           </div>
           <div>
             <div className="text-lg font-bold text-zinc-100">
               {evaluation.flows.filter((f) => f.enabled && f.unknown.length > 0).length}
             </div>
-            <div className="text-[10px] text-zinc-500">Flows w/ UNKNOWN</div>
+            <div className="text-[10px] text-zinc-500">تدفقات بها UNKNOWN</div>
           </div>
         </div>
       </div>
       <div className="mt-2 text-[10px] text-zinc-500">
-        ملاحظة: "Condition Completion" تعني اكتمال شروط الاستراتيجية على المعطيات الحالية، وليست
+        ملاحظة: "إكمال الشروط" يعني اكتمال شروط الاستراتيجية على المعطيات الحالية الحقيقية، وليست
         احتمال ربح أو ضمانًا للنتيجة.
       </div>
     </div>
