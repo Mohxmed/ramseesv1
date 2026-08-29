@@ -9,6 +9,9 @@ import { WhyPanel } from "./components/WhyPanel";
 import { ExecutionPanel } from "./components/ExecutionPanel";
 import { RegimePanel } from "./components/RegimePanel";
 import { DecisionPanel } from "./components/DecisionPanel";
+import { FuturesStatePanel } from "./components/FuturesStatePanel";
+import { LiquidationFlowPanel } from "./components/LiquidationFlowPanel";
+import { PriceOiPanel } from "./components/PriceOiPanel";
 
 export function ScalpingPage() {
   const snap = useScalping();
@@ -51,6 +54,16 @@ export function ScalpingPage() {
               <DecisionPanel decision={snap.decision} recorder={snap.recorder} />
               <WhyPanel signal={snap.signal} />
               <FeatureTable features={snap.features} stale={false} />
+
+              <div>
+                <h2 className="mb-2 text-sm font-bold text-zinc-200">لوحات العقود الآجلة</h2>
+                <div className="grid gap-4 lg:grid-cols-3">
+                  <FuturesStatePanel state={snap.futuresState ?? null} />
+                  <LiquidationFlowPanel state={snap.futuresState ?? null} />
+                  <PriceOiPanel state={snap.futuresState ?? null} />
+                </div>
+              </div>
+
               <ExecutionPanel execution={snap.execution} />
             </>
           )}

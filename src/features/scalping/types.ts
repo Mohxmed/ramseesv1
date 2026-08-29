@@ -129,6 +129,9 @@ export type ScalpingSnapshot = {
   /** Statistical decision engine outputs (added as-is, populated by the hook). */
   decision?: ScalpDecisionView | null;
   recorder?: ScalpRecorderView | null;
+  /** Unified real-time futures state + feed liveness for the UI panels. */
+  futuresState?: FuturesState | null;
+  futuresFeed?: { live: boolean; stale: boolean };
 };
 
 /** Composed statistical decision exposed to the UI (see decision/ module). */
@@ -180,6 +183,7 @@ import type {
   OrderBookSnapshot,
   OrderFlowData,
 } from "../bitcoin/types";
+import type { FuturesState } from "../bitcoin/futures/types";
 import type { LiquidityAnalysis } from "../bitcoin/analysis";
 import type { SupportResistanceResult } from "../bitcoin/analysis/types";
 import type { MarketStructureAnalysis } from "../bitcoin/analysis";
@@ -196,6 +200,8 @@ export type ScalpingContext = {
   candles: BtcCandle[]; // 1m series
   overview: MarketOverview | null;
   futures: FuturesContext | null;
+  /** Unified real-time futures state (OI + positioning + liquidations). */
+  futuresState: FuturesState | null;
   marketState: MarketState | null;
   analysis30m: SupportResistanceResult | null;
   liquidity: LiquidityAnalysis | null;

@@ -92,6 +92,15 @@ export const ORDER_FLOW_WINDOW_S = 60;
 export const ORDER_FLOW_LARGE_BTC = 5;
 export const WS_BASE = "wss://stream.binance.com:9443/ws";
 /**
+ * USDⓈ-M futures WebSocket base. Binance futures uses a *separate* base from
+ * spot, so the futures streams (markPrice / forceOrder) live on their own
+ * socket — still owned centrally by the single live-feed hook.
+ */
+export const FUTURES_WS_BASE = "wss://fstream.binance.com:443/ws";
+/** Futures stream suffixes (pair is prefix, e.g. `btcusdt@markPrice@1s`). */
+export const FUTURES_MARK_PRICE_STREAM = "@markPrice@1s";
+export const FUTURES_FORCE_ORDER_STREAM = "@forceOrder";
+/**
  * Live price tick interval. The WebSocket bookTicker emits many times/second;
  * publishing each tick as React state would re-render every consumer of the
  * shared store. Throttle to a fast cadence (1s default) for near-live pricing
@@ -99,7 +108,28 @@ export const WS_BASE = "wss://stream.binance.com:9443/ws";
  */
 export const LIVE_TICK_MS = 1_000;
 
-// WebSocket transport integrity (heartbeat / staleness / reconnect/ latency).
+// --- Futures / Open-Interest / Liquidation infrastructure -------------------
+/**
+ * Open-Interest polling cadence. There is NO live OI WebSocket stream on
+ * Binance; we sample the per-contract REST endpoint (`/fapi/v1/openInterest`)
+ * into a time-stamped ring so short-horizon OI *change* (5/15/30/60/120s),
+ * velocity and z-score can be derived statistically from real data.
+ */
+export const OI_SAMPLE_MS = 5_000;
+/** Rolling OI-change windows used to derive short-horizon OI deltas. */
+export const OI_WINDOWS_S = [5, 15, 30, 60, 120] as const;
+/** How far back the OI sampling ring keeps history (seconds). */
+export const OI_RING_SECONDS = 900; // 15m of samples for percentile/context
+/** Rolling liquidation-aggregation windows (seconds). */
+export const LIQ_WINDOWS_S = [5, 10, 15, 30, 60, 120, 300] as const;
+/** Historical context window for liquidation intensity percentiles (seconds). */
+export const LIQ_CONTEXT_SECONDS = 1800; // 30m
+/** Max size of the retained liquidation-event ring. */
+export const LIQ_EVENT_RING = 3000;
+/** Futures data-source staleness limits (ms). */
+export const FUTURES_STALE_MS = 30_000;
+/** Positioning (long/short ratios) is a ~5-minute Binance cadence. */
+export const POSITIONING_PERIODIC_MS = 5 * 60 * 1000;
 // A single combined socket carries many streams; drains are detected by a
 // message-watchdog rather than trusting the TCP open state.
 export const WS_HEARTBEAT_MS = 10_000; // how often the watchdog checks liveness

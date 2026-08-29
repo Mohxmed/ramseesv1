@@ -40,7 +40,11 @@ import {
   MULTI_TF_LIMIT,
   MULTI_TFS,
   SIMILARITY_LIMIT,
+  OI_SAMPLE_MS,
+  OI_RING_SECONDS,
 } from "../constants";
+import { buildFuturesState } from "../futures";
+import type { FuturesState, OiSample } from "../futures/types";
 import type {
   BtcCandle,
   BtcTimeframe,
@@ -93,6 +97,10 @@ export function useBitcoinPipeline() {
   // (throttled to ~1s), surfaced onto the whole shared store.
   const [livePrice, setLivePrice] = useState<number | null>(null);
   const [liveUpdatedAt, setLiveUpdatedAt] = useState<number | null>(null);
+  // Unified futures state (OI + positioning + liquidations + price/OI + health).
+  const [futuresState, setFuturesState] = useState<FuturesState | null>(null);
+  // OI sampling ring (no live OI WS; sampled via REST on the fast cadence).
+  const oiSamplesRef = useRef<OiSample[]>([]);
 
   const liveFeed = useLiveFeed();
   // Mirror the live payload into a ref so the REST fetch doesn't re-create its
@@ -151,6 +159,14 @@ export function useBitcoinPipeline() {
   }, [liveFeed.livePrice, liveFeed.liveUpdatedAt, liveFeed.liveKline]);
 
   const busyRef = useRef(false);
+  // Mirror the FuturesContext state so the fast tier can read the latest
+  // positioning inputs (LSR is only computed in the slow tier) without stale
+  // closures. prevPriceRef tracks the last fast-tier price for a signed move.
+  const futuresRef = useRef<FuturesContext | null>(null);
+  const prevPriceRef = useRef<number | null>(null);
+  useEffect(() => {
+    futuresRef.current = futures;
+  }, [futures]);
 
   const loadPrediction = useCallback((kLines: BtcCandle[]) => {
     if (kLines.length >= 2) setPrediction(runPrediction(kLines));
@@ -240,6 +256,55 @@ export function useBitcoinPipeline() {
       });
       setFutures(futuresCtx);
 
+      // --- Unified futures state (OI sample + build) -----------------------
+      const effectiveMark =
+        pm?.markPrice ??
+        (futuresCtx?.markPrice ?? null);
+      if (oiRaw && isFinite(parseFloat(oiRaw.openInterest))) {
+        const sample: OiSample = {
+          time: oiRaw.time ? Number(oiRaw.time) : Date.now(),
+          openInterest: parseFloat(oiRaw.openInterest),
+          openInterestValue:
+            parseFloat(oiRaw.openInterest) * (effectiveMark ?? spot.price ?? 1),
+        };
+        const ring = oiSamplesRef.current;
+        ring.push(sample);
+        const cap = Math.max(2, Math.floor(OI_RING_SECONDS / (OI_SAMPLE_MS / 1000)));
+        if (ring.length > cap) ring.splice(0, ring.length - cap);
+      }
+
+      const prevPrice = prevPriceRef.current;
+      const priceMovePct =
+        prevPrice != null
+          ? ((spot.price - prevPrice) / prevPrice) * 100
+          : null;
+      prevPriceRef.current = spot.price;
+
+      const ctx = futuresRef.current;
+      const nextFuturesState = buildFuturesState({
+        nowMs: Date.now(),
+        receivedAt: Date.now(),
+        source: "binance",
+        oiSamples: oiSamplesRef.current,
+        markPrice: effectiveMark,
+        spotPrice: spot.price,
+        futuresWsLive: liveFeed.futuresLive,
+        positioning: {
+          globalLongShortRatio: ctx?.longShortRatio ?? null,
+          topLongShortRatio: ctx?.longAccountShare ?? null,
+          fundingRate: ctx?.fundingRate ?? null,
+          basis: ctx?.basis ?? null,
+          futuresVolume: ctx?.futuresVolume ?? null,
+          time: ctx?.timestamp ?? Date.now(),
+        },
+        liqEvents: liveFeed.liqEventsRef.current,
+        priceMovePct,
+        oiMovePct30: null,
+        flow: liveFeed.orderFlow,
+        book: orderBook,
+      });
+      setFuturesState(nextFuturesState);
+
       setData({ status: "ready" });
       setRefreshTrigger((t) => t + 1);
     } catch {
@@ -248,7 +313,7 @@ export function useBitcoinPipeline() {
     } finally {
       busyRef.current = false;
     }
-  }, [timeframe, loadIndicators]);
+  }, [timeframe, loadIndicators, orderBook]);
 
   const fetchSlow = useCallback(async () => {
     if (busyRef.current) return;
@@ -458,6 +523,9 @@ export function useBitcoinPipeline() {
     livePriceTs: liveUpdatedAt,
     wsHealth: liveFeed.wsHealth,
     futures,
+    futuresState,
+    futuresWsLive: liveFeed.futuresLive,
+    futuresWsStale: liveFeed.futuresStale,
     marketState,
     liquidity,
     structure,

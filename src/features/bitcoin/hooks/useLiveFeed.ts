@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import type { BtcCandle, OrderBookSnapshot, OrderFlowData } from "../types";
 import {
   WS_BASE,
+  FUTURES_WS_BASE,
+  FUTURES_MARK_PRICE_STREAM,
+  FUTURES_FORCE_ORDER_STREAM,
   ORDER_FLOW_WINDOW_S,
   ORDER_FLOW_LARGE_BTC,
   BITCOIN_CONFIG,
@@ -12,7 +15,10 @@ import {
   WS_STALE_MS,
   WS_MAX_RETRIES,
   WS_MAX_LATENCY_MS,
+  LIQ_EVENT_RING,
 } from "../constants";
+import { normalizeLiquidationEvent } from "../futures/normalizer";
+import type { LiquidationEvent } from "../futures/types";
 
 type AggTradeEvt = {
   e: string;
@@ -100,6 +106,18 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
   const latencyRef = useRef<number | null>(null);
   const log = useRef(onDebug);
   log.current = onDebug;
+
+  // --- Futures raw ingestion (mark price + liquidation events) ----------
+  // Kept in refs: forceOrder/markPrice arrive many times/sec; re-rendering on
+  // each one would be wasteful. Consumers (useBitcoin) read these refs on their
+  // own cadence. Only the coarse connection state is mirrored to React.
+  const markPriceRef = useRef<number | null>(null);
+  const liqEventsRef = useRef<LiquidationEvent[]>([]);
+  const lastFuturesEventRef = useRef(0);
+  const futuresLiveRef = useRef(false);
+  const futuresStaleRef = useRef(false);
+  const [futuresLive, setFuturesLive] = useState(false);
+  const [futuresStale, setFuturesStale] = useState(false);
 
   useEffect(() => {
     let ws: WebSocket | null = null;
@@ -310,6 +328,92 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
     };
     heartbeatTimer = setInterval(heartbeat, WS_HEARTBEAT_MS);
 
+    // --- Futures socket -----------------------------------------------------
+    // Binance futures uses a separate base URL, so this is a second socket —
+    // still owned centrally by this single live-feed hook (SSOT). It carries
+    // markPrice (1s) and forceOrder (real liquidation events). Open interest is
+    // NOT streamed on Binance, so it is sampled via REST in useBitcoin.
+    let futuresWs: WebSocket | null = null;
+    let futuresRetryTimer: ReturnType<typeof setTimeout> | null = null;
+    let futuresHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
+    let futuresRetries = 0;
+
+    const mirrorFuturesState = () => {
+      setFuturesLive(futuresWs?.readyState === WebSocket.OPEN);
+      setFuturesStale(futuresStaleRef.current);
+    };
+
+    const openFutures = () => {
+      if (closed) return;
+      try {
+        const url = `${FUTURES_WS_BASE}/${PAIR}${FUTURES_MARK_PRICE_STREAM}/${PAIR}${FUTURES_FORCE_ORDER_STREAM}`;
+        futuresWs = new WebSocket(url);
+        futuresWs.onopen = () => {
+          futuresRetries = 0;
+          futuresLiveRef.current = true;
+          futuresStaleRef.current = false;
+          mirrorFuturesState();
+        };
+        futuresWs.onmessage = (evt) => {
+          try {
+            const raw = JSON.parse(evt.data as string);
+            const msgs = Array.isArray(raw) ? raw : [raw];
+            lastFuturesEventRef.current = Date.now();
+            for (const msg of msgs) {
+              const e = (msg as { e?: string }).e;
+              if (e === "markPriceUpdate") {
+                const p = toNum((msg as { p?: unknown }).p);
+                if (p > 0) markPriceRef.current = p;
+              } else if (e === "forceOrder") {
+                const ev = normalizeLiquidationEvent(msg, Date.now(), "binance");
+                if (ev) {
+                  const ring = liqEventsRef.current;
+                  // Duplicate-event protection: skip if we already saw this id.
+                  if (!ring.some((x) => x.id === ev.id)) {
+                    ring.unshift(ev);
+                    if (ring.length > LIQ_EVENT_RING) ring.length = LIQ_EVENT_RING;
+                  }
+                }
+              }
+            }
+            futuresStaleRef.current = false;
+          } catch {
+            /* ignore malformed frame */
+          }
+        };
+        futuresWs.onerror = () => {
+          /* handled by onclose */
+        };
+        futuresWs.onclose = () => {
+          futuresLiveRef.current = false;
+          mirrorFuturesState();
+          if (closed) return;
+          if (futuresRetries >= WS_MAX_RETRIES) {
+            futuresStaleRef.current = true;
+            mirrorFuturesState();
+            log.current?.("futures-ws-retries-exhausted");
+            return;
+          }
+          futuresRetries++;
+          const base = Math.min(5000, 500 * futuresRetries);
+          futuresRetryTimer = setTimeout(openFutures, base + Math.random() * 250);
+        };
+      } catch {
+        if (!closed) futuresRetryTimer = setTimeout(openFutures, 2000);
+      }
+    };
+
+    const futuresHeartbeat = () => {
+      const idle = Date.now() - lastFuturesEventRef.current;
+      if (lastFuturesEventRef.current && idle > WS_STALE_MS && futuresWs?.readyState === WebSocket.OPEN) {
+        futuresStaleRef.current = true;
+        setFuturesStale(true);
+        futuresWs.close();
+      }
+    };
+    futuresHeartbeatTimer = setInterval(futuresHeartbeat, WS_HEARTBEAT_MS);
+    openFutures();
+
     open();
     const interval = setInterval(computeFlow, 5000);
 
@@ -317,8 +421,11 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
       closed = true;
       if (retryTimer) clearTimeout(retryTimer);
       if (heartbeatTimer) clearInterval(heartbeatTimer);
+      if (futuresRetryTimer) clearTimeout(futuresRetryTimer);
+      if (futuresHeartbeatTimer) clearInterval(futuresHeartbeatTimer);
       clearInterval(interval);
       if (ws) ws.close();
+      if (futuresWs) futuresWs.close();
     };
   }, []);
 
@@ -331,6 +438,11 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
     liveUpdatedAt,
     connected,
     wsHealth,
+    // Futures raw ingestion (refs, read on cadence by useBitcoin).
+    markPriceRef,
+    liqEventsRef,
+    futuresLive,
+    futuresStale,
   };
 }
 

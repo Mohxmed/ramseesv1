@@ -225,29 +225,35 @@ export const FEATURE_REGISTRY: FeatureRegistryItem[] = [
   {
     key: "oi-positioning",
     label: "المراكز والعقود المفتوحة",
-    description: "تغيّر OI ومكانة السعر/العقود (اتساق الدفع أو تراكم مضاد).",
+    description: "تغيّر OI الفوري (نوافذ قصيرة) + علاقة السعر/العقود من FuturesState.",
     unit: "%",
     compute: (ctx) => {
       const f = make("oi-positioning", "المراكز والعقود المفتوحة", "OI change + price/OI context.", "%");
-      const fut = ctx.futures;
-      if (!fut) return f;
-      const oiChange = fut.oiChange20m ?? fut.oiChange1h ?? null;
-      const ctx_ = fut.priceOiContext;
-      // Map price/OI context to a signed vote.
+      const fs = ctx.futuresState;
+      if (!fs) return f;
+      const oi = fs.openInterest;
+      const oi30 = oi.windows.find((w) => w.windowS === 30)?.pct ?? null;
+      // Statistically-observed price↔OI quadrant (NOT a fixed rule).
+      const quad = fs.priceOiRelationship.quadrant;
       let norm = 0;
-      if (ctx_ === "price-up-oi-up") norm = 0.5; // markup sustained by new longs
-      else if (ctx_ === "price-up-oi-down") norm = 0.25; // short covering
-      else if (ctx_ === "price-down-oi-up") norm = -0.5; // new shorts building
-      else if (ctx_ === "price-down-oi-down") norm = -0.25; // long liquidation
-      else if (oiChange != null) norm = clamp(oiChange / 6);
-      f.raw = oiChange;
+      if (quad === "price-up-oi-up") norm = 0.5; // markup sustained by new longs
+      else if (quad === "price-up-oi-down") norm = 0.25; // short covering
+      else if (quad === "price-down-oi-up") norm = -0.5; // new shorts building
+      else if (quad === "price-down-oi-down") norm = -0.25; // long liquidation flush
+      else if (oi30 != null) norm = clamp(oi30 / 4); // plain OI move fallback
+      f.raw = oi30;
       f.normalized = norm;
       f.direction = dirOfSigned(norm, 0.1);
-      f.state = oiChange == null ? "weak" : Math.abs(norm) < 0.2 ? "moderate" : "strong";
+      f.state = oi30 == null ? "weak" : Math.abs(norm) < 0.2 ? "moderate" : "strong";
       f.score = magScore(Math.abs(norm), 0.5);
       f.contribution = norm;
-      f.confidence = oiChange != null ? 55 : 20;
-      f.freshnessMs = fut.timestamp ? Date.now() - fut.timestamp : null;
+      f.confidence =
+        fs.dataHealth.oiStatus === "STALE" || fs.dataHealth.oiStatus === "DISCONNECTED"
+          ? 15
+          : oi30 != null
+          ? 60
+          : 20;
+      f.freshnessMs = fs.freshnessMs;
       f.stale = f.freshnessMs != null && f.freshnessMs > 90_000;
       return f;
     },
@@ -255,29 +261,46 @@ export const FEATURE_REGISTRY: FeatureRegistryItem[] = [
   {
     key: "liquidation-flow",
     label: "تدفق التصفية",
-    description: "قسري ضغط التصفية المحتمل من تطرف الفاندينغ والتقلب والحجم. (قريب، لا توجد بيانات تصفية مباشرة.)",
+    description: "أحداث تصفية حقيقية (forceOrder): صافي الطرف المصفّى + الكثافة + سلسلة التصفية.",
     unit: "",
     compute: (ctx) => {
       const f = make("liquidation-flow", "تدفق التصفية", "ضغط التصفية القريب من الريغيم.", "");
-      const ms = ctx.marketState;
-      const liq = ctx.liquidity;
-      const pressure = ms?.liquidationPressure ?? liq?.liquidationPressure ?? "low";
-      const funding = ctx.futures?.fundingRegime ?? "neutral";
-      const extremeFunding = funding === "strongPositive" || funding === "strongNegative";
-      // Contrarian lean: crowding in one direction risks a squeeze the other way.
+      const fs = ctx.futuresState;
+      if (!fs) return f;
+      const liq = fs.liquidations;
+      const net = liq.net; // 30s net notional; + = long-liquidation dominant
+      const intensity = liq.intensity;
+      const cascade = liq.cascade;
+      // Binance forceOrder semantics: a LONG liquidation is a forced SELL
+      // (downward pressure), a SHORT liquidation is a forced BUY.
       let norm = 0;
-      if (pressure === "high") {
-        norm = funding === "strongPositive" ? -0.4 : funding === "strongNegative" ? 0.4 : -0.1;
-      } else if (extremeFunding) {
-        norm = funding === "strongPositive" ? -0.25 : 0.25;
+      if (net != null) {
+        const saturate = 1_000_000; // $1M net in 30s saturates the vote
+        const scaled = Math.max(-1, Math.min(1, net / saturate));
+        norm = -scaled; // +net (long-liq) → bearish
+        if (intensity === "NONE" || intensity === "LOW") norm *= 0.3;
       }
+      if (cascade.active) {
+        const dir = cascade.direction === "LONG" ? -1 : cascade.direction === "SHORT" ? 1 : 0;
+        norm += 0.5 * dir * cascade.probability;
+      }
+      norm = clamp(norm);
+      f.raw = net;
       f.normalized = norm;
       f.direction = dirOfSigned(norm, 0.1);
-      f.state = pressure === "high" ? "strong" : pressure === "moderate" ? "moderate" : "weak";
+      f.state =
+        cascade.active || intensity === "HIGH" || intensity === "EXTREME"
+          ? "strong"
+          : intensity === "MODERATE"
+          ? "moderate"
+          : "weak";
       f.score = magScore(Math.abs(norm), 0.5);
       f.contribution = norm;
-      f.confidence = pressure === "high" ? 50 : 25;
-      f.freshnessMs = ms?.timestamp ? Date.now() - ms.timestamp : null;
+      const feedRaised =
+        fs.dataHealth.liquidationStatus === "STALE" ||
+        fs.dataHealth.liquidationStatus === "DISCONNECTED";
+      f.confidence = feedRaised ? 10 : cascade.active ? 70 : net != null ? 55 : 15;
+      f.freshnessMs = fs.freshnessMs;
       f.stale = f.freshnessMs != null && f.freshnessMs > 90_000;
       return f;
     },
