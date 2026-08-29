@@ -79,6 +79,26 @@ export function LiquidationFlowPanel({
         </span>
       </div>
 
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span
+          className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[9px] font-bold ${
+            liqStatus === "LIVE"
+              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+              : liqStatus === "PERIODIC"
+              ? "border-lime-500/40 bg-lime-500/10 text-lime-300"
+              : liqStatus === "STALE"
+              ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
+              : "border-zinc-700 bg-zinc-800/40 text-zinc-500"
+          }`}
+        >
+          <span
+            className={`h-1.5 w-1.5 rounded-full ${
+              liqStatus === "LIVE" ? "bg-emerald-400" : liqStatus === "PERIODIC" ? "bg-lime-400" : liqStatus === "STALE" ? "bg-amber-400" : "bg-zinc-500"
+            }`}
+          />
+          مصدر التصفية: {statusLabel[liqStatus]}
+        </span>
+      </div>
       <div
         className={`mb-3 rounded-lg border px-2 py-1 text-[10px] ${
           noEvents

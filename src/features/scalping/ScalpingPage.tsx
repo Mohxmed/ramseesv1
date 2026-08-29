@@ -3,8 +3,12 @@
 import { useScalping } from "./hooks/useScalping";
 import { HealthBanner } from "./components/HealthBanner";
 import { TopCommandBar } from "./components/TopCommandBar";
+import { DataQualityStrip } from "./components/DataQualityStrip";
+import { MetricsGrid } from "./components/MetricsGrid";
+import { MarketStateSummary } from "./components/MarketStateSummary";
 import { ForecastPanel } from "./components/ForecastPanel";
 import { FeatureTable } from "./components/FeatureTable";
+import { EvidencePanel } from "./components/EvidencePanel";
 import { WhyPanel } from "./components/WhyPanel";
 import { ExecutionPanel } from "./components/ExecutionPanel";
 import { RegimePanel } from "./components/RegimePanel";
@@ -50,10 +54,31 @@ export function ScalpingPage() {
 
           {healthy && (
             <>
+              <DataQualityStrip
+                features={snap.features}
+                decision={snap.decision}
+                futuresFeed={snap.futuresFeed}
+                futuresState={snap.futuresState ?? null}
+              />
+
+              <MetricsGrid
+                features={snap.features}
+                signal={snap.signal}
+                decision={snap.decision}
+                futuresState={snap.futuresState ?? null}
+              />
+
+              <MarketStateSummary
+                decision={snap.decision}
+                signal={snap.signal}
+                futuresState={snap.futuresState ?? null}
+              />
+
               <RegimePanel decision={snap.decision} />
               <ForecastPanel forecast={snap.forecast} />
               <DecisionPanel decision={snap.decision} recorder={snap.recorder} />
               <DirectionalDiagnosticsPanel decision={snap.decision} recorder={snap.recorder} />
+              <EvidencePanel features={snap.features} signal={snap.signal} />
               <WhyPanel signal={snap.signal} />
               <FeatureTable features={snap.features} stale={false} />
 

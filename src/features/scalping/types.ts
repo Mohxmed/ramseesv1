@@ -164,6 +164,14 @@ export type ScalpDecisionView = {
   /** Classifier regime key + confidence (0..100). */
   regimeKey: string;
   regimeConfidence: number;
+  /** Regime classifier driver readings (for the Market State Summary). */
+  regimeDrivers: { key: string; label: string; score: number; direction: string }[];
+  /**
+   * The full real Market State snapshot already computed by the decision
+   * engine (rolling windows, flow, book, spread, volatility). Surfaced here
+   * unchanged for presentation — never recomputed, never modified.
+   */
+  marketState: MarketStateSnapshot;
 };
 
 /** Recorder + calibration summary shown in the UI (statistical self-eval). */
@@ -217,6 +225,7 @@ import type { FuturesState } from "../bitcoin/futures/types";
 import type { LiquidityAnalysis } from "../bitcoin/analysis";
 import type { SupportResistanceResult } from "../bitcoin/analysis/types";
 import type { MarketStructureAnalysis } from "../bitcoin/analysis";
+import type { MarketStateSnapshot } from "./market-state";
 
 /** Everything the Feature Engine needs — all sourced from the shared SSOT. */
 export type ScalpingContext = {

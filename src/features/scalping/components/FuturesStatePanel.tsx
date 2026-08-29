@@ -1,6 +1,8 @@
 "use client";
 
 import type { FuturesState } from "../../bitcoin/futures/types";
+import { Sparkline } from "./Sparkline";
+import { classifyFreshness, FRESHNESS_META } from "./freshness";
 
 export type FuturesFeedView = { live: boolean; stale: boolean; latency: number | null };
 
@@ -42,16 +44,21 @@ export function FuturesStatePanel({
   const oi15 = oi.windows.find((w) => w.windowS === 15)?.pct ?? null;
   const pos = state.positioning;
   const h = state.dataHealth;
+  const oiFresh = classifyFreshness(state.freshnessMs);
+  const oiMeta = FRESHNESS_META[oiFresh];
+  const oiSeries = (oi.windows ?? [])
+    .slice()
+    .sort((a, b) => a.windowS - b.windowS)
+    .map((w) => w.pct ?? 0);
 
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-bold text-zinc-100">حالة العقود الآجلة</h3>
-        <span className="text-[10px] text-zinc-500">
-          {statusLabel[h.oiStatus]} · تحديث {state.freshnessMs == null ? "—" : `${(state.freshnessMs / 1000).toFixed(0)}s`}
-          {feed?.live && feed.latency != null ? (
-            <span className="text-zinc-600"> · زمن الرحلة {feed.latency}ms</span>
-          ) : null}
+        <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[9px] font-bold ${oiMeta.chip}`}>
+          <span className={`h-1.5 w-1.5 rounded-full ${oiMeta.dot}`} />
+          {oiMeta.label}
+          {feed?.live && feed.latency != null ? ` · ${feed.latency}ms` : ""}
         </span>
       </div>
 
@@ -82,6 +89,19 @@ export function FuturesStatePanel({
           <div className="text-[10px] text-zinc-500">Z-score 30ث</div>
           <div className="font-mono text-zinc-100">{fmtNum(oi.oi30sZ, 2)}</div>
         </div>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <div className="text-[10px] text-zinc-500">تغيّر OI عبر النوافذ</div>
+        {oiSeries.some((v) => v !== 0) ? (
+          <Sparkline
+            points={oiSeries}
+            stroke={oi30 != null && oi30 >= 0 ? "#34d399" : "#f87171"}
+            fill="rgba(148,163,184,0.08)"
+          />
+        ) : (
+          <span className="text-[9px] text-zinc-600">لا نوافذ كافية بعد</span>
+        )}
       </div>
 
       <div className="mt-3 border-t border-zinc-800/70 pt-3">

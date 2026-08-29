@@ -2,6 +2,8 @@
 
 import type { FuturesState } from "../../bitcoin/futures/types";
 import type { FuturesFeedView } from "./FuturesStatePanel";
+import { Sparkline } from "./Sparkline";
+import { classifyFreshness, FRESHNESS_META, formatAge } from "./freshness";
 import { MIN_PRICE_OI_SAMPLES } from "../../bitcoin/futures/priceOi";
 
 const quadrantLabel: Record<string, { text: string; note: string; tone: string }> = {
@@ -19,7 +21,6 @@ function fmtPct(v: number | null | undefined, digits = 3): string {
 
 export function PriceOiPanel({
   state,
-  feed,
 }: {
   state: FuturesState | null;
   feed?: FuturesFeedView;
@@ -34,13 +35,20 @@ export function PriceOiPanel({
   const rel = state.priceOiRelationship;
   const q = quadrantLabel[rel.quadrant] ?? quadrantLabel.unknown;
   const pendingHistory = rel.quadrant === "unknown";
+  const oiFresh = classifyFreshness(state.freshnessMs);
+  const oiMeta = FRESHNESS_META[oiFresh];
+  const oiSeries = (state.openInterest.windows ?? [])
+    .slice()
+    .sort((a, b) => a.windowS - b.windowS)
+    .map((w) => w.pct ?? 0);
 
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-bold text-zinc-100">علاقة السعر ↔ العقود</h3>
-        <span className="text-[10px] text-zinc-500">
-          {feed?.live && feed.latency != null ? `زمن الرحلة ${feed.latency}ms` : "ميزة إحصائية"}
+        <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[9px] font-bold ${oiMeta.chip}`}>
+          <span className={`h-1.5 w-1.5 rounded-full ${oiMeta.dot}`} />
+          {oiMeta.label} · {formatAge(state.freshnessMs)}
         </span>
       </div>
 
@@ -71,6 +79,20 @@ export function PriceOiPanel({
           <div className="font-mono text-zinc-100">{fmtPct(rel.oiMovePct)}</div>
         </div>
       </div>
+
+      {oiSeries.some((v) => v !== 0) && (
+        <div className="mt-3 border-t border-zinc-800/70 pt-2">
+          <div className="mb-1 text-[10px] text-zinc-500">تغيّر OI عبر النوافذ (5ث→120ث)</div>
+          <Sparkline
+            points={oiSeries}
+            stroke={rel.oiMovePct != null && rel.oiMovePct >= 0 ? "#34d399" : "#f87171"}
+            fill="rgba(148,163,184,0.08)"
+          />
+          <div className="mt-0.5 text-[9px] text-zinc-600">
+            {state.openInterest.windows.map((w) => `${w.windowS}ث`).join(" · ")}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

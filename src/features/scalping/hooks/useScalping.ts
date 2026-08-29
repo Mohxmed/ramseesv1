@@ -283,6 +283,8 @@ function toDecisionView(d: ScalpingDecision, features: ScalpingFeature[]): Scalp
         : null,
     regimeKey: d.regime.regime,
     regimeConfidence: d.regime.confidence,
+    regimeDrivers: d.regime.drivers,
+    marketState: d.marketState,
   };
 }
 
