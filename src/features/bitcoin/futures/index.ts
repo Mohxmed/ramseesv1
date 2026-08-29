@@ -15,8 +15,15 @@
  *
  * `buildFuturesState` is pure: it takes the already-normalized sub-inputs plus
  * feed-connection liveness flags and returns the unified state. It also derives
- * the per-sub-system dataHealth from real freshness/connection, so a stale OI
- * or a dead liquidation feed is never presented as live.
+ * the per-sub-system dataHealth from real freshness/connection.
+ *
+ * STATUS HONESTY (LIVE / PERIODIC / STALE / DISCONNECTED / INVALID):
+ *   - OI         : LIVE once samples flow (5s REST); STALE/DISCONNECTED by age.
+ *   - Positioning: PERIODIC when its OWN 5-min snapshot is fresh — independent
+ *                  of the futures WS. STALE/DISCONNECTED by its own age. Missing
+ *                  inputs → INVALID (never the coerced 1/0 defaults).
+ *   - Liquidations/Mark: LIVE when the futures WS is open; STALE while
+ *                  reconnecting; DISCONNECTED when retries are exhausted.
  */
 
 import { computeOiState } from "./openInterest";
@@ -33,7 +40,7 @@ import type {
   PriceOiRelationship,
   LiquidationState,
 } from "./types";
-import { FUTURES_STALE_MS } from "../constants";
+import { FUTURES_STALE_MS, POSITIONING_PERIODIC_MS } from "../constants";
 import type { OrderBookSnapshot, OrderFlowData } from "../types";
 
 export type BuildFuturesStateInput = {
@@ -46,6 +53,8 @@ export type BuildFuturesStateInput = {
   spotPrice: number | null;
   /** Liveness of the futures WS feed (markPrice + forceOrder). */
   futuresWsLive: boolean;
+  /** True once futures-WS reconnect retries are exhausted (useLiveFeed). */
+  futuresWsStale: boolean;
   /** Positioning inputs (mostly PERIODIC-frequency REST). */
   positioning: {
     globalLongShortRatio: number | null;
@@ -63,6 +72,10 @@ export type BuildFuturesStateInput = {
   oiMovePct30: number | null;
   flow: OrderFlowData | null;
   book: OrderBookSnapshot | null;
+  /** Signed taker buy-sell delta (confirmation for price/OI strength). */
+  flowDelta: number | null;
+  /** Futures 24h volume (confirmation for price/OI strength). */
+  futuresVolume: number | null;
 };
 
 export function buildFuturesState(input: BuildFuturesStateInput): FuturesState {
@@ -74,12 +87,15 @@ export function buildFuturesState(input: BuildFuturesStateInput): FuturesState {
     markPrice,
     spotPrice,
     futuresWsLive,
+    futuresWsStale,
     positioning,
     liqEvents,
     priceMovePct,
     oiMovePct30,
     flow,
     book,
+    flowDelta,
+    futuresVolume,
   } = input;
 
   // --- OI ----------------------------------------------------------------
@@ -96,21 +112,34 @@ export function buildFuturesState(input: BuildFuturesStateInput): FuturesState {
   const oi30 = oi.windows.find((w) => w.windowS === 30)?.pct ?? oiMovePct30 ?? null;
 
   // --- Positioning -------------------------------------------------------
+  // Status from the positioning feed's OWN freshness — independent of the
+  // mark/liquidation WebSocket. Missing inputs → INVALID (honest), never the
+  // FuturesContext coercion (longShortRatio ?: 1, volume ?: 0).
+  const posHasData = [
+    positioning.globalLongShortRatio,
+    positioning.topLongShortRatio,
+    positioning.fundingRate,
+    positioning.basis,
+    positioning.futuresVolume,
+  ].some((v) => v != null);
   const pos = makePositioningState({
     ...positioning,
     receivedAt,
     source,
-    status: futuresWsLive ? "PERIODIC" : "STALE",
+    status: derivePositioningStatus(posHasData, positioning.time, nowMs),
   });
 
   // --- Liquidations ------------------------------------------------------
+  const feedStatus = deriveFeedStatus(futuresWsLive, futuresWsStale);
   const liq: LiquidationState = computeLiquidationState({
     events: liqEvents,
     nowMs,
     receivedAt,
     source,
-    // The feed being connected means LIVE even when no event just arrived.
-    status: futuresWsLive ? "LIVE" : "STALE",
+    // Feed open ⇒ LIVE even when no event just arrived (a genuine "no events"
+    // is distinguishable from a dead feed); reconnecting ⇒ STALE; retries
+    // exhausted ⇒ DISCONNECTED.
+    status: feedStatus,
   });
 
   const lastLiq: LiquidationEvent | null = liqEvents.length ? liqEvents[0] : null;
@@ -128,16 +157,16 @@ export function buildFuturesState(input: BuildFuturesStateInput): FuturesState {
   const priceOi: PriceOiRelationship = computePriceOiRelationship({
     priceMovePct,
     oiMovePct: oi30,
+    oiSampleCount: oiSamples.length,
+    futuresVolume: futuresVolume ?? positioning.futuresVolume,
+    flowDelta,
   });
-
-  // --- Liquidation summary -------------------------------------------------
-  const w30 = liq.windows.find((w) => w.windowS === 30);
 
   // --- dataHealth -----------------------------------------------------------
   const oiStatus = oi.status;
   const positioningStatus = pos.status;
   const liquidationStatus = liq.status;
-  const markStatus: DataStatus = futuresWsLive ? "LIVE" : "STALE";
+  const markStatus = feedStatus;
 
   return {
     price: spotPrice,
@@ -145,9 +174,9 @@ export function buildFuturesState(input: BuildFuturesStateInput): FuturesState {
     openInterest: oi,
     positioning: pos,
     liquidations: {
-      long: { notional: w30?.longNotional ?? 0, count: w30?.longCount ?? 0 },
-      short: { notional: w30?.shortNotional ?? 0, count: w30?.shortCount ?? 0 },
-      net: w30?.netNotional ?? 0,
+      long: { notional: w30(liq)?.longNotional ?? 0, count: w30(liq)?.longCount ?? 0 },
+      short: { notional: w30(liq)?.shortNotional ?? 0, count: w30(liq)?.shortCount ?? 0 },
+      net: w30(liq)?.netNotional ?? 0,
       intensity: liq.intensity,
       cascade,
       last: lastLiq,
@@ -161,11 +190,16 @@ export function buildFuturesState(input: BuildFuturesStateInput): FuturesState {
       allLive:
         oiStatus !== "STALE" &&
         oiStatus !== "DISCONNECTED" &&
+        oiStatus !== "INVALID" &&
         positioningStatus !== "STALE" &&
         positioningStatus !== "DISCONNECTED" &&
+        positioningStatus !== "INVALID" &&
         liquidationStatus !== "STALE" &&
         liquidationStatus !== "DISCONNECTED" &&
-        markStatus !== "STALE",
+        liquidationStatus !== "INVALID" &&
+        markStatus !== "STALE" &&
+        markStatus !== "DISCONNECTED" &&
+        markStatus !== "INVALID",
     },
     timestamp: liq.timestamp,
     receivedAt,
@@ -175,6 +209,10 @@ export function buildFuturesState(input: BuildFuturesStateInput): FuturesState {
   };
 }
 
+function w30(liq: LiquidationState) {
+  return liq.windows.find((w) => w.windowS === 30);
+}
+
 function deriveOiOiStatus(samples: OiSample[], nowMs: number, staleMs: number): DataStatus {
   if (!samples.length) return "INVALID";
   const latest = samples[samples.length - 1].time;
@@ -182,4 +220,20 @@ function deriveOiOiStatus(samples: OiSample[], nowMs: number, staleMs: number): 
   if (age > staleMs * 3) return "DISCONNECTED";
   if (age > staleMs) return "STALE";
   return "LIVE";
+}
+
+/** Positioning is periodic (5-min Binance LSR). Freshness is its OWN, not WS. */
+function derivePositioningStatus(hasData: boolean, time: number, nowMs: number): DataStatus {
+  if (!hasData) return "INVALID";
+  const age = nowMs - time;
+  if (age > POSITIONING_PERIODIC_MS * 3) return "DISCONNECTED";
+  if (age > POSITIONING_PERIODIC_MS) return "STALE";
+  return "PERIODIC";
+}
+
+/** Map raw WS liveness to a status with an explicit DISCONNECTED tier. */
+function deriveFeedStatus(live: boolean, stale: boolean): DataStatus {
+  if (live) return "LIVE";
+  if (stale) return "DISCONNECTED"; // retries exhausted
+  return "STALE"; // transiently disconnected, reconnecting
 }

@@ -13,18 +13,33 @@
  * Everything is a continuous feature; the Signal Engine decides how to weight
  * it with order flow / momentum / volatility / regime.
  *
+ * Output is only produced when ENOUGH OI history exists to make the 30s OI
+ * delta meaningful. With insufficient history the quadrant returns "unknown"
+ * and strength/confidence collapse to 0 — the engine never reports a false
+ * relationship from a couple of samples. Volume + flow delta are used only to
+ * raise confidence, never to fabricate a reading.
+ *
  * Pure function.
  */
 
 import type { PriceOiRelationship } from "./types";
 
+/** Minimum OI samples (≈1 min @ 5s) before the relationship is trusted. */
+export const MIN_PRICE_OI_SAMPLES = 12;
+
 export function computePriceOiRelationship(input: {
   priceMovePct: number | null; // signed recent price move %
   oiMovePct: number | null; // signed recent OI move % (e.g. 30s)
+  oiSampleCount: number; // how many OI samples in the ring
+  futuresVolume: number | null; // 24h futures volume (quote), confirmation only
+  flowDelta: number | null; // signed taker buy-sell delta, confirmation only
 }): PriceOiRelationship {
-  const { priceMovePct, oiMovePct } = input;
+  const { priceMovePct, oiMovePct, oiSampleCount, futuresVolume, flowDelta } = input;
 
-  if (priceMovePct == null || oiMovePct == null) {
+  // Gate: if we don't have a real OI move AND enough history to trust it, the
+  // relationship is unknowable. Never invent one from price alone.
+  const historyOk = oiSampleCount >= MIN_PRICE_OI_SAMPLES;
+  if (!historyOk || priceMovePct == null || oiMovePct == null || oiSampleCount === 0) {
     return { quadrant: "unknown", strength: 0, confidence: 0, priceMovePct, oiMovePct };
   }
 
@@ -44,10 +59,20 @@ export function computePriceOiRelationship(input: {
   const oiMag = Math.abs(oiMovePct);
   const strength = clamp(0.5 * (priceMag / 0.2) + 0.5 * (oiMag / 0.5), 0, 1);
 
-  // One-sided confidence: larger, clearer moves → higher confidence.
-  const confidence = Math.round(
-    clamp(50 + priceMag * 120 + oiMag * 60, 5, 96)
-  );
+  // One-sided confidence: larger, clearer moves → higher confidence; volume and
+  // flow delta only raise it when they AGREE with the quadrant (confirmation),
+  // never create a reading out of thin air.
+  let confidence = 50 + priceMag * 120 + oiMag * 60;
+  if (futuresVolume != null && isFinite(futuresVolume) && futuresVolume > 0) {
+    const volumeAgrees = quadrant === "price-up-oi-up" || quadrant === "price-down-oi-up";
+    if (volumeAgrees) confidence += 10;
+  }
+  if (flowDelta != null && isFinite(flowDelta) && Math.abs(flowDelta) > 0) {
+    const deltaAgrees =
+      (quadrant === "price-up-oi-up" || quadrant === "price-up-oi-down") === (flowDelta > 0);
+    if (deltaAgrees) confidence += 10;
+  }
+  confidence = Math.round(clamp(confidence, 5, 96));
 
   return { quadrant, strength, confidence, priceMovePct, oiMovePct };
 }

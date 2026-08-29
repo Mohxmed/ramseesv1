@@ -2,6 +2,8 @@
 
 import type { FuturesState } from "../../bitcoin/futures/types";
 
+export type FuturesFeedView = { live: boolean; stale: boolean; latency: number | null };
+
 const statusLabel: Record<string, string> = {
   LIVE: "مباشرة",
   PERIODIC: "دورية",
@@ -21,7 +23,13 @@ function fmtUsd(v: number | null | undefined): string {
   return `$${v.toFixed(0)}`;
 }
 
-export function FuturesStatePanel({ state }: { state: FuturesState | null }) {
+export function FuturesStatePanel({
+  state,
+  feed,
+}: {
+  state: FuturesState | null;
+  feed?: FuturesFeedView;
+}) {
   if (!state) {
     return (
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 text-sm text-zinc-400">
@@ -41,6 +49,9 @@ export function FuturesStatePanel({ state }: { state: FuturesState | null }) {
         <h3 className="text-sm font-bold text-zinc-100">حالة العقود الآجلة</h3>
         <span className="text-[10px] text-zinc-500">
           {statusLabel[h.oiStatus]} · تحديث {state.freshnessMs == null ? "—" : `${(state.freshnessMs / 1000).toFixed(0)}s`}
+          {feed?.live && feed.latency != null ? (
+            <span className="text-zinc-600"> · زمن الرحلة {feed.latency}ms</span>
+          ) : null}
         </span>
       </div>
 

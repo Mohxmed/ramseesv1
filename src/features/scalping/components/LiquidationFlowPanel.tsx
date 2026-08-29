@@ -1,6 +1,7 @@
 "use client";
 
 import type { FuturesState } from "../../bitcoin/futures/types";
+import type { FuturesFeedView } from "./FuturesStatePanel";
 
 const intensityLabel: Record<string, string> = {
   EXTREME: "قصوى",
@@ -8,6 +9,14 @@ const intensityLabel: Record<string, string> = {
   MODERATE: "متوسطة",
   LOW: "منخفضة",
   NONE: "معدومة",
+};
+
+const statusLabel: Record<string, string> = {
+  LIVE: "مباشرة",
+  PERIODIC: "دورية",
+  STALE: "متأخرة",
+  DISCONNECTED: "منفصلة",
+  INVALID: "غير متاحة",
 };
 
 function fmtUsd(v: number | null | undefined): string {
@@ -34,7 +43,13 @@ function timeAgo(ts: number | null | undefined): string {
   return sec < 60 ? `${sec}ث` : `${Math.floor(sec / 60)}د ${sec % 60}ث`;
 }
 
-export function LiquidationFlowPanel({ state }: { state: FuturesState | null }) {
+export function LiquidationFlowPanel({
+  state,
+  feed,
+}: {
+  state: FuturesState | null;
+  feed?: FuturesFeedView;
+}) {
   if (!state) {
     return (
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 text-sm text-zinc-400">
@@ -44,21 +59,44 @@ export function LiquidationFlowPanel({ state }: { state: FuturesState | null }) 
   }
   const liq = state.liquidations;
   const cascade = liq.cascade;
+  const liqStatus = state.dataHealth.liquidationStatus;
+  const noEvents = liqStatus === "LIVE" && !liq.last;
+  const unavailable = liqStatus === "DISCONNECTED" || liqStatus === "STALE" || liqStatus === "INVALID";
+  // Honest status: no liquidations ≠ feed dead; a dead source is NOT shown as $0.
+  const statusBanner = noEvents
+    ? "لا توجد تصفيات فعليًا الآن"
+    : unavailable
+    ? `مصدر التصفية ${statusLabel[liqStatus]} — لا بيانات موثوقة`
+    : `مصدر التصفية ${statusLabel[liqStatus]}`;
 
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-2 flex items-center justify-between">
         <h3 className="text-sm font-bold text-zinc-100">تدفق التصفية (أحداث حقيقية)</h3>
         <span className="text-[10px] text-zinc-500">
-          <span
-            className={`ml-1 inline-block h-1.5 w-1.5 rounded-full ${
-              state.dataHealth.liquidationStatus === "LIVE" ? "bg-emerald-400" : "bg-amber-400"
-            }`}
-          />{" "}
+          {feed?.live && feed.latency != null ? `زمن الرحلة ${feed.latency}ms · ` : ""}
           آخر حدث {timeAgo(liq.last?.timestamp)}
         </span>
       </div>
 
+      <div
+        className={`mb-3 rounded-lg border px-2 py-1 text-[10px] ${
+          noEvents
+            ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-300/90"
+            : unavailable
+            ? "border-amber-500/30 bg-amber-500/5 text-amber-300/90"
+            : "border-zinc-700 bg-zinc-800/40 text-zinc-400"
+        }`}
+      >
+        {statusBanner}
+      </div>
+
+      {unavailable ? (
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 text-center text-xs text-zinc-500">
+          المصدر غير موثوق حاليًا — لن نعرض أصفارًا كأنها حقيقية.
+        </div>
+      ) : (
+        <>
       <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
         <div>
           <div className="text-[10px] text-zinc-500">تصفية لُونج (30ث)</div>
@@ -112,6 +150,8 @@ export function LiquidationFlowPanel({ state }: { state: FuturesState | null }) 
           </div>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 }

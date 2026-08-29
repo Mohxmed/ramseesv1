@@ -131,7 +131,7 @@ export type ScalpingSnapshot = {
   recorder?: ScalpRecorderView | null;
   /** Unified real-time futures state + feed liveness for the UI panels. */
   futuresState?: FuturesState | null;
-  futuresFeed?: { live: boolean; stale: boolean };
+  futuresFeed?: { live: boolean; stale: boolean; latency: number | null };
 };
 
 /** Composed statistical decision exposed to the UI (see decision/ module). */

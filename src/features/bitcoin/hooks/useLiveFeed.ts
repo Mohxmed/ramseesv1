@@ -113,11 +113,17 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
   // own cadence. Only the coarse connection state is mirrored to React.
   const markPriceRef = useRef<number | null>(null);
   const liqEventsRef = useRef<LiquidationEvent[]>([]);
+  // Seen liquidation keys (symbol + trade time) so a forceOrder redelivered
+  // after a reconnect is dropped — the normalized id embeds a cycling seq, so
+  // id alone can't dedupe across reconnects; the (symbol, timestamp) is stable.
+  const liqSeenKeysRef = useRef<Set<string>>(new Set());
   const lastFuturesEventRef = useRef(0);
+  const futuresLatencyRef = useRef<number | null>(null);
   const futuresLiveRef = useRef(false);
   const futuresStaleRef = useRef(false);
   const [futuresLive, setFuturesLive] = useState(false);
   const [futuresStale, setFuturesStale] = useState(false);
+  const [futuresLatency, setFuturesLatency] = useState<number | null>(null);
 
   useEffect(() => {
     let ws: WebSocket | null = null;
@@ -341,6 +347,7 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
     const mirrorFuturesState = () => {
       setFuturesLive(futuresWs?.readyState === WebSocket.OPEN);
       setFuturesStale(futuresStaleRef.current);
+      setFuturesLatency(futuresLatencyRef.current);
     };
 
     const openFutures = () => {
@@ -352,26 +359,42 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
           futuresRetries = 0;
           futuresLiveRef.current = true;
           futuresStaleRef.current = false;
+          futuresLatencyRef.current = null;
           mirrorFuturesState();
         };
         futuresWs.onmessage = (evt) => {
           try {
             const raw = JSON.parse(evt.data as string);
             const msgs = Array.isArray(raw) ? raw : [raw];
-            lastFuturesEventRef.current = Date.now();
+            const now = Date.now();
+            lastFuturesEventRef.current = now;
             for (const msg of msgs) {
               const e = (msg as { e?: string }).e;
+              const eventTime = toNum((msg as { E?: unknown }).E);
+              if (eventTime > 0) {
+                futuresLatencyRef.current = Math.max(0, now - eventTime);
+              }
               if (e === "markPriceUpdate") {
                 const p = toNum((msg as { p?: unknown }).p);
                 if (p > 0) markPriceRef.current = p;
               } else if (e === "forceOrder") {
-                const ev = normalizeLiquidationEvent(msg, Date.now(), "binance");
+                const ev = normalizeLiquidationEvent(msg, now, "binance");
                 if (ev) {
                   const ring = liqEventsRef.current;
-                  // Duplicate-event protection: skip if we already saw this id.
-                  if (!ring.some((x) => x.id === ev.id)) {
+                  const seen = liqSeenKeysRef.current;
+                  // Dedup on the stable (symbol, trade-time) key so the same
+                  // forceOrder redelivered after reconnect is not double-counted.
+                  const key = `${ev.symbol}_${ev.timestamp}`;
+                  if (!seen.has(key)) {
+                    seen.add(key);
                     ring.unshift(ev);
                     if (ring.length > LIQ_EVENT_RING) ring.length = LIQ_EVENT_RING;
+                    if (seen.size > LIQ_EVENT_RING * 3) {
+                      // Rebound the seen-set to the ring to cap memory.
+                      liqSeenKeysRef.current = new Set(
+                        ring.map((x) => `${x.symbol}_${x.timestamp}`)
+                      );
+                    }
                   }
                 }
               }
@@ -410,6 +433,9 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
         setFuturesStale(true);
         futuresWs.close();
       }
+      // Refresh the latency display on the (throttled) heartbeat cadence rather
+      // than on every WS frame, avoiding per-tick renders.
+      setFuturesLatency(futuresLatencyRef.current);
     };
     futuresHeartbeatTimer = setInterval(futuresHeartbeat, WS_HEARTBEAT_MS);
     openFutures();
@@ -443,6 +469,7 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
     liqEventsRef,
     futuresLive,
     futuresStale,
+    futuresLatency,
   };
 }
 

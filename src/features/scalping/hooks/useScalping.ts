@@ -213,7 +213,11 @@ export function useScalping(): ScalpingSnapshot {
         decision: decisionView,
         recorder: recorderView,
         futuresState: cmd.futuresState,
-        futuresFeed: { live: cmd.futuresWsLive, stale: cmd.futuresWsStale },
+        futuresFeed: {
+          live: cmd.futuresWsLive,
+          stale: cmd.futuresWsStale,
+          latency: cmd.futuresWsLatency,
+        },
       });
     };
 

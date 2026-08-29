@@ -101,6 +101,17 @@ export function useBitcoinPipeline() {
   const [futuresState, setFuturesState] = useState<FuturesState | null>(null);
   // OI sampling ring (no live OI WS; sampled via REST on the fast cadence).
   const oiSamplesRef = useRef<OiSample[]>([]);
+  // RAW positioning inputs captured from the slow-tier REST — null when the
+  // value is actually missing. We never read positioning from the coerced
+  // FuturesContext (which defaults null→1/0), so UNAVAILABLE stays unavailable.
+  const posRawRef = useRef<{
+    globalLongShortRatio: number | null;
+    topLongShortRatio: number | null;
+    fundingRate: number | null;
+    basis: number | null;
+    futuresVolume: number | null;
+    time: number;
+  } | null>(null);
 
   const liveFeed = useLiveFeed();
   // Mirror the live payload into a ref so the REST fetch doesn't re-create its
@@ -159,14 +170,9 @@ export function useBitcoinPipeline() {
   }, [liveFeed.livePrice, liveFeed.liveUpdatedAt, liveFeed.liveKline]);
 
   const busyRef = useRef(false);
-  // Mirror the FuturesContext state so the fast tier can read the latest
-  // positioning inputs (LSR is only computed in the slow tier) without stale
-  // closures. prevPriceRef tracks the last fast-tier price for a signed move.
-  const futuresRef = useRef<FuturesContext | null>(null);
+  // prevPriceRef tracks the last fast-tier price for a signed move. (Positioning
+  // now reads the RAW posRawRef captured in the slow tier — not FuturesContext.)
   const prevPriceRef = useRef<number | null>(null);
-  useEffect(() => {
-    futuresRef.current = futures;
-  }, [futures]);
 
   const loadPrediction = useCallback((kLines: BtcCandle[]) => {
     if (kLines.length >= 2) setPrediction(runPrediction(kLines));
@@ -280,7 +286,8 @@ export function useBitcoinPipeline() {
           : null;
       prevPriceRef.current = spot.price;
 
-      const ctx = futuresRef.current;
+      const pos = posRawRef.current;
+      const flow = liveFeed.orderFlow;
       const nextFuturesState = buildFuturesState({
         nowMs: Date.now(),
         receivedAt: Date.now(),
@@ -289,19 +296,22 @@ export function useBitcoinPipeline() {
         markPrice: effectiveMark,
         spotPrice: spot.price,
         futuresWsLive: liveFeed.futuresLive,
+        futuresWsStale: liveFeed.futuresStale,
         positioning: {
-          globalLongShortRatio: ctx?.longShortRatio ?? null,
-          topLongShortRatio: ctx?.longAccountShare ?? null,
-          fundingRate: ctx?.fundingRate ?? null,
-          basis: ctx?.basis ?? null,
-          futuresVolume: ctx?.futuresVolume ?? null,
-          time: ctx?.timestamp ?? Date.now(),
+          globalLongShortRatio: pos?.globalLongShortRatio ?? null,
+          topLongShortRatio: pos?.topLongShortRatio ?? null,
+          fundingRate: pos?.fundingRate ?? null,
+          basis: pos?.basis ?? null,
+          futuresVolume: pos?.futuresVolume ?? null,
+          time: pos?.time ?? Date.now(),
         },
         liqEvents: liveFeed.liqEventsRef.current,
         priceMovePct,
         oiMovePct30: null,
-        flow: liveFeed.orderFlow,
+        flow,
         book: orderBook,
+        flowDelta: flow ? flow.buySellDelta : null,
+        futuresVolume: pos?.futuresVolume ?? null,
       });
       setFuturesState(nextFuturesState);
 
@@ -410,6 +420,32 @@ export function useBitcoinPipeline() {
         spotKlines: all1m,
       });
       setFutures(futuresCtx);
+
+      // Capture RAW positioning inputs (null = truly unavailable) so the
+      // FuturesState positioning layer never inherits FuturesContext's
+      // null→1/0 coercion. Only non-null values become "present".
+      if (lsrRaw?.length) {
+        posRawRef.current = {
+          globalLongShortRatio: parseFloat(lsrRaw[lsrRaw.length - 1].longShortRatio),
+          topLongShortRatio: parseFloat(lsrRaw[lsrRaw.length - 1].longAccount),
+          fundingRate:
+            fundingHistory.length
+              ? fundingHistory[0].rate
+              : pm?.lastFundingRate != null
+              ? pm.lastFundingRate * 100
+              : null,
+          basis:
+            pm?.markPrice != null && spot.price > 0
+              ? ((pm.markPrice - spot.price) / spot.price) * 100
+              : null,
+          futuresVolume: futTickerRaw ? parseFloat(futTickerRaw.quoteVolume) : null,
+          time: lsrRaw[lsrRaw.length - 1].timestamp
+            ? Number(lsrRaw[lsrRaw.length - 1].timestamp)
+            : Date.now(),
+        };
+      } else {
+        posRawRef.current = null;
+      }
 
       const effectiveFlow: OrderFlowData | null =
         liveFlowRef.current && liveFlowRef.current.takerBuyRatio >= 0
@@ -526,6 +562,7 @@ export function useBitcoinPipeline() {
     futuresState,
     futuresWsLive: liveFeed.futuresLive,
     futuresWsStale: liveFeed.futuresStale,
+    futuresWsLatency: liveFeed.futuresLatency,
     marketState,
     liquidity,
     structure,

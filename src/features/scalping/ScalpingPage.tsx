@@ -58,9 +58,9 @@ export function ScalpingPage() {
               <div>
                 <h2 className="mb-2 text-sm font-bold text-zinc-200">لوحات العقود الآجلة</h2>
                 <div className="grid gap-4 lg:grid-cols-3">
-                  <FuturesStatePanel state={snap.futuresState ?? null} />
-                  <LiquidationFlowPanel state={snap.futuresState ?? null} />
-                  <PriceOiPanel state={snap.futuresState ?? null} />
+                  <FuturesStatePanel state={snap.futuresState ?? null} feed={snap.futuresFeed} />
+                  <LiquidationFlowPanel state={snap.futuresState ?? null} feed={snap.futuresFeed} />
+                  <PriceOiPanel state={snap.futuresState ?? null} feed={snap.futuresFeed} />
                 </div>
               </div>
 

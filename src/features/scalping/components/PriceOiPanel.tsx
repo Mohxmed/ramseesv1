@@ -1,6 +1,8 @@
 "use client";
 
 import type { FuturesState } from "../../bitcoin/futures/types";
+import type { FuturesFeedView } from "./FuturesStatePanel";
+import { MIN_PRICE_OI_SAMPLES } from "../../bitcoin/futures/priceOi";
 
 const quadrantLabel: Record<string, { text: string; note: string; tone: string }> = {
   "price-up-oi-up": { text: "سعر ↑ · OI ↑", note: "ارتفاع مدعوم بعقود جديدة (زدوج صاعد)", tone: "text-emerald-400" },
@@ -15,7 +17,13 @@ function fmtPct(v: number | null | undefined, digits = 3): string {
   return v == null || !isFinite(v) ? "—" : `${v.toFixed(digits)}%`;
 }
 
-export function PriceOiPanel({ state }: { state: FuturesState | null }) {
+export function PriceOiPanel({
+  state,
+  feed,
+}: {
+  state: FuturesState | null;
+  feed?: FuturesFeedView;
+}) {
   if (!state) {
     return (
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 text-sm text-zinc-400">
@@ -25,13 +33,22 @@ export function PriceOiPanel({ state }: { state: FuturesState | null }) {
   }
   const rel = state.priceOiRelationship;
   const q = quadrantLabel[rel.quadrant] ?? quadrantLabel.unknown;
+  const pendingHistory = rel.quadrant === "unknown";
 
   return (
     <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-bold text-zinc-100">علاقة السعر ↔ العقود</h3>
-        <span className="text-[10px] text-zinc-500">ميزة إحصائية (ليست قاعدة)</span>
+        <span className="text-[10px] text-zinc-500">
+          {feed?.live && feed.latency != null ? `زمن الرحلة ${feed.latency}ms` : "ميزة إحصائية"}
+        </span>
       </div>
+
+      {pendingHistory && (
+        <div className="mb-3 rounded-lg border border-zinc-700 bg-zinc-800/40 px-2 py-1 text-[10px] text-zinc-400">
+          جارٍ بناء التاريخ — العلاقة تُعرض فقط بعد توفر {MIN_PRICE_OI_SAMPLES} عينة OI على الأقل.
+        </div>
+      )}
 
       <div className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
         <div>
