@@ -6,6 +6,7 @@ import {
   BitcoinIcon,
   DecisionIcon,
   StrategyIcon,
+  ScalpIcon,
   type IconProps,
 } from "@/components/icons/icons";
 
@@ -35,6 +36,11 @@ export const NAVIGATION: NavItem[] = [
     label: "مركز القرارات",
     href: "/decision-center",
     icon: DecisionIcon,
+  },
+  {
+    label: "المضاربة الفورية",
+    href: "/scalping",
+    icon: ScalpIcon,
   },
   {
     label: "الاستراتيجيات",
