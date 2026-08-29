@@ -456,6 +456,7 @@ export function useBitcoinPipeline() {
     livePrice,
     liveUpdatedAt,
     livePriceTs: liveUpdatedAt,
+    wsHealth: liveFeed.wsHealth,
     futures,
     marketState,
     liquidity,

@@ -10,11 +10,17 @@ import { computeFeatures } from "../features";
 import { computeSignal } from "../signal/engine";
 import { computeForecast } from "../forecast/engine";
 import { recordSignal } from "../signal/log";
+import { composeDecision } from "../decision";
+import { EventRecorder } from "../recording";
+import type { ScalpingDecision, DecisionDirection } from "../decision";
+import type { RecordedDirection } from "../recording";
 import type {
   ScalpingExecution,
   ScalpingFeature,
   ScalpingSignal,
   ScalpingSnapshot,
+  ScalpDecisionView,
+  ScalpRecorderView,
 } from "../types";
 
 /**
@@ -34,6 +40,10 @@ import type {
 
 let uid = 0;
 const nextId = (): string => `sig_${Date.now()}_${uid++}`;
+
+// Bounded in-memory decision recorder (see recording/ module). Lives at module
+// scope so history survives health recomputations within a page session.
+const recorder = new EventRecorder(1000);
 
 export function useScalping(): ScalpingSnapshot {
   const cmd = useMarketData();
@@ -79,6 +89,7 @@ export function useScalping(): ScalpingSnapshot {
       } else if (live === false) {
         health = { status: "disconnected" };
       } else if (
+        cmd.wsHealth?.stale ||
         (priceAge != null && priceAge > SCALPING_CONFIG.priceStaleMs) ||
         !cmdFresh(cmd)
       ) {
@@ -129,7 +140,47 @@ export function useScalping(): ScalpingSnapshot {
 
       const execution = buildExecution(signal);
 
-      // Backtest-ready logging (bounded) — only on a directional change.
+      // --- Statistical decision layer -------------------------------------
+      // Regime + MarketState + Probability + ExpectedValue + NO TRADE gate.
+      const decision = composeDecision({
+        ctx: {
+          timestamp: now,
+          price,
+          samplePrice: ctx.samplePrice,
+          priceAgeMs: priceAge,
+          orderBook: cmd.orderBook,
+          orderFlow: cmd.orderFlow,
+        },
+        signal: { score: signal.score, signed: signal.signed, confidence: signal.confidence },
+        wsStale: cmd.wsHealth?.stale ?? false,
+      });
+
+      const decisionView = toDecisionView(decision);
+
+      // Recorder: capture every decision + resolve forward outcomes.
+      recorder.resolveLatest(price ?? now, SCALPING_CONFIG.forecastHorizonsS[0]);
+      recorder.record({
+        ts: now,
+        price: price ?? 0,
+        direction: toRecordedDirection(decision.direction),
+        primaryProbability: decision.outcome.primary,
+        score: signal.score,
+        regime: decision.regime.regime,
+        blocked: decision.blocked,
+      });
+      const cal = recorder.calibration();
+      const recStats = recorder.stats();
+      const recorderView: ScalpRecorderView = {
+        count: recStats.count,
+        directional: recStats.directional,
+        noTrade: recStats.noTrade,
+        resolved: recStats.resolved,
+        hitRate: recStats.hitRate,
+        calibrationError: cal.calibrationError,
+        brier: cal.brier,
+      };
+
+      // Legacy backtest-ready logging — only on a directional change.
       if (signal.direction !== "NEUTRAL" && signal.direction !== prev?.direction) {
         const featureSnapshot: Record<string, number | null> = {};
         for (const f of features) featureSnapshot[f.key] = f.normalized;
@@ -158,6 +209,8 @@ export function useScalping(): ScalpingSnapshot {
         signal,
         forecast,
         execution,
+        decision: decisionView,
+        recorder: recorderView,
       });
     };
 
@@ -172,6 +225,45 @@ export function useScalping(): ScalpingSnapshot {
 
 function cmdFresh(cmd: { data: { status: string } }): boolean {
   return cmd.data.status === "ready";
+}
+
+/** Map the composed decision into the UI-safe view shape. */
+function toDecisionView(d: ScalpingDecision): ScalpDecisionView {
+  const ev = d.expectedValue;
+  return {
+    direction: d.direction,
+    blocked: d.blocked,
+    gate: d.gate,
+    primaryProbability: d.outcome.primary?.probability ?? null,
+    probabilityDirection: d.outcome.primary?.direction ?? null,
+    longProbability: d.outcome.long.probability,
+    shortProbability: d.outcome.short.probability,
+    probabilityCalibrated: d.outcome.long.calibrated,
+    expectedNetMovePct: ev?.net != null && ev.positive ? ev.net * 100 : null,
+    costBps: ev
+      ? {
+          fee: ev.costs.fee * 10000,
+          spread: ev.costs.spread * 10000,
+          slippage: ev.costs.slippage * 10000,
+          total: ev.costs.total * 10000,
+        }
+      : null,
+    reasonNote:
+      d.direction === "NO_TRADE"
+        ? (ev?.reason ?? "لا صفقة حالياً")
+        : d.gate === "data-stale"
+        ? "بيانات السوق قديمة — أوقفنا توليد إشارات جديدة."
+        : d.direction === "NEUTRAL"
+        ? "لا توافق كافٍ على اتجاه صافٍ."
+        : null,
+    regimeKey: d.regime.regime,
+    regimeConfidence: d.regime.confidence,
+  };
+}
+
+function toRecordedDirection(dir: DecisionDirection): RecordedDirection {
+  if (dir === "NEUTRAL") return "NO_TRADE";
+  return dir;
 }
 
 function describeRegime(features: ScalpingFeature[]): string {

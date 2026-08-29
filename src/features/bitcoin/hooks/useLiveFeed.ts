@@ -8,6 +8,10 @@ import {
   ORDER_FLOW_LARGE_BTC,
   BITCOIN_CONFIG,
   LIVE_TICK_MS,
+  WS_HEARTBEAT_MS,
+  WS_STALE_MS,
+  WS_MAX_RETRIES,
+  WS_MAX_LATENCY_MS,
 } from "../constants";
 
 type AggTradeEvt = {
@@ -79,11 +83,21 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
   const [livePrice, setLivePrice] = useState<number | null>(null);
   const [liveUpdatedAt, setLiveUpdatedAt] = useState<number | null>(null);
   const [connected, setConnected] = useState(false);
+  // Transport health surfaced to consumers: staleness, latency, reconnect state.
+  const [wsHealth, setWsHealth] = useState<WsHealth>({
+    connected: false,
+    stale: false,
+    latencyMs: null,
+    lastEventAt: null,
+    reconnectAttempts: 0,
+  });
 
   const tradesRef = useRef<AggTradeEvt[]>([]);
   const lastPriceRef = useRef<number | null>(null);
   const lastUpdatedRef = useRef<number>(0);
   const publishRef = useRef<number>(0);
+  const lastEventAtRef = useRef<number>(0);
+  const latencyRef = useRef<number | null>(null);
   const log = useRef(onDebug);
   log.current = onDebug;
 
@@ -91,7 +105,34 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
     let ws: WebSocket | null = null;
     let closed = false;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
     let reconnectAttempts = 0;
+
+    const applyHealth = (patch: Partial<WsHealth>) => {
+      setWsHealth((prev) =>
+        prev.connected === (patch.connected ?? prev.connected) &&
+        prev.stale === (patch.stale ?? prev.stale) &&
+        prev.latencyMs === (patch.latencyMs ?? prev.latencyMs) &&
+        prev.lastEventAt === (patch.lastEventAt ?? prev.lastEventAt) &&
+        prev.reconnectAttempts === (patch.reconnectAttempts ?? prev.reconnectAttempts)
+          ? prev
+          : { ...prev, ...patch }
+      );
+    };
+
+    const onEvent = (exchangeTsMs?: number) => {
+      const received = Date.now();
+      lastEventAtRef.current = received;
+      // Approximate one-way latency from the exchange event time to arrival.
+      if (exchangeTsMs && exchangeTsMs > 0 && received >= exchangeTsMs) {
+        latencyRef.current = Math.min(WS_MAX_LATENCY_MS, received - exchangeTsMs);
+      }
+      applyHealth({
+        lastEventAt: received,
+        latencyMs: latencyRef.current,
+        stale: false,
+      });
+    };
 
     const computeFlow = () => {
       const now = Date.now();
@@ -117,6 +158,9 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
         if (usd >= LARGE * p) largeTradeCount++;
       }
       const total = buyVolume + sellVolume;
+      const received = Date.now();
+      const processed = Date.now();
+      const lastEx = active.length ? active[active.length - 1].T * 1000 : now;
       setOrderFlow({
         buyVolume,
         sellVolume,
@@ -128,6 +172,10 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
         largeTradeCount,
         sampleSeconds: ORDER_FLOW_WINDOW_S,
         timestamp: now,
+        // Integrity timestamps: exchange vs local-received vs local-processed.
+        exchangeTimestamp: lastEx,
+        receivedTimestamp: received,
+        processedTimestamp: processed,
       });
     };
 
@@ -157,6 +205,14 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
               | Record<string, unknown>;
             const data = "data" in raw ? (raw.data as Record<string, unknown>) : raw;
             const e = data.e;
+            // Transport integrity: track staleness + latency from the event time.
+            onEvent(
+              isFiniteNumber(data.E)
+                ? (data.E as number)
+                : isFiniteNumber(data.T)
+                ? (data.T as number)
+                : undefined
+            );
             if (e === "aggTrade") {
               const t = data as unknown as AggTradeEvt;
               if (t.T * 1000 > Date.now() - WINDOW_MS) tradesRef.current.push(t);
@@ -214,11 +270,25 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
           /* handled by onclose */
         };
         ws.onclose = () => {
+          applyHealth({ connected: false, stale: true });
           setConnected(false);
           if (closed) return;
+          if (reconnectAttempts >= WS_MAX_RETRIES) {
+            // Give up after too many consecutive failures; a manual re-mount
+            // (or a later manual refresh) can resume the feed.
+            log.current?.("ws-retries-exhausted");
+            return;
+          }
           reconnectAttempts++;
-          const delay = Math.min(5000, 500 * reconnectAttempts);
-          retryTimer = setTimeout(open, delay);
+          applyHealth({ reconnectAttempts });
+          // Exponential backoff with a small jitter to avoid reconnect storms.
+          const base = Math.min(5000, 500 * reconnectAttempts);
+          const jitter = Math.random() * 250;
+          const delay = base + jitter;
+          retryTimer = setTimeout(() => {
+            retryTimer = null;
+            open();
+          }, delay);
         };
       } catch {
         if (!closed) {
@@ -227,12 +297,26 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
       }
     };
 
+    // Liveness watchdog: a socket can be half-open (no close event) while the
+    // remote stopped sending. If no frame arrives within WS_STALE_MS, force a
+    // reconnect and mark the feed stale so consumers will not emit signals.
+    const heartbeat = () => {
+      const idle = Date.now() - lastEventAtRef.current;
+      if (lastEventAtRef.current && idle > WS_STALE_MS && !closed) {
+        applyHealth({ stale: true });
+        log.current?.("ws-stale-force-reconnect");
+        ws?.close();
+      }
+    };
+    heartbeatTimer = setInterval(heartbeat, WS_HEARTBEAT_MS);
+
     open();
     const interval = setInterval(computeFlow, 5000);
 
     return () => {
       closed = true;
       if (retryTimer) clearTimeout(retryTimer);
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
       clearInterval(interval);
       if (ws) ws.close();
     };
@@ -246,8 +330,20 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
     livePrice,
     liveUpdatedAt,
     connected,
+    wsHealth,
   };
 }
+
+/** Transport-level health of the market WebSocket (staleness/latency/reconnect). */
+export type WsHealth = {
+  connected: boolean;
+  /** True when no fresh frame has arrived within the staleness window. */
+  stale: boolean;
+  /** Approximate one-way latency in ms (null until the first frame). */
+  latencyMs: number | null;
+  lastEventAt: number | null;
+  reconnectAttempts: number;
+};
 
 export type LiveFeed = ReturnType<typeof useLiveFeed>;
 

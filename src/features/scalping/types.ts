@@ -126,6 +126,46 @@ export type ScalpingSnapshot = {
   signal: ScalpingSignal | null;
   forecast: ScalpingForecast | null;
   execution: ScalpingExecution | null;
+  /** Statistical decision engine outputs (added as-is, populated by the hook). */
+  decision?: ScalpDecisionView | null;
+  recorder?: ScalpRecorderView | null;
+};
+
+/** Composed statistical decision exposed to the UI (see decision/ module). */
+export type ScalpDecisionView = {
+  /** Final direction including NO_TRADE. */
+  direction: ScalpDirection | "NO_TRADE";
+  /** True when the EV gate rejected an otherwise-directional read. */
+  blocked: boolean;
+  gate: "data-stale" | "ev-negative" | "neutral-score" | "none";
+  /** The primary directional probability (LONG/SHORT) or null. */
+  primaryProbability: number | null;
+  probabilityDirection: ScalpDirection | null;
+  /** 0..1 bullish-tendency probability (always available). */
+  longProbability: number;
+  shortProbability: number;
+  /** true when probability is backtest-backed; false = heuristic (display!). */
+  probabilityCalibrated: boolean;
+  /** Signed net expected move (%) or null when not tradeable. */
+  expectedNetMovePct: number | null;
+  /** Breakdown of costs as % of price. */
+  costBps: { fee: number; spread: number; slippage: number; total: number } | null;
+  /** Human reason for a NO_TRADE / neutral decision. */
+  reasonNote: string | null;
+  /** Classifier regime key + confidence (0..100). */
+  regimeKey: string;
+  regimeConfidence: number;
+};
+
+/** Recorder + calibration summary shown in the UI (statistical self-eval). */
+export type ScalpRecorderView = {
+  count: number;
+  directional: number;
+  noTrade: number;
+  resolved: number;
+  hitRate: number;
+  calibrationError: number;
+  brier: number;
 };
 
 // ---------------------------------------------------------------------------

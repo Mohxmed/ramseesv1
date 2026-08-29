@@ -150,6 +150,10 @@ export type OrderFlowData = {
   largeTradeCount: number;
   sampleSeconds: number;
   timestamp: number;
+  /** Integrity timestamps (optional): exchange event time vs local receive/process. */
+  exchangeTimestamp?: number;
+  receivedTimestamp?: number;
+  processedTimestamp?: number;
 };
 
 /** Futures market context (market-wide, never an account). */

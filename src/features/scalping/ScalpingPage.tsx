@@ -7,6 +7,8 @@ import { ForecastPanel } from "./components/ForecastPanel";
 import { FeatureTable } from "./components/FeatureTable";
 import { WhyPanel } from "./components/WhyPanel";
 import { ExecutionPanel } from "./components/ExecutionPanel";
+import { RegimePanel } from "./components/RegimePanel";
+import { DecisionPanel } from "./components/DecisionPanel";
 
 export function ScalpingPage() {
   const snap = useScalping();
@@ -44,7 +46,9 @@ export function ScalpingPage() {
 
           {healthy && (
             <>
+              <RegimePanel decision={snap.decision} />
               <ForecastPanel forecast={snap.forecast} />
+              <DecisionPanel decision={snap.decision} recorder={snap.recorder} />
               <WhyPanel signal={snap.signal} />
               <FeatureTable features={snap.features} stale={false} />
               <ExecutionPanel execution={snap.execution} />
@@ -54,8 +58,10 @@ export function ScalpingPage() {
           <div className="rounded-2xl border border-zinc-800/70 bg-zinc-900/20 p-3 text-[10px] leading-relaxed text-zinc-500">
             <b className="text-zinc-400">بيانات ونزاهة:</b> كل القيم مأخوذة من سوق البيتكوين مباشرة
             (لا بيانات حساب). الـ Score والثقة والتوقعات هي <b>قراءات توافق على الضغط الحالي</b>،
-            ولا تمثل احتمالات نجاح محسوبة من نتائج تاريخية؛ النتيجة الحقيقية غير مضمونة. عند تباطؤ أو
-            انقطاع البيانات تتوقف الإشارة للحفاظ على النزاهة.
+            ولا تمثل احتمالات نجاح مضمونة؛ الاحتمال المعروض هو تقدير توافق ما لم يُشر إليه كونه
+            &quot;محسوباً من النتائج&quot; (Backtest-backed). قرار NO TRADE يظهر عندما تتجاوز التكلفة
+            (رسوم/سبريد/انزلاق) الحركة المتوقعة. عند تباطؤ أو انقطاع البيانات تتوقف الإشارة للحفاظ
+            على النزاهة.
           </div>
         </>
       )}

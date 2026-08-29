@@ -99,3 +99,11 @@ export const WS_BASE = "wss://stream.binance.com:9443/ws";
  */
 export const LIVE_TICK_MS = 1_000;
 
+// WebSocket transport integrity (heartbeat / staleness / reconnect/ latency).
+// A single combined socket carries many streams; drains are detected by a
+// message-watchdog rather than trusting the TCP open state.
+export const WS_HEARTBEAT_MS = 10_000; // how often the watchdog checks liveness
+export const WS_STALE_MS = 15_000; // no frame within this window => force reconnect
+export const WS_MAX_RETRIES = 8; // give up after this many consecutive failures
+export const WS_MAX_LATENCY_MS = 5_000; // cap reported latency to a sane ceiling
+
