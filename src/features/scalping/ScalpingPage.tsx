@@ -1,110 +1,97 @@
 "use client";
 
 import { useScalping } from "./hooks/useScalping";
-import { HealthBanner } from "./components/HealthBanner";
-import { TopCommandBar } from "./components/TopCommandBar";
-import { DataQualityStrip } from "./components/DataQualityStrip";
-import { MetricsGrid } from "./components/MetricsGrid";
-import { MarketStateSummary } from "./components/MarketStateSummary";
-import { ForecastPanel } from "./components/ForecastPanel";
-import { FeatureTable } from "./components/FeatureTable";
-import { EvidencePanel } from "./components/EvidencePanel";
-import { WhyPanel } from "./components/WhyPanel";
-import { ExecutionPanel } from "./components/ExecutionPanel";
-import { RegimePanel } from "./components/RegimePanel";
-import { DecisionPanel } from "./components/DecisionPanel";
-import { DirectionalDiagnosticsPanel } from "./components/DirectionalDiagnosticsPanel";
-import { FuturesStatePanel } from "./components/FuturesStatePanel";
-import { LiquidationFlowPanel } from "./components/LiquidationFlowPanel";
-import { PriceOiPanel } from "./components/PriceOiPanel";
+import { MarketHeader } from "./components/terminal/MarketHeader";
+import { PrimaryDecision } from "./components/terminal/PrimaryDecision";
+import { DirectionalScore } from "./components/terminal/DirectionalScore";
+import { MarketEvidence } from "./components/terminal/MarketEvidence";
+import { MarketForecast } from "./components/terminal/MarketForecast";
+import { MarketRegime } from "./components/terminal/MarketRegime";
+import { StatisticalEdge } from "./components/terminal/StatisticalEdge";
+import { RiskWarnings } from "./components/terminal/RiskWarnings";
+import { SystemStatus } from "./components/terminal/SystemStatus";
+import { DiagnosticsContent } from "./components/terminal/DiagnosticsPanel";
+import { Section, Collapse } from "./components/terminal/TradingPrimitives";
 
+/**
+ * Trading Intelligence Terminal — the scalping page.
+ *
+ * Information architecture (single source of truth per metric):
+ *   01 Decision  → 02 Direction  → [Evidence] → 03 Context → [Forecast]
+ *   → Edge → Risk → System → [collapsible Diagnostics]
+ *
+ * Decision-first on mobile: sections stack in DOM order, so the primary call
+ * and its direction always lead; tertiary engineering detail lives in a
+ * collapsed Diagnostics layer at the end.
+ *
+ * Presentation only — every metric is rendered from the existing engine
+ * snapshot, never recomputed here.
+ */
 export function ScalpingPage() {
   const snap = useScalping();
-  const healthy = snap.health.status === "ready";
-  const staleBlocked = snap.health.status === "stale" || snap.health.status === "disconnected";
 
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-lg font-bold text-zinc-100">المضاربة الفورية</h1>
-          <p className="text-xs text-zinc-500">
-            اكتشاف الاتجاه اللحظي والضغط الفعلي عبر 30 ثانية / 1 دقيقة / 2 دقيقة — من بيانات السوق
-            الحية حصرًا.
-          </p>
-        </div>
-        <HealthBanner health={snap.health} />
-      </div>
-
-      {snap.health.status === "loading" ? (
+  if (snap.health.status === "loading") {
+    return (
+      <div className="space-y-4">
+        <MarketHeader snap={snap} />
         <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-10 text-center text-sm text-zinc-400">
           جارٍ تجهيز بيانات السوق المباشرة…
         </div>
-      ) : (
-        <>
-          <TopCommandBar snap={snap} />
+      </div>
+    );
+  }
 
-          {/* While data is stale/disconnected we do not present a fresh signal. */}
-          {staleBlocked && (
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-200/90">
-              البيانات متأخرة أو غير متصلة — لا تُنتج إشارة جديدة الآن (لا عرض ثقة زائفة). عند استعادة
-              الاتصال تُستأنف الإشارات تلقائيًا.
-            </div>
-          )}
+  return (
+    <div className="space-y-4">
+      <MarketHeader snap={snap} />
 
-          {healthy && (
-            <>
-              <DataQualityStrip
-                features={snap.features}
-                decision={snap.decision}
-                futuresFeed={snap.futuresFeed}
-                futuresState={snap.futuresState ?? null}
-              />
+      {/* 01 · Primary decision */}
+      <PrimaryDecision decision={snap.decision ?? null} signal={snap.signal} />
 
-              <MetricsGrid
-                features={snap.features}
-                signal={snap.signal}
-                decision={snap.decision}
-                futuresState={snap.futuresState ?? null}
-              />
+      {/* 02 · Direction (single owner of the score) */}
+      <DirectionalScore signal={snap.signal} decision={snap.decision ?? null} />
 
-              <MarketStateSummary
-                decision={snap.decision}
-                signal={snap.signal}
-                futuresState={snap.futuresState ?? null}
-              />
+      {/* Evidence / Forecast / Context */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <MarketEvidence features={snap.features} />
+        <div className="space-y-4">
+          <MarketForecast forecast={snap.forecast} />
+          <MarketRegime decision={snap.decision ?? null} />
+        </div>
+      </div>
 
-              <RegimePanel decision={snap.decision} />
-              <ForecastPanel forecast={snap.forecast} />
-              <DecisionPanel decision={snap.decision} recorder={snap.recorder} />
-              <DirectionalDiagnosticsPanel decision={snap.decision} recorder={snap.recorder} />
-              <EvidencePanel features={snap.features} signal={snap.signal} />
-              <WhyPanel signal={snap.signal} />
-              <FeatureTable features={snap.features} stale={false} />
+      {/* Edge / Risk / System */}
+      <StatisticalEdge decision={snap.decision ?? null} recorder={snap.recorder ?? null} />
+      <RiskWarnings signal={snap.signal} execution={snap.execution} />
+      <SystemStatus
+        health={snap.health}
+        decision={snap.decision ?? null}
+        features={snap.features}
+        futuresFeed={snap.futuresFeed}
+        futuresState={snap.futuresState ?? null}
+      />
 
-              <div>
-                <h2 className="mb-2 text-sm font-bold text-zinc-200">لوحات العقود الآجلة</h2>
-                <div className="grid gap-4 lg:grid-cols-3">
-                  <FuturesStatePanel state={snap.futuresState ?? null} feed={snap.futuresFeed} />
-                  <LiquidationFlowPanel state={snap.futuresState ?? null} feed={snap.futuresFeed} />
-                  <PriceOiPanel state={snap.futuresState ?? null} feed={snap.futuresFeed} />
-                </div>
-              </div>
+      {/* Assessment footer — preserved from the original for integrity. */}
+      <div className="rounded-2xl border border-zinc-800/70 bg-zinc-900/20 p-3 text-[10px] leading-relaxed text-zinc-500">
+        <b className="text-zinc-400">بيانات ونزاهة:</b> كل القيم مأخوذة من سوق البيتكوين مباشرة
+        (لا بيانات حساب). الـ Score والثقة والتوقعات هي <b className="text-zinc-400">قراءات توافق على
+        الضغط الحالي</b>، ولا تمثل احتمالات نجاح مضمونة؛ الاحتمال المعروض هو تقدير توافق ما لم يُشر
+        إليه كونه «محسوباً من النتائج». قرار NO TRADE يظهر عندما تتجاوز التكلفة (رسوم/سبريد/انزلاق)
+        الحركة المتوقعة. عند تباطؤ أو انقطاع البيانات تتوقف الإشارة للحفاظ على النزاهة.
+      </div>
 
-              <ExecutionPanel execution={snap.execution} />
-            </>
-          )}
-
-          <div className="rounded-2xl border border-zinc-800/70 bg-zinc-900/20 p-3 text-[10px] leading-relaxed text-zinc-500">
-            <b className="text-zinc-400">بيانات ونزاهة:</b> كل القيم مأخوذة من سوق البيتكوين مباشرة
-            (لا بيانات حساب). الـ Score والثقة والتوقعات هي <b>قراءات توافق على الضغط الحالي</b>،
-            ولا تمثل احتمالات نجاح مضمونة؛ الاحتمال المعروض هو تقدير توافق ما لم يُشر إليه كونه
-            &quot;محسوباً من النتائج&quot; (Backtest-backed). قرار NO TRADE يظهر عندما تتجاوز التكلفة
-            (رسوم/سبريد/انزلاق) الحركة المتوقعة. عند تباطؤ أو انقطاع البيانات تتوقف الإشارة للحفاظ
-            على النزاهة.
+      {/* 09 · Diagnostics — collapsed by default */}
+      <Section title="التشخيص التفصيلي" eyebrow="09 · Diagnostics">
+        <Collapse summary={<span className="font-semibold">عرض التفاصيل الكاملة</span>} open={false}>
+          <div className="pt-1">
+            <DiagnosticsContent
+              features={snap.features}
+              recorder={snap.recorder ?? null}
+              futuresState={snap.futuresState ?? null}
+            />
           </div>
-        </>
-      )}
+        </Collapse>
+      </Section>
     </div>
   );
 }
