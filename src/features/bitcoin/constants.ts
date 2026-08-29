@@ -91,4 +91,11 @@ export const ORDER_FLOW_WINDOW_S = 60;
 /** Large-trade threshold (in BTC, at this price scale) for order-flow split. */
 export const ORDER_FLOW_LARGE_BTC = 5;
 export const WS_BASE = "wss://stream.binance.com:9443/ws";
+/**
+ * Live price tick interval. The WebSocket bookTicker emits many times/second;
+ * publishing each tick as React state would re-render every consumer of the
+ * shared store. Throttle to a fast cadence (1s default) for near-live pricing
+ * without a render storm. Lower => fresher, at the cost of renders.
+ */
+export const LIVE_TICK_MS = 1_000;
 

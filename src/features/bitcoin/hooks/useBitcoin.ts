@@ -28,7 +28,11 @@ import {
   computeFuturesContext,
 } from "../analysis";
 import { extractFeatureVector, findSimilarCases, buildForecast } from "../prediction";
-import { useLiveFeed, mergeBookTicker, type LiveBookTicker } from "./useLiveFeed";
+import {
+  useLiveFeed,
+  mergeBookTicker,
+  type LiveBookTicker,
+} from "./useLiveFeed";
 import {
   FAST_REFRESH_MS,
   SLOW_REFRESH_MS,
@@ -85,6 +89,10 @@ export function useBitcoinPipeline() {
   const [forecast, setForecast] = useState<Forecast | null>(null);
   const [liveConnected, setLiveConnected] = useState<boolean | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  // Near-live spot price + last-update timestamp driven by the WebSocket feed
+  // (throttled to ~1s), surfaced onto the whole shared store.
+  const [livePrice, setLivePrice] = useState<number | null>(null);
+  const [liveUpdatedAt, setLiveUpdatedAt] = useState<number | null>(null);
 
   const liveFeed = useLiveFeed();
   // Mirror the live payload into a ref so the REST fetch doesn't re-create its
@@ -93,10 +101,54 @@ export function useBitcoinPipeline() {
   liveFlowRef.current = liveFeed.orderFlow;
   const liveBookRef = useRef<{ bestBid: number; bestAsk: number } | null>(null);
   liveBookRef.current = liveFeed.bookTicker;
-
   useEffect(() => {
     setLiveConnected(liveFeed.connected);
   }, [liveFeed.connected]);
+
+  // Mirror throttled WebSocket price + last-update onto the shared store. Reading
+  // from refs keeps this cheap and independent of the REST polling cadence.
+  useEffect(() => {
+    setLivePrice(liveFeed.livePrice);
+    setLiveUpdatedAt(liveFeed.liveUpdatedAt);
+  }, [liveFeed.livePrice, liveFeed.liveUpdatedAt]);
+
+  // Overlay the WebSocket spot price onto the canonical overview so the instant
+  // price bar / market overview update in near-real-time (not just every REST
+  // poll), and keep the chart's forming 1m candle live.
+  useEffect(() => {
+    const price = liveFeed.livePrice;
+    const ts = liveFeed.liveUpdatedAt;
+    if (price != null) {
+      setOverview((prev) => {
+        if (!prev) return prev;
+        if (prev.price === price && prev.updatedAt === (ts ?? prev.updatedAt)) return prev;
+        return { ...prev, price, updatedAt: ts ?? prev.updatedAt };
+      });
+    }
+
+    const kline = liveFeed.liveKline;
+    if (kline) {
+      setChartCandles((prev) => {
+        if (!prev.length) return prev;
+        const last = prev[prev.length - 1];
+        if (last.time !== kline.time) return prev; // only merge into the forming candle
+        const next = prev.slice();
+        next[next.length - 1] = {
+          ...last,
+          high: Math.max(last.high, kline.high),
+          low: Math.min(last.low, kline.low),
+          close: kline.close,
+          volume: kline.volume,
+          takerBuyVolume: kline.takerBuyVolume ?? last.takerBuyVolume,
+        };
+        const merged = next[next.length - 1];
+        if (merged.close === last.close && merged.high === last.high && merged.low === last.low) {
+          return prev;
+        }
+        return next;
+      });
+    }
+  }, [liveFeed.livePrice, liveFeed.liveUpdatedAt, liveFeed.liveKline]);
 
   const busyRef = useRef(false);
 
@@ -401,6 +453,9 @@ export function useBitcoinPipeline() {
     orderBook,
     orderFlow: restFlow,
     liveConnected,
+    livePrice,
+    liveUpdatedAt,
+    livePriceTs: liveUpdatedAt,
     futures,
     marketState,
     liquidity,

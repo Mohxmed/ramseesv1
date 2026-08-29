@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { OrderBookSnapshot, OrderFlowData } from "../types";
+import type { BtcCandle, OrderBookSnapshot, OrderFlowData } from "../types";
 import {
   WS_BASE,
   ORDER_FLOW_WINDOW_S,
   ORDER_FLOW_LARGE_BTC,
   BITCOIN_CONFIG,
+  LIVE_TICK_MS,
 } from "../constants";
 
 type AggTradeEvt = {
@@ -34,10 +35,31 @@ type BookTickerEvt = {
   T: number;
 };
 
+/** Live 24h stats from Binance `miniTicker` (reloaded ~once per second per symbol). */
+export type MiniTicker = {
+  last: number;
+  open: number;
+  high: number;
+  low: number;
+  volume: number; // base asset (BTC)
+  quoteVolume: number; // USDT
+  changePercent: number;
+  timestamp: number;
+};
+
 // Rolling aggregation window for the live order-flow (seconds) — kept in sync
 // with ORDER_FLOW_WINDOW_S used by the REST order-flow normalization.
 const WINDOW_MS = ORDER_FLOW_WINDOW_S * 1000;
 const PAIR = BITCOIN_CONFIG.PAIR.toLowerCase();
+
+function isFiniteNumber(v: unknown): v is number {
+  return typeof v === "number" && Number.isFinite(v);
+}
+
+function toNum(v: unknown): number {
+  const n = typeof v === "string" ? parseFloat(v) : typeof v === "number" ? v : NaN;
+  return Number.isFinite(n) ? n : 0;
+}
 
 /**
  * Live order-flow feed backed by Binance WebSocket (`aggTrade` +
@@ -50,9 +72,18 @@ const PAIR = BITCOIN_CONFIG.PAIR.toLowerCase();
 export function useLiveFeed(onDebug?: (msg: string) => void) {
   const [orderFlow, setOrderFlow] = useState<OrderFlowData | null>(null);
   const [bookTicker, setBookTicker] = useState<{ bestBid: number; bestAsk: number } | null>(null);
+  const [liveTicker, setLiveTicker] = useState<MiniTicker | null>(null);
+  const [liveKline, setLiveKline] = useState<BtcCandle | null>(null);
+  // Throttled near-live spot price + the "last update" instant at which the
+  // most recent WebSocket price data was received.
+  const [livePrice, setLivePrice] = useState<number | null>(null);
+  const [liveUpdatedAt, setLiveUpdatedAt] = useState<number | null>(null);
   const [connected, setConnected] = useState(false);
 
   const tradesRef = useRef<AggTradeEvt[]>([]);
+  const lastPriceRef = useRef<number | null>(null);
+  const lastUpdatedRef = useRef<number>(0);
+  const publishRef = useRef<number>(0);
   const log = useRef(onDebug);
   log.current = onDebug;
 
@@ -100,10 +131,19 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
       });
     };
 
+    const publish = () => {
+      const now = Date.now();
+      if (!publishRef.current || now - publishRef.current >= LIVE_TICK_MS) {
+        publishRef.current = now;
+        setLivePrice(lastPriceRef.current);
+        setLiveUpdatedAt(lastUpdatedRef.current || null);
+      }
+    };
+
     const open = () => {
       if (closed) return;
       try {
-        const url = `${WS_BASE}/${PAIR}@aggTrade/${PAIR}@bookTicker`;
+        const url = `${WS_BASE}/${PAIR}@aggTrade/${PAIR}@bookTicker/${PAIR}@miniTicker/${PAIR}@kline_1m`;
         ws = new WebSocket(url);
         ws.onopen = () => {
           reconnectAttempts = 0;
@@ -113,20 +153,58 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
         ws.onmessage = (evt) => {
           try {
             const raw = JSON.parse(evt.data as string) as
-              | { stream: string; data: AggTradeEvt | BookTickerEvt }
-              | AggTradeEvt
-              | BookTickerEvt;
-            const data = "data" in raw ? raw.data : raw;
-            if (data.e === "aggTrade") {
-              const t = data as AggTradeEvt;
+              | { stream: string; data: Record<string, unknown> }
+              | Record<string, unknown>;
+            const data = "data" in raw ? (raw.data as Record<string, unknown>) : raw;
+            const e = data.e;
+            if (e === "aggTrade") {
+              const t = data as unknown as AggTradeEvt;
               if (t.T * 1000 > Date.now() - WINDOW_MS) tradesRef.current.push(t);
               if (tradesRef.current.length > 1000) {
                 tradesRef.current = tradesRef.current.slice(-800);
               }
               if (tradesRef.current.length % 5 === 0) computeFlow();
-            } else if (data.e === "bookTicker") {
-              const b = data as BookTickerEvt;
+              lastPriceRef.current = toNum(t.p) || lastPriceRef.current;
+              lastUpdatedRef.current = isFiniteNumber(data.E) ? data.E : Date.now();
+              publish();
+            } else if (e === "bookTicker") {
+              const b = data as unknown as BookTickerEvt;
               setBookTicker({ bestBid: parseFloat(b.b), bestAsk: parseFloat(b.a) });
+              const bid = toNum(b.b);
+              const ask = toNum(b.a);
+              if (bid > 0 && ask > 0) {
+                lastPriceRef.current = (bid + ask) / 2;
+                lastUpdatedRef.current = isFiniteNumber(b.T) ? b.T : Date.now();
+              }
+              publish();
+            } else if (e === "24hrMiniTicker") {
+              const d = data as Record<string, unknown>;
+              setLiveTicker({
+                last: toNum(d.c),
+                open: toNum(d.o),
+                high: toNum(d.h),
+                low: toNum(d.l),
+                volume: toNum(d.v),
+                quoteVolume: toNum(d.q),
+                changePercent:
+                  toNum(d.o) > 0 ? ((toNum(d.c) - toNum(d.o)) / toNum(d.o)) * 100 : 0,
+                timestamp: isFiniteNumber(data.E) ? (data.E as number) : Date.now(),
+              });
+            } else if (e === "kline") {
+              const k = (data as { k: Record<string, unknown> }).k;
+              if (!k || k.i !== "1m") return;
+              setLiveKline({
+                time: isFiniteNumber(k.t) ? Math.floor((k.t as number) / 1000) : 0,
+                open: toNum(k.o),
+                high: toNum(k.h),
+                low: toNum(k.l),
+                close: toNum(k.c),
+                volume: toNum(k.v),
+                takerBuyVolume: toNum(k.V),
+              });
+              lastPriceRef.current = toNum(k.c) || lastPriceRef.current;
+              lastUpdatedRef.current = isFiniteNumber(data.E) ? (data.E as number) : Date.now();
+              publish();
             }
           } catch {
             /* ignore malformed frame */
@@ -160,7 +238,15 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
     };
   }, []);
 
-  return { orderFlow, bookTicker, connected };
+  return {
+    orderFlow,
+    bookTicker,
+    liveTicker,
+    liveKline,
+    livePrice,
+    liveUpdatedAt,
+    connected,
+  };
 }
 
 export type LiveFeed = ReturnType<typeof useLiveFeed>;

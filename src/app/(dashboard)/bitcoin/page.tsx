@@ -26,6 +26,7 @@ export default function BitcoinPage() {
     orderBook,
     orderFlow,
     liveConnected,
+    liveUpdatedAt,
     futures,
     marketState,
     liquidity,
@@ -92,6 +93,7 @@ export default function BitcoinPage() {
             marketState={marketState}
             orderBook={orderBook}
             live={liveConnected === true}
+            liveUpdatedAt={liveUpdatedAt}
           />
 
           {/* Market state (half screen) + market structure/waves (half screen) */}

@@ -52,12 +52,14 @@ export function InstantPriceBar({
   marketState,
   orderBook,
   live,
+  liveUpdatedAt,
 }: {
   overview: MarketOverview | null;
   futures: FuturesContext | null;
   marketState: MarketState | null;
   orderBook: OrderBookSnapshot | null;
   live?: boolean;
+  liveUpdatedAt?: number | null;
 }) {
   if (!overview) {
     return (
@@ -98,6 +100,12 @@ export function InstantPriceBar({
           <p className="mt-1 text-[11px] text-zinc-500">
             آخر تحديث {timeLabel(overview.updatedAt)} · {overview.sources.join(" + ")}
           </p>
+          {live && liveUpdatedAt != null && (
+            <p className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-emerald-300/90">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+              تحديث مباشر {timeLabel(liveUpdatedAt)}
+            </p>
+          )}
         </div>
         <div className="flex items-end gap-4">
           <div className="text-right">

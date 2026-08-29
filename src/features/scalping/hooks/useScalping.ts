@@ -55,10 +55,12 @@ export function useScalping(): ScalpingSnapshot {
   const prevSignalRef = useRef<ScalpingSignal | null>(null);
 
   // --- ingest price ticks into the ring buffer without re-render ----------
+  // Uses the near-live WebSocket price from the shared SSOT (`livePrice`) so
+  // the scalping series updates continuously instead of every REST poll.
   useEffect(() => {
-    const price = cmd.orderBook?.bestAsk ?? cmd.overview?.price ?? null;
-    if (price != null) ingestPrice(price);
-  }, [cmd.orderBook?.bestAsk, cmd.overview?.price]);
+    const price = cmd.livePrice ?? cmd.orderBook?.bestAsk ?? cmd.overview?.price ?? null;
+    if (price != null) ingestPrice(price, cmd.livePriceTs || Date.now());
+  }, [cmd.livePrice, cmd.livePriceTs, cmd.orderBook?.bestAsk, cmd.overview?.price]);
 
   // --- compute a full snapshot on the throttled cadence --------------------
   useEffect(() => {
