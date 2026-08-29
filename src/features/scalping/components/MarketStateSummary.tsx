@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import type { ScalpDecisionView, ScalpingSignal, ScalpDirection } from "../types";
 import type { FuturesState } from "../../bitcoin/futures/types";
@@ -6,9 +6,9 @@ import { Sparkline } from "./Sparkline";
 import { classifyFreshness, FRESHNESS_META } from "./freshness";
 
 const DIR_CHIP: Record<ScalpDirection, { txt: string; cls: string }> = {
-  LONG: { txt: "طµط§ط¹ط¯", cls: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" },
-  SHORT: { txt: "ظ‡ط§ط¨ط·", cls: "border-red-500/40 bg-red-500/10 text-red-300" },
-  NEUTRAL: { txt: "ظ…ط­ط§ظٹط¯", cls: "border-zinc-600 bg-zinc-800/40 text-zinc-400" },
+  LONG: { txt: "صاعد", cls: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" },
+  SHORT: { txt: "هابط", cls: "border-red-500/40 bg-red-500/10 text-red-300" },
+  NEUTRAL: { txt: "محايد", cls: "border-zinc-600 bg-zinc-800/40 text-zinc-400" },
 };
 
 function biasOf(ret: number | null): ScalpDirection {
@@ -19,15 +19,15 @@ function biasOf(ret: number | null): ScalpDirection {
 }
 
 function fmtPct(v: number | null | undefined, digits = 3): string {
-  return v == null || !isFinite(v) ? "â€”" : `${v >= 0 ? "+" : ""}${v.toFixed(digits)}%`;
+  return v == null || !isFinite(v) ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(digits)}%`;
 }
 
 function fmt(v: number | null | undefined, digits = 2): string {
-  return v == null || !isFinite(v) ? "â€”" : (v as number).toFixed(digits);
+  return v == null || !isFinite(v) ? "—" : (v as number).toFixed(digits);
 }
 
 function fmtUsd(v: number | null | undefined): string {
-  if (v == null || !isFinite(v)) return "â€”";
+  if (v == null || !isFinite(v)) return "—";
   const a = Math.abs(v);
   return a >= 1_000_000 ? `$${(a / 1_000_000).toFixed(2)}M` : a >= 1_000 ? `$${(a / 1_000).toFixed(1)}K` : `$${a.toFixed(0)}`;
 }
@@ -65,10 +65,10 @@ export function MarketStateSummary({
 
   const familyVotes = signal?.familyVotes ?? {};
   const familyMeta: { key: string; label: string }[] = [
-    { key: "price-action", label: "ط­ط±ظƒط© ط§ظ„ط³ط¹ط±" },
-    { key: "flow", label: "طھط¯ظپظ‚" },
-    { key: "positioning", label: "ظ…ط±ط§ظƒط²" },
-    { key: "structure", label: "ط¨ظ†ظٹط§ظ†" },
+    { key: "price-action", label: "حركة السعر" },
+    { key: "flow", label: "تدفق" },
+    { key: "positioning", label: "مراكز" },
+    { key: "structure", label: "بنيان" },
   ];
 
   const taker = ms?.takerBuyRatio ?? null;
@@ -93,7 +93,7 @@ export function MarketStateSummary({
       {/* Overall score + trace */}
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold text-zinc-100">ظ…ظ„ط®ظ‘طµ ط­ط§ظ„ط© ط§ظ„ط³ظˆظ‚</h2>
+          <h2 className="text-sm font-bold text-zinc-100">ملخّص حالة السوق</h2>
           <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[9px] font-bold ${fmeta.chip}`}>
             <span className={`h-1.5 w-1.5 rounded-full ${fmeta.dot}`} />
             {fmeta.label}
@@ -102,23 +102,23 @@ export function MarketStateSummary({
 
         <div className="mt-4 flex items-end gap-3">
           <div>
-            <div className="text-[10px] text-zinc-500">ط§ظ„ط¯ط±ط¬ط© ط§ظ„ظƒظ„ظٹط© ظ„ظ„ط³ظˆظ‚</div>
+            <div className="text-[10px] text-zinc-500">الدرجة الكلية للسوق</div>
             <div className="font-mono text-4xl font-extrabold text-zinc-50" dir="ltr">
-              {score != null ? score.toFixed(0) : "â€”"}
+              {score != null ? score.toFixed(0) : "—"}
               <span className="text-base text-zinc-500">/100</span>
             </div>
           </div>
           <div className="mb-1 flex flex-col gap-1">
             <ContactChip txt={DIR_CHIP[signDir].txt} cls={DIR_CHIP[signDir].cls} />
-            <span className="text-[9px] text-zinc-600">ط§ظ„ط§طھط¬ط§ظ‡ ط§ظ„طµط§ظپظٹ</span>
+            <span className="text-[9px] text-zinc-600">الاتجاه الصافي</span>
           </div>
         </div>
         <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-zinc-800">
           <div className={`h-full rounded-full transition-all duration-500 ${scoreBarCls}`} style={{ width: `${score ?? 0}%` }} />
         </div>
         <p className="mt-2 text-[10px] leading-relaxed text-zinc-600">
-          ظ†ظپط³ ط¯ط±ط¬ط© ط§ظ„ظ€ engine ط§ظ„ط­ط§ظ„ظٹط© (composite ط§ظ„ط¹ط§ط¦ظ„ط§طھ) â€” طھظڈط¹ط±ط¶ ظ„ظ„ط´ظپط§ظپظٹط©طŒ ظ„ط§ طھظڈط­ط³ط¨ ظ…ظ† ط¬ط¯ظٹط¯. ظ…ط³ط§ظ‡ظ…ط© ظƒظ„
-          ط¹ط§ط¦ظ„ط© ظ…ظˆط¶ظ‘ط­ط© ط£ط¯ظ†ط§ظ‡.
+          نفس درجة الـ engine الحالية (composite العائلات) — تُعرض للشفافية، لا تُحسب من جديد. مساهمة كل
+          عائلة موضّحة أدناه.
         </p>
 
         <div className="mt-4 space-y-2">
@@ -126,7 +126,7 @@ export function MarketStateSummary({
             const v = (familyVotes as Record<string, number>)[fm.key] ?? 0;
             const mag = Math.min(100, Math.abs(v) * 100);
             const tend = v >= 0 ? "bg-emerald-500" : "bg-red-500";
-            const txt = v >= 0 ? "طµط§ط¹ط¯" : "ظ‡ط§ط¨ط·";
+            const txt = v >= 0 ? "صاعد" : "هابط";
             return (
               <div key={fm.key} className="flex items-center gap-2">
                 <span className="w-20 shrink-0 text-[10px] text-zinc-500">{fm.label}</span>
@@ -149,13 +149,13 @@ export function MarketStateSummary({
 
       {/* Multi-timeframe bias + components */}
       <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
-        <h2 className="mb-3 text-sm font-bold text-zinc-100">ط§ظ„ط§ظ†ط­ظٹط§ط² ظ…طھط¹ط¯ط¯ ط§ظ„ط£ط·ط± ط§ظ„ط²ظ…ظ†ظٹط©</h2>
+        <h2 className="mb-3 text-sm font-bold text-zinc-100">الانحياز متعدد الأطر الزمنية</h2>
         <div className="grid grid-cols-3 gap-2">
           {biasWindows.map((b) => {
             const d = biasOf(b.ret);
             return (
               <div key={b.s} className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-2.5 text-center">
-                <div className="text-[10px] text-zinc-500">ط£ظپظ‚ {b.s}ط«</div>
+                <div className="text-[10px] text-zinc-500">أفق {b.s}ث</div>
                 <div className="mt-1 font-mono text-sm font-bold text-zinc-100" dir="ltr">
                   {fmtPct(b.ret)}
                 </div>
@@ -165,7 +165,7 @@ export function MarketStateSummary({
                 {b.z != null ? (
                   <div className="mt-1 text-[9px] text-zinc-600" dir="ltr">z {fmt(b.z, 1)}</div>
                 ) : (
-                  <div className="mt-1 text-[9px] text-zinc-600">â€”</div>
+                  <div className="mt-1 text-[9px] text-zinc-600">—</div>
                 )}
               </div>
             );
@@ -174,30 +174,30 @@ export function MarketStateSummary({
 
         <div className="mt-4 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
           <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-2.5">
-            <div className="text-[10px] font-semibold text-zinc-400">ظ…ظƒظˆظ‘ظ† ط§ظ„طھط¯ظپظ‚</div>
+            <div className="text-[10px] font-semibold text-zinc-400">مكوّن التدفق</div>
             <div className="mt-1 font-mono text-sm text-zinc-100">
-              ط´ط±ط§ط، <b className={taker != null && taker >= 0.5 ? "text-emerald-400" : ""}>{taker != null ? `${(taker * 100).toFixed(1)}%` : "â€”"}</b>
-              <span className="text-zinc-600"> آ· ط¨/ط¹ {fmt(buySell, 2)}</span>
+              شراء <b className={taker != null && taker >= 0.5 ? "text-emerald-400" : ""}>{taker != null ? `${(taker * 100).toFixed(1)}%` : "—"}</b>
+              <span className="text-zinc-600"> · ب/ع {fmt(buySell, 2)}</span>
             </div>
             <div className="mt-0.5 text-[10px] text-zinc-500">CVD {fmtUsd(cvd)}</div>
           </div>
           <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-2.5">
-            <div className="text-[10px] font-semibold text-zinc-400">ظ…ظƒظˆظ‘ظ† ط§ظ„ظ…ط±ط§ظƒط²</div>
+            <div className="text-[10px] font-semibold text-zinc-400">مكوّن المراكز</div>
             <div className="mt-1 font-mono text-sm text-zinc-100">
-              OI30 {fmtPct(oi30)} <span className="text-zinc-600">آ· ظپط§ظ†ط¯ {fmt(funding, 4)}%</span>
+              OI30 {fmtPct(oi30)} <span className="text-zinc-600">· فاند {fmt(funding, 4)}%</span>
             </div>
-            <div className="mt-0.5 text-[10px] text-zinc-500">ظ„/ط´ {fmt(ls, 3)}</div>
+            <div className="mt-0.5 text-[10px] text-zinc-500">ل/ش {fmt(ls, 3)}</div>
           </div>
           <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-2.5">
-            <div className="text-[10px] font-semibold text-zinc-400">ظ…ظƒظˆظ‘ظ† ط§ظ„ط³ظٹظˆظ„ط©</div>
+            <div className="text-[10px] font-semibold text-zinc-400">مكوّن السيولة</div>
             <div className="mt-1 font-mono text-sm text-zinc-100">
-              ط¹ظ…ظ‚ {fmt(imbalance != null ? imbalance * 100 : null, 1)}% <span className="text-zinc-600">آ· ط³ط¨ط±ظٹط¯ {fmt(spread, 3)}%</span>
+              عمق {fmt(imbalance != null ? imbalance * 100 : null, 1)}% <span className="text-zinc-600">· سبريد {fmt(spread, 3)}%</span>
             </div>
-            <div className="mt-0.5 text-[10px] text-zinc-500">{spread != null && spread > 0.02 ? "ط³ط¨ط±ظٹط¯ ظˆط§ط³ط¹ â€” طھظ†ظپظٹط° ظ…ظƒظ„ظپ" : "ط¹ظ…ظ‚ ظ…ظ‚ط¨ظˆظ„"}</div>
+            <div className="mt-0.5 text-[10px] text-zinc-500">{spread != null && spread > 0.02 ? "سبريد واسع — تنفيذ مكلف" : "عمق مقبول"}</div>
           </div>
           <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-2.5">
-            <div className="text-[10px] font-semibold text-zinc-400">ظ…ظƒظˆظ‘ظ† ط§ظ„طھظ‚ظ„ط¨</div>
-            <div className="mt-1 font-mono text-sm text-zinc-100">{rawVol != null ? `${rawVol.toFixed(3)}%` : "â€”"}</div>
+            <div className="text-[10px] font-semibold text-zinc-400">مكوّن التقلب</div>
+            <div className="mt-1 font-mono text-sm text-zinc-100">{rawVol != null ? `${rawVol.toFixed(3)}%` : "—"}</div>
             <div className="mt-0.5">
               <Sparkline points={volSeries} width={120} height={20} stroke="#f59e0b" fill="rgba(245,158,11,0.12)" />
             </div>

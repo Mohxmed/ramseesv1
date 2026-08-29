@@ -30,6 +30,7 @@ export default function RootLayout({
       className={`${cairo.variable} h-full antialiased`}
     >
       <head>
+        <meta charSet="UTF-8" />
         <link rel="icon" href="/favicon.jpg" />
         <link rel="shortcut icon" href="/favicon.jpg" />
       </head>
