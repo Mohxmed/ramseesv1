@@ -20,7 +20,7 @@ export function MarketRegime({ decision }: { decision: ScalpDecisionView | null 
   if (!decision) {
     return (
       <Section title="نظام السوق" eyebrow="03 · Context">
-        <p className="py-6 text-center text-xs text-zinc-500">لا قراءة نظام بعد.</p>
+        <p className="py-6 text-center text-xs text-muted">لا قراءة نظام بعد.</p>
       </Section>
     );
   }
@@ -36,7 +36,7 @@ export function MarketRegime({ decision }: { decision: ScalpDecisionView | null 
       title="نظام السوق"
       eyebrow="03 · Context"
       actions={
-        <span className="font-mono text-xs tabular-nums text-zinc-400" dir="ltr">
+        <span className="font-mono text-xs tabular-nums text-muted" dir="ltr">
           {conf}%
         </span>
       }
@@ -48,7 +48,7 @@ export function MarketRegime({ decision }: { decision: ScalpDecisionView | null 
         </div>
       </div>
       <div className="mt-3">
-        <div className="mb-1 flex items-center justify-between text-[10px] text-zinc-500">
+        <div className="mb-1 flex items-center justify-between text-2xs text-muted">
           <span>ثقة المصنّف</span>
           <span className="font-mono tabular-nums" dir="ltr">{conf}%</span>
         </div>
@@ -57,7 +57,7 @@ export function MarketRegime({ decision }: { decision: ScalpDecisionView | null 
 
       {drivers.length > 0 && (
         <div className="mt-4">
-          <div className="mb-1.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+          <div className="mb-1.5 text-3xs font-semibold uppercase tracking-[0.18em] text-muted">
             القراءات المحدِّدة للنظام
           </div>
           <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
@@ -67,10 +67,10 @@ export function MarketRegime({ decision }: { decision: ScalpDecisionView | null 
                 : d.direction === "هابط" || d.direction === "بيع" ? "short"
                 : "neutral";
               return (
-                <div key={d.key} className="rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5 py-2">
+                <div key={d.key} className="rounded-panel border border-line bg-surface-2/40 px-2.5 py-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-zinc-400">{d.label}</span>
-                    <span className={`text-[10px] font-semibold ${TONE_TEXT[dTone]}`}>
+                    <span className="text-2xs text-muted">{d.label}</span>
+                    <span className={`text-2xs font-semibold ${TONE_TEXT[dTone]}`}>
                       {d.direction}
                     </span>
                   </div>
@@ -84,7 +84,7 @@ export function MarketRegime({ decision }: { decision: ScalpDecisionView | null 
         </div>
       )}
 
-      <p className="mt-3 text-[10px] leading-relaxed text-zinc-600">
+      <p className="mt-3 text-2xs leading-relaxed text-muted">
         يُصنَّف النظام قبل أي إشارة لتطبيق أوزان وعتبات مناسبة للحالة. الثقة هنا درجة حسم
         المصنّف — ليست احتمال نجاح صفقة.
       </p>

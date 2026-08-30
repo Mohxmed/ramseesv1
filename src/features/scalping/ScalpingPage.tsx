@@ -34,7 +34,7 @@ export function ScalpingPage() {
     return (
       <div className="space-y-4">
         <MarketHeader snap={snap} />
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-10 text-center text-sm text-zinc-400">
+        <div className="rounded-card border border-line bg-surface-1/40 p-10 text-center text-2xs text-muted">
           جارٍ تجهيز بيانات السوق المباشرة…
         </div>
       </div>
@@ -72,10 +72,10 @@ export function ScalpingPage() {
       />
 
       {/* Assessment footer — preserved from the original for integrity. */}
-      <div className="rounded-2xl border border-zinc-800/70 bg-zinc-900/20 p-3 text-[10px] leading-relaxed text-zinc-500">
-        <b className="text-zinc-400">بيانات ونزاهة:</b> كل القيم مأخوذة من سوق البيتكوين مباشرة
-        (لا بيانات حساب). الـ Score والثقة والتوقعات هي <b className="text-zinc-400">قراءات توافق على
-        الضغط الحالي</b>، ولا تمثل احتمالات نجاح مضمونة؛ الاحتمال المعروض هو تقدير توافق ما لم يُشر
+      <div className="rounded-card border border-line/70 bg-surface-1/20 p-3 text-2xs leading-relaxed text-muted">
+        <strong className="font-semibold text-zinc-400">بيانات ونزاهة:</strong> كل القيم مأخوذة من سوق البيتكوين مباشرة
+        (لا بيانات حساب). الـ Score والثقة والتوقعات هي <strong className="font-semibold text-zinc-400">قراءات توافق على
+        الضغط الحالي</strong>، ولا تمثل احتمالات نجاح مضمونة؛ الاحتمال المعروض هو تقدير توافق ما لم يُشر
         إليه كونه «محسوباً من النتائج». قرار NO TRADE يظهر عندما تتجاوز التكلفة (رسوم/سبريد/انزلاق)
         الحركة المتوقعة. عند تباطؤ أو انقطاع البيانات تتوقف الإشارة للحفاظ على النزاهة.
       </div>

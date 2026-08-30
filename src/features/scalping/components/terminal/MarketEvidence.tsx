@@ -34,7 +34,7 @@ export function MarketEvidence({ features }: { features: ScalpingFeature[] }) {
       title="الأدلّة حسب التصنيف"
       eyebrow="06 · Evidence"
       actions={
-        <span className="text-[10px] text-zinc-500">
+        <span className="text-2xs text-muted">
           مساهمة كل صنف من محرّك الميزّات الفعلي
         </span>
       }
@@ -49,10 +49,10 @@ export function MarketEvidence({ features }: { features: ScalpingFeature[] }) {
             return (
               <div
                 key={cat.key}
-                className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-2"
+                className="flex items-center justify-between rounded-panel border border-line bg-surface-2/40 px-3 py-2"
               >
-                <span className="text-[11px] text-zinc-400">{cat.label}</span>
-                <span className="text-[10px] text-zinc-600">لا قراءة كافية</span>
+                <span className="text-2xs text-muted">{cat.label}</span>
+                <span className="text-2xs text-muted">لا قراءة كافية</span>
               </div>
             );
           }
@@ -77,7 +77,7 @@ export function MarketEvidence({ features }: { features: ScalpingFeature[] }) {
                     <Tag tone={dirTone}>
                       {dirTone === "long" ? "يدعم الشراء" : dirTone === "short" ? "يدعم البيع" : "محايد"}
                     </Tag>
-                    <span className="font-mono text-[10px] tabular-nums text-zinc-400" dir="ltr">
+                    <span className="font-mono text-2xs tabular-nums text-muted" dir="ltr">
                       {maxScore.toFixed(0)}
                     </span>
                   </span>
@@ -91,16 +91,16 @@ export function MarketEvidence({ features }: { features: ScalpingFeature[] }) {
                   const tone: "long" | "short" | "neutral" =
                     f.direction === "bullish" ? "long" : f.direction === "bearish" ? "short" : "neutral";
                   return (
-                    <div key={k} className="rounded-lg border border-zinc-800/70 bg-zinc-950/40 px-2.5 py-2">
+                    <div key={k} className="rounded-panel border border-line bg-surface-2/40 px-2.5 py-2">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[11px] font-semibold text-zinc-200">{f.label}</span>
-                        <span className={`font-mono text-[10px] tabular-nums ${TONE_TEXT[tone]}`} dir="ltr">
+                        <span className="text-2xs font-semibold text-zinc-200">{f.label}</span>
+                        <span className={`font-mono text-2xs tabular-nums ${TONE_TEXT[tone]}`} dir="ltr">
                           {tone === "long" ? "صاعد" : tone === "short" ? "هابط" : "محايد"} · سكور {f.score}
                         </span>
                       </div>
                       <div className="mt-1.5">
                         <div
-                          className={`h-1 w-full overflow-hidden rounded-full bg-zinc-800 ${TONE_BAR[tone]}`}
+                          className={`h-1 w-full overflow-hidden rounded-full bg-line ${TONE_BAR[tone]}`}
                           style={{ opacity: 1 }}
                         >
                           <div
@@ -109,7 +109,7 @@ export function MarketEvidence({ features }: { features: ScalpingFeature[] }) {
                           />
                         </div>
                       </div>
-                      <div className="mt-1.5 text-[10px] leading-relaxed text-zinc-500">{f.description}</div>
+                      <div className="mt-1.5 text-2xs leading-relaxed text-muted">{f.description}</div>
                     </div>
                   );
                 })}
@@ -119,7 +119,7 @@ export function MarketEvidence({ features }: { features: ScalpingFeature[] }) {
         })}
       </div>
 
-      <p className="mt-3 text-[10px] leading-relaxed text-zinc-600">
+      <p className="mt-3 text-2xs leading-relaxed text-muted">
         تصنيف العرض فقط: المصطلحات والقيم كلها من محرّك الميزّات ({features.length} متغيراً). كل
         صنف يبني القراءة من نفس المصدر، فلا قيمة تُعرض مرتين في مواضع مختلفة.
       </p>

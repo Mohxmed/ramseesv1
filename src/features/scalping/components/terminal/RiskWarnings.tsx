@@ -35,21 +35,21 @@ export function RiskWarnings({
       }
     >
       {!hasRisk ? (
-        <div className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2.5">
+        <div className="flex items-center gap-2 rounded-panel border border-good/30 bg-good/10 px-3 py-2.5">
           <Dot tone="good" />
-          <span className="text-[11px] text-emerald-200/90">لا تحذيرات بارزة أو شروط إبطال حالياً.</span>
+          <span className="text-2xs text-good">لا تحذيرات بارزة أو شروط إبطال حالياً.</span>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           {warnings.length > 0 && (
-            <div className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-3">
-              <div className="mb-2 flex items-center gap-1.5 text-[10px] font-bold text-amber-300">
+            <div className="rounded-panel border border-warn/40 bg-warn/10 p-3">
+              <div className="mb-2 flex items-center gap-1.5 text-2xs font-bold text-warn-fg">
                 <Dot tone="warn" /> تحذيرات
               </div>
               <ul className="space-y-1.5">
                 {warnings.map((w, i) => (
-                  <li key={i} className="flex items-start gap-1.5 text-[11px] leading-relaxed text-amber-100/90">
-                    <span className="mt-1 text-amber-400">▲</span>
+                  <li key={i} className="flex items-start gap-1.5 text-2xs leading-relaxed text-warn-fg">
+                    <span className="mt-1 text-warn-fg">▲</span>
                     <span>{w}</span>
                   </li>
                 ))}
@@ -58,14 +58,14 @@ export function RiskWarnings({
           )}
 
           {barriers.length > 0 && (
-            <div className="rounded-lg border border-red-500/25 bg-red-500/5 p-3">
-              <div className="mb-2 flex items-center gap-1.5 text-[10px] font-bold text-red-300">
+            <div className="rounded-panel border border-down/40 bg-down/10 p-3">
+              <div className="mb-2 flex items-center gap-1.5 text-2xs font-bold text-down-fg">
                 <Dot tone="short" /> شروط تُبطل الإشارة الحالية ({barriers.length})
               </div>
               <ul className="space-y-1.5">
                 {barriers.map((b, i) => (
-                  <li key={i} className="flex items-start gap-1.5 text-[11px] leading-relaxed text-red-100/90">
-                    <span className="mt-1 text-red-400">✕</span>
+                  <li key={i} className="flex items-start gap-1.5 text-2xs leading-relaxed text-down-fg">
+                    <span className="mt-1 text-down-fg">✕</span>
                     <span>{b}</span>
                   </li>
                 ))}
@@ -76,8 +76,8 @@ export function RiskWarnings({
       )}
 
       {execution && (execution.state === "ACTIVE" || execution.state === "WEAKENING" || execution.state === "INVALIDATED") && (
-        <div className="mt-3 flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-2">
-          <span className="text-[10px] text-zinc-500">حالة الإشارة</span>
+        <div className="mt-3 flex items-center justify-between rounded-panel border border-line bg-surface-2/40 px-3 py-2">
+          <span className="text-2xs text-muted">حالة الإشارة</span>
           <Tag tone={execution.state === "ACTIVE" ? "good" : execution.state === "WEAKENING" ? "warn" : "short"}>
             {execution.state === "ACTIVE" ? "نشطة" : execution.state === "WEAKENING" ? "تتراجع" : "مُبطلة"}
           </Tag>

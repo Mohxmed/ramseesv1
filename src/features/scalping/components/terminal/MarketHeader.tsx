@@ -60,18 +60,18 @@ export function MarketHeader({ snap }: { snap: ScalpingSnapshot }) {
   const scoreTone = score == null ? "quiet" : (TONE_TEXT[dm.tone] as string);
 
   return (
-    <header className="rounded-2xl border border-zinc-800 bg-zinc-900/40">
+    <header className="rounded-card border border-line bg-surface-1/40">
       <div className="flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between">
         {/* Symbol + live price */}
         <div className="flex items-center gap-4">
           <div>
             <div className="flex items-center gap-2">
               <span className="text-lg font-bold tracking-tight text-zinc-100">{snap.symbol}</span>
-              <span className="rounded border border-zinc-800 bg-zinc-950/60 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-zinc-500">
+              <span className="rounded-chip border border-line bg-surface-2/40 px-1.5 py-0.5 text-3xs font-semibold uppercase tracking-wider text-muted">
                 مضاربة فورية
               </span>
             </div>
-            <div className="mt-1 text-[11px] text-zinc-500">
+            <div className="mt-1 text-2xs text-muted">
               {session ? `جلسة ${session} · ` : ""}
               <span dir="ltr">{formatPriceDate()}</span>
             </div>
@@ -81,7 +81,7 @@ export function MarketHeader({ snap }: { snap: ScalpingSnapshot }) {
               {snap.price != null ? formatPrice(snap.price) : "—"}
             </div>
             <div
-              className={`text-[12px] font-semibold ${priceUp ? "text-emerald-400" : "text-red-400"}`}
+              className={`text-[12px] font-semibold ${priceUp ? "text-up-fg" : "text-down-fg"}`}
               dir="ltr"
             >
               {snap.priceChange24hPct != null ? formatPercent(snap.priceChange24hPct) : "—"} (24h)
@@ -99,7 +99,7 @@ export function MarketHeader({ snap }: { snap: ScalpingSnapshot }) {
               <Tag tone="neutral">نظام السوق —</Tag>
             )}
             {regimeConf != null && (
-              <span className="font-mono text-xs tabular-nums text-zinc-400" dir="ltr">
+              <span className="font-mono text-xs tabular-nums text-muted" dir="ltr">
                 {regimeConf}%
               </span>
             )}
@@ -112,25 +112,25 @@ export function MarketHeader({ snap }: { snap: ScalpingSnapshot }) {
 
         {/* Primary directional read (the headline call) */}
         <div className="flex items-center gap-3">
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-center">
-            <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+          <div className="rounded-panel border border-line bg-surface-2/40 px-3 py-2 text-center">
+            <div className="text-3xs font-semibold uppercase tracking-[0.16em] text-muted">
               الاتجاه الأساسي
             </div>
             <div className={`text-lg font-extrabold leading-6 ${scoreTone}`} dir="ltr">
               {dm.text}
             </div>
           </div>
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-center">
-            <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+          <div className="rounded-panel border border-line bg-surface-2/40 px-3 py-2 text-center">
+            <div className="text-3xs font-semibold uppercase tracking-[0.16em] text-muted">
               درجة الاتجاه
             </div>
             <div className="font-mono text-2xl font-extrabold leading-6 text-zinc-50" dir="ltr">
               {score != null ? score.toFixed(0) : "—"}
-              <span className="text-xs font-normal text-zinc-500"> /100</span>
+              <span className="text-xs font-normal text-muted"> /100</span>
             </div>
           </div>
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-center">
-            <div className="text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+          <div className="rounded-panel border border-line bg-surface-2/40 px-3 py-2 text-center">
+            <div className="text-3xs font-semibold uppercase tracking-[0.16em] text-muted">
               النشاط
             </div>
             <div className="text-sm font-bold text-zinc-100" dir="ltr">
@@ -141,16 +141,16 @@ export function MarketHeader({ snap }: { snap: ScalpingSnapshot }) {
       </div>
 
       {/* Degree-of-direction bar */}
-      <div className="border-t border-zinc-800/70 px-4 py-2.5">
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-800" dir="ltr">
+      <div className="border-t border-line px-4 py-2.5">
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-line" dir="ltr">
           <div
             className={`h-full rounded-full transition-all duration-500 ${TONE_BAR[barTone]}`}
             style={{ width: `${score ?? 0}%` }}
           />
         </div>
-        <p className="mt-1.5 text-[10px] leading-relaxed text-zinc-600">
+        <p className="mt-1.5 text-2xs leading-relaxed text-muted">
           درجة الاتجاه هي مجمّع الضغط الصافي بعد احتساب العوامل — وهي{" "}
-          <span className="text-zinc-400">ليست احتمال نجاح صفقة</span>.
+          <span className="text-muted">ليست احتمال نجاح صفقة</span>.
         </p>
       </div>
     </header>

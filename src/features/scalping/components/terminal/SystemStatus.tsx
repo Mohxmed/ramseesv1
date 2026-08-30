@@ -27,14 +27,14 @@ function SourceRow({ name, ageMs }: { name: string; ageMs: number | null | undef
   const meta = FRESHNESS_META[fresh];
   const toneM: "good" | "warn" | "neutral" = fresh === "LIVE" ? "good" : fresh === "STALE" ? "warn" : "neutral";
   return (
-    <div className="flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-950/40 px-2.5 py-1.5">
-      <span className="text-[11px] text-zinc-300">{name}</span>
+    <div className="flex items-center justify-between rounded-panel border border-line bg-surface-2/40 px-2.5 py-1.5">
+      <span className="text-2xs text-zinc-300">{name}</span>
       <span className="flex items-center gap-2">
         <Tag tone={toneM}>
           <Dot tone={toneM} />
           {meta.label}
         </Tag>
-        <span className="font-mono text-[10px] tabular-nums text-zinc-500" dir="ltr">
+        <span className="font-mono text-2xs tabular-nums text-muted" dir="ltr">
           {formatAge(ageMs)}
         </span>
       </span>
@@ -96,8 +96,8 @@ export function SystemStatus({
 
       {s.code !== "ONLINE" && (
         <div
-          className={`mt-3 rounded-lg border px-3 py-2 text-[11px] leading-relaxed ${
-            s.code === "OFFLINE" ? "border-red-500/30 bg-red-500/5 text-red-200/90" : "border-amber-500/30 bg-amber-500/5 text-amber-200/90"
+          className={`mt-3 rounded-panel border px-3 py-2 text-2xs leading-relaxed ${
+            s.code === "OFFLINE" ? "border-down/40 bg-down/10 text-down-fg" : "border-warn/40 bg-warn/10 text-warn-fg"
           }`}
         >
           {s.code === "OFFLINE"

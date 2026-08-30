@@ -66,11 +66,11 @@ export function ValidationFeatureLab() {
     <div className="mx-auto max-w-7xl space-y-4 px-4 py-6" dir="rtl">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+          <div className="text-2xs font-semibold uppercase tracking-[0.2em] text-muted">
             Feature Research Lab
           </div>
           <h1 className="text-xl font-bold text-zinc-100">مختبر بحث الخصائص</h1>
-          <p className="mt-1 max-w-2xl text-xs text-zinc-500">
+          <p className="mt-1 max-w-2xl text-xs text-muted">
             يدرس تاريخياً القيمة التنبؤية لكل خاصية على حدة قبل أن يستهلكها محرك القرار، عبر
             تقسيم قطار/تحقق/عينة خارجية، وبدون تسريب مستقبلي. لا يعدّل أوزان محرك القرار — يقيس فقط.
           </p>
@@ -81,7 +81,7 @@ export function ValidationFeatureLab() {
       </header>
 
       {lab.error ? (
-        <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-300">
+        <div className="rounded-panel border border-down/40 bg-down/10 p-3 text-xs text-down-fg">
           {lab.error}
         </div>
       ) : null}
@@ -116,7 +116,7 @@ export function ValidationFeatureLab() {
           <LayerHorizonAndConfidence r={r} />
         </>
       ) : (
-        <div className="rounded-2xl border border-dashed border-zinc-800 p-8 text-center text-sm text-zinc-500">
+        <div className="rounded-card border border-dashed border-line p-8 text-center text-sm text-muted">
           حدّد النطاق والملف ثم اضغط «تشغيل بحث الخصائص» لتحميل البيانات ودراسة كل خاصية.
         </div>
       )}
@@ -124,22 +124,22 @@ export function ValidationFeatureLab() {
       {/* Historical runs */}
       <Section title="سجلّات الأبحاث" eyebrow="Feature Research Runs">
         {lab.runs.length === 0 ? (
-          <p className="text-xs text-zinc-500">لا توجد سجلّات بعد.</p>
+          <p className="text-xs text-muted">لا توجد سجلّات بعد.</p>
         ) : (
           <div className="grid gap-2 md:grid-cols-2">
             {lab.runs.map((run) => (
               <button
                 key={run.runId}
                 onClick={() => lab.selectRun(run.runId)}
-                className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3 text-left hover:border-zinc-700"
+                className="rounded-panel border border-line bg-surface-1/40 px-4 py-3 text-left hover:border-surface-3"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-bold text-zinc-200 ltr">{run.runId}</span>
+                  <span className="text-2xs font-bold text-zinc-200 ltr">{run.runId}</span>
                   <Tag tone={run.bestOosEdge60Pp != null && run.bestOosEdge60Pp > 0 ? "good" : "warn"} ltr>
                     {fmt(run.bestOosEdge60Pp)} إيدج
                   </Tag>
                 </div>
-                <div className="mt-1 text-[10px] text-zinc-500">
+                <div className="mt-1 text-2xs text-muted">
                   {run.profileId} · {run.engineVersion} · {run.featureVersion} · {run.availableCount} متاح /{" "}
                   {run.unavailableCount} غير متاح · {new Date(run.createdAt).toLocaleString()}
                 </div>

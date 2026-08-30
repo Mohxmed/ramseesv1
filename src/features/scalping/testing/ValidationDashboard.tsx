@@ -91,15 +91,15 @@ export function ValidationDashboard({
         </Tag>
       }
     >
-      {error ? <div className="text-xs text-red-400">{error}</div> : null}
+      {error ? <div className="text-xs text-down-fg">{error}</div> : null}
 
       {/* Golden baseline picker */}
       <div className="mb-3 flex flex-wrap items-center gap-3">
-        <span className="text-[11px] text-zinc-500">المعيار الذهبي (Golden Baseline):</span>
+        <span className="text-2xs text-muted">المعيار الذهبي (Golden Baseline):</span>
         <select
           value={baselineRunId ?? ""}
           onChange={(e) => setBaselineRunId(e.target.value || null)}
-          className="rounded-lg border border-zinc-800 bg-zinc-950 px-2 py-1 text-[11px] text-zinc-300 ltr"
+          className="rounded-panel border border-line bg-surface-2 px-2 py-1 text-2xs text-zinc-300 ltr"
           dir="ltr"
         >
           <option value="">—</option>
@@ -122,7 +122,7 @@ export function ValidationDashboard({
       </div>
 
       {currentRunId ? (
-        <div className="mb-2 text-[11px] text-emerald-400">
+        <div className="mb-2 text-2xs text-good">
           الجلسة الحالية محفوظة: <span className="ltr" dir="ltr">{shortId(currentRunId)}</span>
         </div>
       ) : null}
@@ -141,14 +141,14 @@ export function ValidationDashboard({
 
       {/* Comparison table */}
       {top.length === 0 ? (
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-muted">
           لا توجد جلسات مصادقة بعد. عند إنهاء محاكاة سيُحفظ سجلٌ تلقائياً.
         </p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-[11px] ltr" dir="ltr">
+          <table className="w-full text-left text-2xs ltr" dir="ltr">
             <thead>
-              <tr className="border-b border-zinc-800 text-zinc-500">
+              <tr className="border-b border-line text-muted">
                 <th className="py-1 pr-2 text-left">Run</th>
                 <th className="py-1 pr-2 text-left">Engine</th>
                 <th className="py-1 pr-2 text-left">Dec</th>
@@ -204,13 +204,13 @@ function Row({
   const a120 = acc?.horizons["120s"].accuracy ?? r.accuracy["120s"];
   const delta = a60 == null || baseAcc == null ? null : a60 - baseAcc;
   return (
-    <tr className="border-b border-zinc-900">
+    <tr className="border-b border-line">
       <td className="py-1 pr-2 text-zinc-300">
         {isBest ? <Dot tone="good" /> : isBase ? <Dot tone="quiet" /> : null}
         <span className="ml-1">{shortId(r.runId)}</span>
       </td>
-      <td className="py-1 pr-2 text-zinc-400">{r.engineVersion}</td>
-      <td className="py-1 pr-2 text-zinc-400">{r.totalDecisions}</td>
+      <td className="py-1 pr-2 text-muted">{r.engineVersion}</td>
+      <td className="py-1 pr-2 text-muted">{r.totalDecisions}</td>
       <td className="py-1 pr-2 text-zinc-300">{fmtAcc(a30)}</td>
       <td className="py-1 pr-2 text-zinc-100">{fmtAcc(a60)}</td>
       <td className="py-1 pr-2 text-zinc-300">{fmtAcc(a120)}</td>
@@ -220,8 +220,8 @@ function Row({
       >
         {delta == null ? "—" : fmtDelta(delta)}
       </td>
-      <td className="py-1 pr-2 text-zinc-400">{r.bestMarketRegime ?? "-"}</td>
-      <td className="py-1 pr-2 text-zinc-400">{fmtCalib(r.calibration)}</td>
+      <td className="py-1 pr-2 text-muted">{r.bestMarketRegime ?? "-"}</td>
+      <td className="py-1 pr-2 text-muted">{fmtCalib(r.calibration)}</td>
     </tr>
   );
 }
@@ -230,17 +230,17 @@ function AccuracyBar({ r, isBase }: { r: RunSummaryRow; isBase: boolean }) {
   const a60 = r.accuracy["60s"];
   return (
     <div className="flex items-center gap-2">
-      <span className="w-24 shrink-0 text-[10px] text-zinc-500 ltr" dir="ltr">
+      <span className="w-24 shrink-0 text-2xs text-muted ltr" dir="ltr">
         {isBase ? "★ " : ""}
         {shortId(r.runId)}
       </span>
-      <div className="h-2 flex-1 overflow-hidden rounded-full bg-zinc-900">
+      <div className="h-2 flex-1 overflow-hidden rounded-full bg-line">
         <div
-          className="h-full rounded-full bg-emerald-500/80"
+          className="h-full rounded-full bg-up"
           style={{ width: `${Math.min(100, Math.max(0, a60 ?? 0))}%` }}
         />
       </div>
-      <span className="w-12 shrink-0 text-right text-[10px] text-zinc-400">{fmtAcc(a60)}</span>
+      <span className="w-12 shrink-0 text-right text-2xs text-muted">{fmtAcc(a60)}</span>
     </div>
   );
 }

@@ -41,7 +41,7 @@ export function PrimaryDecision({
   if (!decision) {
     return (
       <Section title="القرار الأساسي" eyebrow="01 · Decision">
-        <div className="py-6 text-center text-xs text-zinc-500">لا قرار بعد — بانتظار بيانات السوق.</div>
+        <div className="py-6 text-center text-xs text-muted">لا قرار بعد — بانتظار بيانات السوق.</div>
       </Section>
     );
   }
@@ -64,7 +64,7 @@ export function PrimaryDecision({
       <div className="flex flex-col gap-4">
         {/* The headline call */}
         <div
-          className={`rounded-xl border p-4 ${TONE_BORDER[dirTone]} ${TONE_BG[dirTone]}`}
+          className={`rounded-panel border p-4 ${TONE_BORDER[dirTone]} ${TONE_BG[dirTone]}`}
         >
           <div className="flex items-center justify-between gap-3">
             <span className={`text-2xl font-extrabold tracking-tight ${TONE_TEXT[dirTone]}`} dir="ltr">
@@ -72,7 +72,7 @@ export function PrimaryDecision({
             </span>
             {(decision.longProbability != null || decision.probabilityDirection) && (
               <div className="text-right">
-                <div className="text-[9px] text-zinc-500">الاحتمال</div>
+                <div className="text-3xs text-muted">الاحتمال</div>
                 <div className={`font-mono text-xl font-bold ${TONE_TEXT[dirTone]}`} dir="ltr">
                   {decision.primaryProbability != null
                     ? `${(decision.primaryProbability * 100).toFixed(0)}%`
@@ -83,26 +83,26 @@ export function PrimaryDecision({
           </div>
 
           {decision.reasonNote && (
-            <p className="mt-2 text-[11px] leading-relaxed text-zinc-400">{decision.reasonNote}</p>
+            <p className="mt-2 text-2xs leading-relaxed text-muted">{decision.reasonNote}</p>
           )}
         </div>
 
         {/* WHY — the supporting factors behind the call */}
         <div>
-          <div className="mb-2 text-[9px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+          <div className="mb-2 text-3xs font-semibold uppercase tracking-[0.18em] text-muted">
             لماذا هذا الاتجاه؟
           </div>
           {why.length ? (
             <ul className="space-y-1.5">
               {why.map((r, i) => (
-                <li key={i} className="flex items-start gap-2 text-[11px] leading-relaxed text-zinc-300">
-                  <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-zinc-500" />
+                <li key={i} className="flex items-start gap-2 text-2xs leading-relaxed text-zinc-300">
+                  <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-muted" />
                   <span>{r}</span>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-[11px] text-zinc-500">
+            <p className="text-2xs text-muted">
               لا عوامل داعمة كافية — الضغط متوازن أو البيانات غير كافية.
             </p>
           )}

@@ -37,13 +37,13 @@ export function ValidationLab() {
     <div className="mx-auto max-w-7xl space-y-4 px-4 py-6" dir="rtl">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-500">
+          <div className="text-2xs font-semibold uppercase tracking-[0.2em] text-muted">
             Scalping Decision Validation Lab
           </div>
           <h1 className="text-xl font-bold text-zinc-100">
             مختبر التحقق من قرارات المحرك
           </h1>
-          <p className="mt-1 max-w-2xl text-xs text-zinc-500">
+          <p className="mt-1 max-w-2xl text-xs text-muted">
             يختبر هل يتنبأ محرك القرار باتجاه BTC على بيانات تاريخية 1m، وعبر أي أفق
             (30/60/120 ثانية)، ومتى يكون أدق، وهل الثقة معايرة، وفي أي نظام سوقي يفشل.
             يكرر نفس الوظائف النقية للمحرك المباشر دون محفظة أو مواقف أو أرباح.
@@ -55,7 +55,7 @@ export function ValidationLab() {
       </header>
 
       {lab.error ? (
-        <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-300">
+        <div className="rounded-panel border border-down/40 bg-down/10 p-3 text-xs text-down-fg">
           {lab.error}
         </div>
       ) : null}
@@ -90,7 +90,7 @@ export function ValidationLab() {
           <LayerCalibration metrics={metrics} />
           <LayerRegime metrics={metrics} />
 
-          <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 px-4 py-3 text-[11px] text-zinc-400">
+          <div className="rounded-panel border border-line bg-surface-2/40 px-4 py-3 text-2xs text-muted">
             <div className="mb-2 flex items-center gap-2">
               <Dot tone={lab.replay === "finished" ? "good" : "warn"} pulse={lab.replay === "playing"} />
               <span className="font-bold text-zinc-200">إنهاء وتجميع التحقق</span>
@@ -102,7 +102,7 @@ export function ValidationLab() {
             <button
               onClick={() => lab.finalize()}
               disabled={!hasData || lab.decisions.length === 0 || lab.runPersistence.status === "saving"}
-              className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-xs font-bold text-amber-300 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-panel border border-warn/40 bg-warn/10 px-4 py-2 text-xs font-bold text-warn-fg hover:bg-warn/20 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {lab.runPersistence.status === "saved"
                 ? "تم الحفظ ✓ (سجلّ جديد)"
@@ -113,7 +113,7 @@ export function ValidationLab() {
           </div>
         </>
       ) : (
-        <div className="rounded-2xl border border-dashed border-zinc-800 p-8 text-center text-sm text-zinc-500">
+        <div className="rounded-card border border-dashed border-line p-8 text-center text-sm text-muted">
           حدّد النطاق الزمني ثم اضغط «بدء تشغيل جديد» لتحميل البيانات وتشغيل محرك القرار.
         </div>
       )}
@@ -151,46 +151,46 @@ function LayerControl({
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
-              <span className="text-[11px] text-zinc-500">من</span>
+              <span className="text-2xs text-muted">من</span>
               <input
                 type="date"
                 value={from}
                 onChange={(e) => onChange.setFrom(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-zinc-200 ltr"
+                className="mt-1 w-full rounded-panel border border-line bg-surface-2 px-3 py-2 text-xs text-zinc-200 ltr"
                 dir="ltr"
               />
             </label>
             <label className="block">
-              <span className="text-[11px] text-zinc-500">إلى</span>
+              <span className="text-2xs text-muted">إلى</span>
               <input
                 type="date"
                 value={to}
                 onChange={(e) => onChange.setTo(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-zinc-200 ltr"
+                className="mt-1 w-full rounded-panel border border-line bg-surface-2 px-3 py-2 text-xs text-zinc-200 ltr"
                 dir="ltr"
               />
             </label>
           </div>
           <div className="grid grid-cols-1 gap-3">
             <label className="block">
-              <span className="text-[11px] text-zinc-500">حدّ أدنى للثقة لتسجيل قرار اتجاهي</span>
+              <span className="text-2xs text-muted">حدّ أدنى للثقة لتسجيل قرار اتجاهي</span>
               <input
                 type="number"
                 min={0}
                 max={100}
                 value={minConfidence}
                 onChange={(e) => onChange.setMinConfidence(parseInt(e.target.value) || 0)}
-                className="mt-1 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-zinc-200 ltr"
+                className="mt-1 w-full rounded-panel border border-line bg-surface-2 px-3 py-2 text-xs text-zinc-200 ltr"
                 dir="ltr"
               />
             </label>
-            <div className="text-[10px] text-zinc-600">
+            <div className="text-2xs text-muted">
               كل قرار LONG/SHORT يعدّ حالة اختبار مستقلة؛ NEUTRAL يُسجَّل لكنه لا يُعدّ تداولاً.
             </div>
           </div>
         </div>
         <div className="flex flex-col justify-end gap-3">
-          <div className="text-[10px] text-zinc-500">
+          <div className="text-2xs text-muted">
             إصدار المحرك: <span className="font-mono text-zinc-300">{lab.engineVersion}</span>
             <span className="mx-2">·</span>
             الاستراتيجية: <span className="font-mono text-zinc-300">{lab.strategyVersion}</span>
@@ -201,14 +201,14 @@ function LayerControl({
                 lab.start({ from: parseStart(from), to: parseEnd(to), minConfidence })
               }
               disabled={lab.loading || !from || !to}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-zinc-950 hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-panel bg-up px-4 py-2 text-xs font-bold text-zinc-950 hover:bg-up/80 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {lab.loading ? "جارٍ التحميل…" : "بدء تشغيل جديد"}
             </button>
             <button
               onClick={() => lab.reset()}
               disabled={!lab.candles.length}
-              className="rounded-lg border border-zinc-700 px-4 py-2 text-xs font-bold text-zinc-300 hover:border-zinc-600 disabled:opacity-40"
+              className="rounded-panel border border-line px-4 py-2 text-xs font-bold text-zinc-300 hover:border-surface-3 disabled:opacity-40"
             >
               إعادة تعيين
             </button>
@@ -238,10 +238,10 @@ function LayerReplay({ lab }: { lab: ReturnType<typeof useValidationLab> }) {
       actions={<Tag tone={lab.replay === "playing" ? "good" : "neutral"} ltr>{REPLAY_LABELS[lab.replay]}</Tag>}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <button onClick={() => (lab.replay === "playing" ? lab.pause() : lab.play())} disabled={!lab.candles.length} className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs font-bold text-zinc-200 hover:border-zinc-600 disabled:opacity-40">
+        <button onClick={() => (lab.replay === "playing" ? lab.pause() : lab.play())} disabled={!lab.candles.length} className="rounded-panel border border-line bg-surface-2 px-3 py-1.5 text-xs font-bold text-zinc-200 hover:border-surface-3 disabled:opacity-40">
           {lab.replay === "playing" ? "⏸ إيقاف" : "▶ تشغيل"}
         </button>
-        <button onClick={() => lab.nextBar()} disabled={!lab.candles.length} className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs font-bold text-zinc-200 disabled:opacity-40">
+        <button onClick={() => lab.nextBar()} disabled={!lab.candles.length} className="rounded-panel border border-line bg-surface-2 px-3 py-1.5 text-xs font-bold text-zinc-200 disabled:opacity-40">
           خطوة ▸
         </button>
         <div className="flex items-center gap-1">
@@ -249,8 +249,8 @@ function LayerReplay({ lab }: { lab: ReturnType<typeof useValidationLab> }) {
             <button
               key={s}
               onClick={() => lab.setSpeedValue(s)}
-              className={`rounded-md border px-2 py-1 text-[10px] font-bold ${
-                lab.speed === s ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-300" : "border-zinc-800 text-zinc-400"
+              className={`rounded-chip border px-2 py-1 text-2xs font-bold ${
+                lab.speed === s ? "border-up/40 bg-up/10 text-up-fg" : "border-line text-muted"
               }`}
             >
               ×{s}
@@ -258,13 +258,13 @@ function LayerReplay({ lab }: { lab: ReturnType<typeof useValidationLab> }) {
           ))}
         </div>
         <div className="mr-auto flex items-center gap-3 ltr" dir="ltr">
-          <span className="font-mono text-[11px] text-zinc-400">
+          <span className="font-mono text-2xs text-muted">
             {lab.cursor?.index ?? 0} / {lab.cursor?.count ?? 0}
           </span>
-          <span className="font-mono text-[11px] text-zinc-500">
+          <span className="font-mono text-2xs text-muted">
             {lab.cursor?.timeMs ? new Date(lab.cursor.timeMs).toLocaleTimeString("en-GB") : "—"}
           </span>
-          <span className="font-mono text-[11px] text-emerald-400">
+          <span className="font-mono text-2xs text-up-fg">
             ${lab.cursor?.bar?.close?.toFixed(2) ?? "—"}
           </span>
         </div>
@@ -306,7 +306,7 @@ function LayerEngineDecision({ latest }: { latest: EngineRunOutput | null }) {
             <StatRow label="السعر" value={latest.price != null ? `$${latest.price.toFixed(2)}` : "—"} />
           </div>
           {d.blocked ? (
-            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-300">
+            <div className="rounded-panel border border-warn/40 bg-warn/10 px-3 py-2 text-2xs text-warn-fg">
               البوابة حجبت القرار ({d.gate})
             </div>
           ) : null}
@@ -315,7 +315,7 @@ function LayerEngineDecision({ latest }: { latest: EngineRunOutput | null }) {
           </Collapse>
         </div>
       ) : (
-        <div className="text-xs text-zinc-600">لم يصدر قرار بعد — شغّل الإعادة.</div>
+        <div className="text-xs text-muted">لم يصدر قرار بعد — شغّل الإعادة.</div>
       )}
     </Section>
   );
@@ -327,21 +327,21 @@ function FeatureSnapshot({ features }: { features: EngineRunOutput["features"] }
       {features.map((f) => {
         const tone: Tone = f.direction === "bullish" ? "long" : f.direction === "bearish" ? "short" : "neutral";
         return (
-          <div key={f.key} className="rounded-lg border border-zinc-800 bg-zinc-950/40 p-2">
+          <div key={f.key} className="rounded-panel border border-line bg-surface-2/40 p-2">
             <div className="mb-1 flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <Dot tone={tone} />
-                <span className="text-[11px] text-zinc-300">{f.label}</span>
+                <span className="text-2xs text-zinc-300">{f.label}</span>
               </div>
-              <span className="font-mono text-[10px] text-zinc-500 ltr" dir="ltr">{f.key}</span>
+              <span className="font-mono text-2xs text-muted ltr" dir="ltr">{f.key}</span>
             </div>
             <div className="flex items-center gap-2">
               <Bar pct={f.normalized != null ? f.normalized * 50 + 50 : null} tone={tone} className="flex-1" />
-              <span className="w-10 shrink-0 text-right font-mono text-[10px] text-zinc-400">
+              <span className="w-10 shrink-0 text-right font-mono text-2xs text-muted">
                 {f.normalized != null ? f.normalized.toFixed(2) : "—"}
               </span>
             </div>
-            <div className="mt-1 flex items-center justify-between text-[9px] text-zinc-600">
+            <div className="mt-1 flex items-center justify-between text-3xs text-muted">
               <span>الحالة: {STATE_LABELS[f.state]}</span>
               <span>المساهمة: {f.contribution.toFixed(2)}</span>
               <span>ن: {Math.round(f.score)}</span>
@@ -361,7 +361,7 @@ function LayerEvaluation({ records }: { records: ValidationDecisionRecord[] | nu
   if (!records || records.length === 0) {
     return (
       <Section title="تقييم القرارات" eyebrow="Layer 4 · Decision Evaluation">
-        <div className="text-xs text-zinc-600">
+        <div className="text-xs text-muted">
           لا توجد نتائج بعد — أتمّ الحفظ لقياس كل قرار عبر آفاق 30/60/120 ثانية.
         </div>
       </Section>
@@ -371,9 +371,9 @@ function LayerEvaluation({ records }: { records: ValidationDecisionRecord[] | nu
   return (
     <Section title="تقييم القرارات" eyebrow="Layer 4 · Decision Evaluation · Entry → +30s → +60s → +120s">
       <div className="max-h-80 overflow-auto">
-        <table className="w-full text-left text-[11px] font-mono ltr" dir="ltr">
+        <table className="w-full text-left text-2xs font-mono ltr" dir="ltr">
           <thead>
-            <tr className="border-b border-zinc-800 text-zinc-500">
+            <tr className="border-b border-line text-muted">
               <th className="py-1 pr-2 text-left">Time</th>
               <th className="py-1 pr-2 text-left">Dir</th>
               <th className="py-1 pr-2 text-left">Entry</th>
@@ -384,12 +384,12 @@ function LayerEvaluation({ records }: { records: ValidationDecisionRecord[] | nu
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.id} className="border-b border-zinc-900">
-                <td className="py-1 pr-2 text-zinc-400">
+              <tr key={r.id} className="border-b border-line">
+                <td className="py-1 pr-2 text-muted">
                   {new Date(r.timestamp).toLocaleTimeString("en-GB")}
                 </td>
                 <td className="py-1 pr-2">
-                  <span className={r.direction === "LONG" ? "text-emerald-400" : r.direction === "SHORT" ? "text-red-400" : "text-zinc-500"}>
+                  <span className={r.direction === "LONG" ? "text-up-fg" : r.direction === "SHORT" ? "text-down-fg" : "text-muted"}>
                     {r.direction}
                   </span>
                 </td>
@@ -399,11 +399,11 @@ function LayerEvaluation({ records }: { records: ValidationDecisionRecord[] | nu
                   return (
                     <td key={h} className="py-1 pr-2">
                       {hv.result === "win" ? (
-                        <span className="text-emerald-400">✓ {fmtPct(hv.actualMovePct)}</span>
+                        <span className="text-up-fg">✓ {fmtPct(hv.actualMovePct)}</span>
                       ) : hv.result === "loss" ? (
-                        <span className="text-red-400">✗ {fmtPct(hv.actualMovePct)}</span>
+                        <span className="text-down-fg">✗ {fmtPct(hv.actualMovePct)}</span>
                       ) : (
-                        <span className="text-zinc-600">—</span>
+                        <span className="text-muted">—</span>
                       )}
                     </td>
                   );
@@ -427,12 +427,12 @@ function LayerJournal({ decisions }: { decisions: DecisionSnapshot[] }) {
     <Section title="سجل القرارات" eyebrow="Layer 6 · Decision Journal">
       <Collapse summary={`القرارات المسجّلة (${decisions.length})`} open>
         {decisions.length === 0 ? (
-          <div className="py-2 text-[11px] text-zinc-600">لا توجد قرارات بعد.</div>
+          <div className="py-2 text-2xs text-muted">لا توجد قرارات بعد.</div>
         ) : (
           <div className="max-h-72 overflow-auto">
-            <table className="w-full text-left text-[11px]">
+            <table className="w-full text-left text-2xs">
               <thead>
-                <tr className="border-b border-zinc-800 text-zinc-500">
+                <tr className="border-b border-line text-muted">
                   <th className="py-1 pr-2 font-medium">#</th>
                   <th className="py-1 pr-2 font-medium">الوقت</th>
                   <th className="py-1 pr-2 font-medium">القرار</th>
@@ -443,13 +443,13 @@ function LayerJournal({ decisions }: { decisions: DecisionSnapshot[] }) {
               </thead>
               <tbody className="font-mono">
                 {decisions.slice(-40).map((d) => (
-                  <tr key={d.id} className="border-b border-zinc-900">
-                    <td className="py-1 pr-2 text-zinc-500">{d.seq}</td>
-                    <td className="py-1 pr-2 text-zinc-400">{new Date(d.timestamp).toLocaleTimeString("en-GB")}</td>
+                  <tr key={d.id} className="border-b border-line">
+                    <td className="py-1 pr-2 text-muted">{d.seq}</td>
+                    <td className="py-1 pr-2 text-muted">{new Date(d.timestamp).toLocaleTimeString("en-GB")}</td>
                     <td className="py-1 pr-2"><Tag tone={tone(d.direction)} ltr>{d.direction}</Tag></td>
-                    <td className="py-1 pr-2 text-zinc-400">{Math.round(d.confidence)}%</td>
-                    <td className="py-1 pr-2 text-zinc-400">{regimeLabel(d.regime)}</td>
-                    <td className="py-1 pr-2 text-zinc-400">{d.price.toFixed(2)}</td>
+                    <td className="py-1 pr-2 text-muted">{Math.round(d.confidence)}%</td>
+                    <td className="py-1 pr-2 text-muted">{regimeLabel(d.regime)}</td>
+                    <td className="py-1 pr-2 text-muted">{d.price.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -469,7 +469,7 @@ function LayerPerformance({ metrics, run }: { metrics: ValidationMetrics | null;
   if (!metrics) {
     return (
       <Section title="أداء القرارات" eyebrow="Layer 7 · Analytics · Decision Performance">
-        <div className="text-xs text-zinc-600">لا توجد تحليلات بعد.</div>
+        <div className="text-xs text-muted">لا توجد تحليلات بعد.</div>
       </Section>
     );
   }
@@ -488,9 +488,9 @@ function LayerPerformance({ metrics, run }: { metrics: ValidationMetrics | null;
           <StatRow label="محايد (مسجّل)" value={totals.neutralDecisions} tone="quiet" />
         </div>
         <div className="mt-3">
-          <table className="w-full text-left text-[11px]">
+          <table className="w-full text-left text-2xs">
             <thead>
-              <tr className="border-b border-zinc-800 text-zinc-500">
+              <tr className="border-b border-line text-muted">
                 <th className="py-1 pr-2 font-medium">الأفق</th>
                 <th className="py-1 pr-2 font-medium">عينة</th>
                 <th className="py-1 pr-2 font-medium">ربح</th>
@@ -507,17 +507,17 @@ function LayerPerformance({ metrics, run }: { metrics: ValidationMetrics | null;
               {HORIZON_KEYS.map((h) => {
                 const m = metrics.horizons[h];
                 return (
-                  <tr key={h} className="border-b border-zinc-900 font-mono">
+                  <tr key={h} className="border-b border-line font-mono">
                     <td className="py-1 pr-2 text-zinc-300">{h}</td>
-                    <td className="py-1 pr-2 text-zinc-400">{m.sampleSize}</td>
-                    <td className="py-1 pr-2 text-emerald-400">{m.wins}</td>
-                    <td className="py-1 pr-2 text-red-400">{m.losses}</td>
+                    <td className="py-1 pr-2 text-muted">{m.sampleSize}</td>
+                    <td className="py-1 pr-2 text-up-fg">{m.wins}</td>
+                    <td className="py-1 pr-2 text-down-fg">{m.losses}</td>
                     <td className="py-1 pr-2"><span className={accTone(m.accuracy)}>{fmtAcc(m.accuracy)}</span></td>
                     <td className="py-1 pr-2"><span className={edgeTone(m.edgePp)}>{fmtDelta(m.edgePp)}</span></td>
                     <td className="py-1 pr-2 text-zinc-300">{fmtPct(m.averageMovePct)}</td>
-                    <td className="py-1 pr-2 text-zinc-400">{fmtPct(m.medianMovePct)}</td>
-                    <td className="py-1 pr-2 text-emerald-400/80">{fmtPct(m.averageMFE)}</td>
-                    <td className="py-1 pr-2 text-red-400/80">{fmtPct(m.averageMAE)}</td>
+                    <td className="py-1 pr-2 text-muted">{fmtPct(m.medianMovePct)}</td>
+                    <td className="py-1 pr-2 text-up-fg/80">{fmtPct(m.averageMFE)}</td>
+                    <td className="py-1 pr-2 text-down-fg/80">{fmtPct(m.averageMAE)}</td>
                   </tr>
                 );
               })}
@@ -571,15 +571,15 @@ function LayerCalibration({ metrics }: { metrics: ValidationMetrics | null }) {
           const tone: Tone = seg.accuracy60 != null ? (Math.abs(seg.accuracy60 - mid) <= 5 ? "good" : "warn") : "quiet";
           return (
             <div key={r.label} className="grid grid-cols-[70px_1fr_auto_auto] items-center gap-3">
-              <span className="font-mono text-[11px] text-zinc-400">{r.label}</span>
+              <span className="font-mono text-2xs text-muted">{r.label}</span>
               <Bar pct={seg.accuracy60} tone={tone} />
-              <span className="w-16 text-right font-mono text-[11px] text-zinc-300">{fmtAcc(seg.accuracy60)}</span>
-              <span className="w-12 text-right font-mono text-[10px] text-zinc-500">n={seg.directionalCount}</span>
+              <span className="w-16 text-right font-mono text-2xs text-zinc-300">{fmtAcc(seg.accuracy60)}</span>
+              <span className="w-12 text-right font-mono text-2xs text-muted">n={seg.directionalCount}</span>
             </div>
           );
         })}
       </div>
-      <p className="mt-2 text-[10px] text-zinc-600">
+      <p className="mt-2 text-2xs text-muted">
         {calibrated
           ? "المعدل المحقّق مقابل منتصف نطاق الثقة المعلن — الفجوة الكبيرة تشير إلى حاجة إعادة معايرة."
           : "لا نطاقات كافية بعد."}
@@ -597,20 +597,20 @@ function LayerRegime({ metrics }: { metrics: ValidationMetrics | null }) {
   return (
     <Section title="التحقق حسب نظام السوق" eyebrow="Market Regime Analytics">
       {!segs || Object.keys(segs).length === 0 ? (
-        <div className="text-xs text-zinc-600">لا شرائح أنظمة بعد.</div>
+        <div className="text-xs text-muted">لا شرائح أنظمة بعد.</div>
       ) : (
         <div className="grid gap-2 md:grid-cols-2">
           {Object.entries(segs).map(([key, seg]) => (
-            <div key={key} className="rounded-lg border border-zinc-800 bg-zinc-950/40 p-2">
+            <div key={key} className="rounded-panel border border-line bg-surface-2/40 p-2">
               <div className="mb-1 flex items-center justify-between">
-                <span className="text-[11px] text-zinc-300">{regimeLabel(key)}</span>
-                <span className="font-mono text-[10px] text-zinc-500 ltr" dir="ltr">{key}</span>
+                <span className="text-2xs text-zinc-300">{regimeLabel(key)}</span>
+                <span className="font-mono text-2xs text-muted ltr" dir="ltr">{key}</span>
               </div>
               <div className="flex items-center gap-2">
-                <Bar pct={seg.accuracy60} tone={accTone(seg.accuracy60) === "text-emerald-400" ? "good" : accTone(seg.accuracy60) === "text-red-400" ? "short" : "neutral"} className="flex-1" />
-                <span className="w-12 shrink-0 text-right font-mono text-[10px] text-zinc-300">{fmtAcc(seg.accuracy60)}</span>
+                <Bar pct={seg.accuracy60} tone={accTone(seg.accuracy60) === "text-up-fg" ? "good" : accTone(seg.accuracy60) === "text-down-fg" ? "short" : "neutral"} className="flex-1" />
+                <span className="w-12 shrink-0 text-right font-mono text-2xs text-zinc-300">{fmtAcc(seg.accuracy60)}</span>
               </div>
-              <div className="mt-1 flex justify-between text-[9px] text-zinc-600">
+              <div className="mt-1 flex justify-between text-3xs text-muted">
                 <span>عينة: {seg.directionalCount}</span>
                 <span>متوسط: {fmtPct(seg.averageReturnPct)}</span>
                 <span>MFE {fmtPct(seg.averageMFE)} / MAE {fmtPct(seg.averageMAE)}</span>
@@ -629,12 +629,12 @@ function LayerRegime({ metrics }: { metrics: ValidationMetrics | null }) {
 
 function SegmentCard({ title, seg }: { title: string; seg: import("./types").AccuracySegment }) {
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-3">
+    <div className="rounded-panel border border-line bg-surface-2/40 p-3">
       <div className="mb-1 flex items-center justify-between">
         <Tag tone={title === "LONG" ? "long" : "short"} ltr>{title}</Tag>
-        <span className="text-[10px] text-zinc-500">عينة {seg.directionalCount}</span>
+        <span className="text-2xs text-muted">عينة {seg.directionalCount}</span>
       </div>
-      <StatRow label="الدقة 60s" value={fmtAcc(seg.accuracy60)} tone={accTone(seg.accuracy60) === "text-zinc-300" ? "quiet" : seg.accuracy60 != null && seg.accuracy60 >= 50 ? "good" : "short"} />
+      <StatRow label="الدقة 60s" value={fmtAcc(seg.accuracy60)} tone={accTone(seg.accuracy60) === "text-muted" ? "quiet" : seg.accuracy60 != null && seg.accuracy60 >= 50 ? "good" : "short"} />
       <StatRow label="متوسط الصافي" value={fmtPct(seg.averageReturnPct)} />
       <StatRow label="MFE / MAE" value={`${fmtPct(seg.averageMFE)} / ${fmtPct(seg.averageMAE)}`} ltr />
     </div>
@@ -654,13 +654,13 @@ function regimeLabel(key: string): string {
 }
 
 function accTone(v: number | null): string {
-  if (v == null) return "text-zinc-500";
-  return v >= 50 ? "text-emerald-400" : "text-red-400";
+  if (v == null) return "text-muted";
+  return v >= 50 ? "text-up-fg" : "text-down-fg";
 }
 
 function edgeTone(v: number | null): string {
-  if (v == null) return "text-zinc-500";
-  return v > 0 ? "text-emerald-400" : "text-red-400";
+  if (v == null) return "text-muted";
+  return v > 0 ? "text-up-fg" : "text-down-fg";
 }
 
 function isoDaysAgo(days: number): string {

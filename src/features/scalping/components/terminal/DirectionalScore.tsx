@@ -43,27 +43,27 @@ export function DirectionalScore({
       <div className="flex items-end gap-4">
         <div className="font-mono text-6xl font-extrabold leading-none tracking-tight text-zinc-50" dir="ltr">
           {score != null ? score.toFixed(0) : "—"}
-          <span className="text-2xl text-zinc-500">/100</span>
+          <span className="text-2xl text-muted">/100</span>
         </div>
         <div className="pb-1">
           <Tag tone={tone}>{tone === "long" ? "اتجاه صاعد" : tone === "short" ? "اتجاه هابط" : "محايد"}</Tag>
         </div>
       </div>
 
-      <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-zinc-800" dir="ltr">
+      <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-line" dir="ltr">
         <div
           className={`h-full rounded-full transition-all duration-500 ${TONE_BAR[tone]}`}
           style={{ width: `${score ?? 0}%` }}
         />
       </div>
-      <p className="mt-2 text-[10px] leading-relaxed text-zinc-600">
+      <p className="mt-2 text-2xs leading-relaxed text-muted">
         الدرجة = الضغط الصافي بعد تجميع العوامل على مستوى العائلات — ليست احتمال نجاح،
         وليست إعادة حساب: تعرض نفس ناتج محرّك الإشارة.
       </p>
 
       {/* Family contributors — how the score decomposes */}
       <div className="mt-4 space-y-2.5">
-        <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-zinc-500">
+        <div className="text-3xs font-semibold uppercase tracking-[0.18em] text-muted">
           مساهمة العائلات
         </div>
         {FAMILIES.map((f) => {
@@ -72,10 +72,10 @@ export function DirectionalScore({
           const familyTone: "long" | "short" | "neutral" = v > 0.001 ? "long" : v < -0.001 ? "short" : "neutral";
           return (
             <div key={f.key} className="flex items-center gap-3">
-              <span className="w-20 shrink-0 text-[10px] text-zinc-500">{f.label}</span>
-              <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-zinc-800" dir="ltr">
+              <span className="w-20 shrink-0 text-2xs text-muted">{f.label}</span>
+              <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-line" dir="ltr">
                 <div
-                  className={`absolute left-1/2 top-0 h-full w-px bg-zinc-700`}
+                  className={`absolute left-1/2 top-0 h-full w-px bg-surface-3`}
                 />
                 <div
                   className={`absolute top-0 h-full rounded-full ${TONE_BAR[familyTone]}`}
@@ -85,13 +85,13 @@ export function DirectionalScore({
                   }}
                 />
               </div>
-              <span className={`w-8 shrink-0 text-left font-mono text-[10px] tabular-nums ${TONE_TEXT[familyTone]}`} dir="ltr">
+              <span className={`w-8 shrink-0 text-left font-mono text-2xs tabular-nums ${TONE_TEXT[familyTone]}`} dir="ltr">
                 {v.toFixed(2)}
               </span>
             </div>
           );
         })}
-        <div className="mt-1 flex items-center justify-between text-[9px] text-zinc-600">
+        <div className="mt-1 flex items-center justify-between text-3xs text-muted">
           <span className="flex items-center gap-1">
             <span className={`h-1.5 w-1.5 rounded-full ${TONE_DOT.long}`} /> شراء
           </span>
