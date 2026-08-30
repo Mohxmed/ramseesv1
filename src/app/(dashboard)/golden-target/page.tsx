@@ -11,6 +11,7 @@ import { ResetConfirmation } from "@/features/golden-target/components/ResetConf
 import { GOLDEN_TARGET_CONFIG } from "@/features/golden-target/constants";
 import { formatNumber } from "@/features/golden-target/utils";
 import type { ProgressCheckInput } from "@/features/golden-target/types";
+import { Badge, Card } from "@/components/ui/index";
 
 export default function GoldenTargetPage() {
   const {
@@ -55,8 +56,10 @@ export default function GoldenTargetPage() {
 
   if (!data || !progress) {
     return (
-      <div className="flex h-[60vh] items-center justify-center text-zinc-500">
-        تعذر تحميل البيانات. حاول مرة أخرى.
+      <div className="flex h-[60vh] items-center justify-center">
+        <Card className="py-10 text-center text-xs text-muted">
+          تعذر تحميل البيانات. حاول مرة أخرى.
+        </Card>
       </div>
     );
   }
@@ -80,15 +83,16 @@ export default function GoldenTargetPage() {
       </div>
 
       {isDone ? (
-        <div className="animate-pop-in rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-8 text-center">
-          <h2 className="text-2xl font-bold text-emerald-300">
+        <Card bodyClassName="p-8 text-center" className="border-up/40 bg-good/10">
+          <div className="text-2xl font-bold text-up-fg">
             🎉 تهانينا! أكملت الهدف الذهبي
-          </h2>
-          <p className="mt-3 text-zinc-300">
+          </div>
+          <p className="mt-3 text-sm text-zinc-300">
             وصلت إلى القيمة النهائية: {formatNumber(1_048_576)} بعد 20 حركة
             بنمو 100% في كل حركة.
           </p>
-        </div>
+          <Badge tone="up" className="mt-4">اكتمل</Badge>
+        </Card>
       ) : (
         <>
           <ProgressOverview
