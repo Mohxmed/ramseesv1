@@ -2,7 +2,8 @@
 
 import type { MarketState, OrderBookSnapshot, OrderFlowData } from "../types";
 import type { LiquidityAnalysis } from "../analysis";
-import { formatBtc, formatPercent, formatPrice } from "../utils";
+import { formatBtc, formatPrice } from "../utils";
+import { Badge, Card } from "@/components/ui/index";
 
 export function OrderFlowCard({
   orderBook,
@@ -23,22 +24,14 @@ export function OrderFlowCard({
     marketState?.orderFlow ?? "balanced";
 
   return (
-    <section className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-zinc-100">
-          تدفق الأوامر والسيولة
-        </h2>
-        {live !== undefined && (
-          <span
-            className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-              live ? "bg-emerald-500/15 text-emerald-300" : "bg-zinc-700/40 text-zinc-400"
-            }`}
-          >
-            {live ? "مباشر" : "عبر REST"}
-          </span>
-        )}
-      </div>
-
+    <Card
+      title="تدفق الأوامر والسيولة"
+      actions={
+        live !== undefined ? (
+          <Badge tone={live ? "up" : "quiet"}>{live ? "مباشر" : "عبر REST"}</Badge>
+        ) : undefined
+      }
+    >
       <div className="grid grid-cols-2 gap-3">
         <Metric label="الانتشار (Spread)" value={orderBook ? `${orderBook.spread.toFixed(2)} (${orderBook.spreadPercent.toFixed(3)}%)` : "—"} />
         <Metric label="أفضل عرض/طلب" value={orderBook ? `${formatPrice(orderBook.bestBid)} / ${formatPrice(orderBook.bestAsk)}` : "—"} />
@@ -54,41 +47,37 @@ export function OrderFlowCard({
       </div>
 
       <div className="mt-3">
-        <p className="text-[11px] text-zinc-500">القراءة</p>
-        <p className={`text-sm font-bold ${flowReading === "sell" ? "text-red-400" : flowReading === "buy" ? "text-emerald-400" : "text-zinc-300"}`}>
+        <p className="text-2xs text-muted">القراءة</p>
+        <p className={`text-sm font-bold ${flowReading === "sell" ? "text-down-fg" : flowReading === "buy" ? "text-up-fg" : "text-zinc-300"}`}>
           {flowReading === "sell" ? "ضغط بيع" : flowReading === "buy" ? "ضغط شراء" : "متوازن"}
         </p>
       </div>
 
       <div className="mt-4">
-        <p className="mb-2 text-[11px] text-zinc-500">ضغط التصفية</p>
-        <PressureBadge level={liquidity?.liquidationPressure ?? "low"} />
+        <p className="mb-2 text-2xs text-muted">ضغط التصفية</p>
+        <Badge
+          tone={
+            liquidity?.liquidationPressure === "high"
+              ? "down"
+              : liquidity?.liquidationPressure === "moderate"
+              ? "warn"
+              : "good"
+          }
+        >
+          {liquidity?.liquidationPressure === "high" ? "مرتفع" : liquidity?.liquidationPressure === "moderate" ? "متوسط" : "منخفض"}
+        </Badge>
       </div>
-    </section>
+    </Card>
   );
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg bg-zinc-950/40 px-3 py-2">
-      <p className="text-[10px] text-zinc-500">{label}</p>
-      <p className="mt-0.5 text-xs font-semibold text-zinc-200" dir="ltr">
+    <div className="rounded-panel bg-surface-2/30 px-3 py-2">
+      <p className="text-2xs text-muted">{label}</p>
+      <p className="mt-0.5 text-xs font-semibold text-zinc-100" dir="ltr">
         {value}
       </p>
     </div>
-  );
-}
-
-function PressureBadge({ level }: { level: string }) {
-  const style =
-    level === "high"
-      ? "bg-red-500/15 text-red-300"
-      : level === "moderate"
-      ? "bg-amber-500/15 text-amber-300"
-      : "bg-emerald-500/15 text-emerald-300";
-  return (
-    <span className={`inline-block rounded-md px-2 py-0.5 text-xs font-semibold ${style}`}>
-      {level === "high" ? "مرتفع" : level === "moderate" ? "متوسط" : "منخفض"}
-    </span>
   );
 }

@@ -6,13 +6,14 @@ import { useStrategies, type PersistStatus } from "./hooks/useStrategies";
 import { StrategyList } from "./components/StrategyList";
 import { LiveStrategyBuilder } from "./components/LiveStrategyBuilder";
 import { CreateStrategyModal } from "./components/CreateStrategyModal";
+import { Badge, type Tone } from "@/components/ui/index";
 
-const STATUS_META: Record<PersistStatus, { label: string; className: string }> = {
-  loading: { label: "جارٍ التحميل…", className: "border-zinc-700 bg-zinc-800/60 text-zinc-400" },
-  saving: { label: "جارٍ الحفظ…", className: "border-amber-500/40 bg-amber-500/10 text-amber-300" },
-  saved: { label: "محفوظ في السحابة", className: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" },
-  error: { label: "تعذّر الحفظ — مخزّن محليًا", className: "border-red-500/40 bg-red-500/10 text-red-300" },
-  local: { label: "مخزّن محليًا فقط", className: "border-zinc-700 bg-zinc-800/60 text-zinc-400" },
+const STATUS_META: Record<PersistStatus, { label: string; tone: Tone }> = {
+  loading: { label: "جارٍ التحميل…", tone: "quiet" },
+  saving: { label: "جارٍ الحفظ…", tone: "warn" },
+  saved: { label: "محفوظ في السحابة", tone: "good" },
+  error: { label: "تعذّر الحفظ — مخزّن محليًا", tone: "down" },
+  local: { label: "مخزّن محليًا فقط", tone: "quiet" },
 };
 
 export function StrategiesPage() {
@@ -41,31 +42,29 @@ export function StrategiesPage() {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
+      <section className="rounded-card border border-line bg-surface-1/40 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-800/60 text-xl">
+            <div className="flex h-10 w-10 items-center justify-center rounded-panel border border-line bg-surface-2/60 text-xl">
               🧩
             </div>
             <div>
-              <h1 className="text-lg font-bold text-zinc-50">إدارة الاستراتيجيات</h1>
-              <p className="text-[11px] text-zinc-500">
+              <h1 className="text-lg font-bold text-zinc-100">إدارة الاستراتيجيات</h1>
+              <p className="text-2xs text-muted">
                 أنشئ استراتيجياتك وعدّلها وخزّنها في السحابة، ثم قيّمها في مركز القرارات.
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 text-[11px]">
-            <span className="rounded-md border border-zinc-700 bg-zinc-800/60 px-2 py-1">
+          <div className="flex flex-wrap items-center gap-2 text-2xs">
+            <span className="rounded-chip border border-line bg-surface-2/60 px-2 py-1">
               {strategies.length} استراتيجية · {enabledCount} مفعّلة
             </span>
-            <span className={`inline-flex items-center rounded-md border px-2 py-1 font-semibold ${meta.className}`}>
-              {meta.label}
-            </span>
+            <Badge tone={meta.tone}>{meta.label}</Badge>
             <button
               type="button"
               onClick={openCreate}
-              className="inline-flex items-center gap-1 rounded-md bg-emerald-500/80 px-3 py-1.5 text-xs font-bold text-zinc-950 hover:bg-emerald-400"
+              className="inline-flex items-center gap-1 rounded-md bg-up/80 px-3 py-1.5 text-xs font-bold text-background hover:bg-up-fg"
             >
               + إنشاء استراتيجية
             </button>
@@ -95,14 +94,14 @@ export function StrategiesPage() {
               initialTab={focus.target}
             />
           ) : (
-            <div className="rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/40 p-8 text-center text-sm text-zinc-500">
+            <div className="rounded-card border border-dashed border-line bg-surface-1/40 p-8 text-center text-sm text-muted">
               اختر أو أنشئ استراتيجية لبدء التحرير.
             </div>
           )}
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 text-[12px] text-zinc-400">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
         <span className="font-semibold text-zinc-300">نصيحة:</span>
         تُحفَظ التعديلات تلقائيًا في السحابة فور إجرائها. قيّم استراتيجيتك وحقّق نتائجها في صفحة
         مركز القرارات.

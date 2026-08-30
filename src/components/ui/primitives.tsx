@@ -404,4 +404,32 @@ export function ScoreBar({ value, className = "", showValue = false }: ScoreBarP
   );
 }
 
+export interface CollapseProps {
+  summary: ReactNode;
+  open?: boolean;
+  className?: string;
+  children: ReactNode;
+}
+
+/** Expandable / collapsible region built on the native <details> element. */
+export function Collapse({
+  summary,
+  open = false,
+  className = "",
+  children,
+}: CollapseProps) {
+  return (
+    <details
+      open={open}
+      className={`rounded-panel border border-line bg-surface-2/40 ${className}`}
+    >
+      <summary className="flex cursor-pointer select-none items-center justify-between gap-2 px-3 py-2 text-2xs font-semibold text-zinc-300 [&::-webkit-details-marker]:hidden">
+        <span className="flex items-center gap-2">{summary}</span>
+        <span className="text-muted">⌄</span>
+      </summary>
+      <div className="px-3 pb-3 pt-1">{children}</div>
+    </details>
+  );
+}
+
 export { text, border, bg, bar, dot };

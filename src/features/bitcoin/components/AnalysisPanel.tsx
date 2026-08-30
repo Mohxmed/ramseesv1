@@ -2,48 +2,44 @@
 
 import type { SupportResistanceResult, Zone } from "../analysis";
 import { formatPrice, formatPercent } from "../utils";
+import { Badge, Card, Progress } from "@/components/ui/index";
 
 function ZoneRow({ zone }: { zone: Zone }) {
   return (
-    <div className="flex items-center justify-between rounded-lg bg-zinc-950/40 px-3 py-2">
+    <div className="flex items-center justify-between rounded-panel bg-surface-2/30 px-3 py-2">
       <div className="flex items-center gap-3">
-        <span
-          className={`inline-flex items-center rounded px-2 py-0.5 text-[11px] font-semibold ${
-            zone.kind === "support"
-              ? "bg-emerald-500/15 text-emerald-300"
-              : "bg-red-500/15 text-red-300"
-          }`}
+        <Badge
+          tone={zone.kind === "support" ? "up" : "down"}
         >
           {zone.kind === "support" ? "دعم" : "مقاومة"}
-        </span>
+        </Badge>
         <div>
           <p className="text-sm font-semibold text-zinc-100">
             {formatPrice(zone.center)}
           </p>
-          <p className="text-[11px] text-zinc-500">
+          <p className="text-2xs text-muted">
             {zone.tests} اختبار · على بعد {formatPercent(zone.distancePercent)}
           </p>
         </div>
       </div>
       <div className="text-left">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-zinc-400">القوة</span>
+          <span className="text-2xs text-muted">القوة</span>
           <span className="text-sm font-bold text-zinc-100">
             {zone.strength}/100
           </span>
         </div>
-        <div className="mt-1 h-1.5 w-24 overflow-hidden rounded-full bg-zinc-800">
-          <div
-            className={`h-full rounded-full ${
-              zone.strength >= 60
-                ? "bg-emerald-500"
-                : zone.strength >= 30
-                ? "bg-amber-500"
-                : "bg-red-500"
-            }`}
-            style={{ width: `${Math.min(zone.strength, 100)}%` }}
-          />
-        </div>
+        <Progress
+          pct={Math.min(zone.strength, 100)}
+          tone={
+            zone.strength >= 60
+              ? "up"
+              : zone.strength >= 30
+              ? "warn"
+              : "down"
+          }
+          className="mt-1 w-24"
+        />
       </div>
     </div>
   );
@@ -58,14 +54,14 @@ function Nearest({
   zone: Zone | null;
   tone: "support" | "resistance";
 }) {
-  const toneText = tone === "support" ? "text-emerald-300" : "text-red-300";
+  const toneText = tone === "support" ? "text-up-fg" : "text-down-fg";
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4 text-center">
-      <p className="text-xs font-medium text-zinc-500">{title}</p>
+    <div className="rounded-panel border border-line bg-surface-2/30 p-4 text-center">
+      <p className="text-2xs text-muted">{title}</p>
       <p className={`mt-1.5 text-xl font-bold ${zone ? toneText : "text-zinc-600"}`}>
         {zone ? formatPrice(zone.center) : "غير متاح"}
       </p>
-      <p className="mt-1 text-xs text-zinc-500">
+      <p className="mt-1 text-2xs text-muted">
         {zone ? (
           <>
             القوة: <span className="font-semibold text-zinc-300">{zone.strength}/100</span>
@@ -81,8 +77,8 @@ function Nearest({
 }
 
 const structureMeta: Record<string, { label: string; class: string }> = {
-  bullish: { label: "صاعد (Bullish)", class: "text-emerald-400" },
-  bearish: { label: "هابط (Bearish)", class: "text-red-400" },
+  bullish: { label: "صاعد (Bullish)", class: "text-up-fg" },
+  bearish: { label: "هابط (Bearish)", class: "text-down-fg" },
   neutral: { label: "محايد (Neutral)", class: "text-zinc-300" },
 };
 
@@ -93,9 +89,9 @@ export function AnalysisPanel({
 }) {
   if (!analysis) {
     return (
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6 text-center text-zinc-500">
+      <Card className="py-10 text-center text-2xs text-muted">
         التحليل الفني (30m) غير متاح حتى الآن
-      </div>
+      </Card>
     );
   }
 
@@ -107,21 +103,20 @@ export function AnalysisPanel({
     .slice(0, 6);
 
   return (
-    <section className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6">
-      <div className="mb-1 flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-zinc-200">
-          التحليل الفني (30m)
-        </h2>
-        <span className="text-[11px] text-zinc-500">
+    <Card
+      title="التحليل الفني (30m)"
+      actions={
+        <span className="text-2xs text-muted">
           {analysis.candleCount} شمعة
         </span>
-      </div>
-      <p className="mb-4 text-[11px] text-zinc-500">
+      }
+    >
+      <p className="mb-4 text-2xs text-muted">
         مستويات إحصائية احتمالية مبنية على البيانات — ليست تنبؤاً مؤكداً.
       </p>
 
-      <div className="mb-5 flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-950/40 px-4 py-3">
-        <span className="text-xs font-medium text-zinc-500">بنية السوق</span>
+      <div className="mb-5 flex items-center justify-between rounded-panel border border-line bg-surface-2/30 px-4 py-3">
+        <span className="text-2xs text-muted">بنية السوق</span>
         <span className={`text-sm font-bold ${meta.class}`}>{meta.label}</span>
       </div>
 
@@ -130,18 +125,18 @@ export function AnalysisPanel({
         <Nearest title="أقرب دعم" zone={analysis.nearestSupport} tone="support" />
       </div>
 
-      <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-950/40 px-4 py-3 text-center">
-        <span className="text-xs font-medium text-zinc-500">السعر الحالي</span>
-        <p className="mt-1 text-xl font-bold text-zinc-50">
+      <div className="mt-3 rounded-panel border border-line bg-surface-2/30 px-4 py-3 text-center">
+        <span className="text-2xs text-muted">السعر الحالي</span>
+        <p className="mt-1 text-xl font-bold text-zinc-100">
           {formatPrice(analysis.currentPrice, 0)}
         </p>
       </div>
 
-      <h3 className="mb-2 mt-6 text-xs font-semibold text-zinc-400">
+      <h3 className="mb-2 mt-6 text-2xs font-semibold text-zinc-400">
         أقوى مناطق الدعم والمقاومة
       </h3>
       {strongest.length === 0 ? (
-        <p className="text-xs text-zinc-500">لا توجد مناطق قوية كافية حالياً</p>
+        <p className="text-2xs text-muted">لا توجد مناطق قوية كافية حالياً</p>
       ) : (
         <div className="space-y-2">
           {strongest.map((z) => (
@@ -149,6 +144,6 @@ export function AnalysisPanel({
           ))}
         </div>
       )}
-    </section>
+    </Card>
   );
 }

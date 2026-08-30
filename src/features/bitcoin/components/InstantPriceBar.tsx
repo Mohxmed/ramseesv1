@@ -9,6 +9,7 @@ import {
   isUp,
   timeLabel,
 } from "../utils";
+import { Card, Status } from "@/components/ui/index";
 
 function Tile({
   label,
@@ -23,26 +24,26 @@ function Tile({
 }) {
   const toneClass =
     tone === "up"
-      ? "text-emerald-400"
+      ? "text-up-fg"
       : tone === "down"
-      ? "text-red-400"
+      ? "text-down-fg"
       : tone === "warn"
-      ? "text-amber-300"
+      ? "text-warn-fg"
       : "text-zinc-100";
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 px-3 py-2.5">
-      <p className="text-[10px] font-medium text-zinc-500">{label}</p>
+    <div className="rounded-panel border border-line bg-surface-2/30 px-3 py-2.5">
+      <p className="text-2xs text-muted">{label}</p>
       <p className={`mt-0.5 text-sm font-bold leading-tight ${toneClass}`} dir="ltr">
         {value}
       </p>
-      {sub && <p className="mt-0.5 text-[10px] text-zinc-500">{sub}</p>}
+      {sub && <p className="mt-0.5 text-2xs text-muted">{sub}</p>}
     </div>
   );
 }
 
 const TREND_LABEL: Record<string, { text: string; cls: string }> = {
-  bullish: { text: "صاعد", cls: "bg-emerald-500/15 text-emerald-300" },
-  bearish: { text: "هابط", cls: "bg-red-500/15 text-red-300" },
+  bullish: { text: "صاعد", cls: "bg-up/15 text-up-fg" },
+  bearish: { text: "هابط", cls: "bg-down/15 text-down-fg" },
   neutral: { text: "عرضي", cls: "bg-zinc-600/30 text-zinc-300" },
 };
 
@@ -63,9 +64,9 @@ export function InstantPriceBar({
 }) {
   if (!overview) {
     return (
-      <section className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6 text-center text-sm text-zinc-500">
+      <Card className="py-10 text-center text-2xs text-muted">
         بيانات سعر البيتكوين الفوري غير متاحة حالياً
-      </section>
+      </Card>
     );
   }
 
@@ -81,28 +82,27 @@ export function InstantPriceBar({
       : null;
 
   return (
-    <section className="space-y-3 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <Card
+      title="سعر البيتكوين الفوري"
+      actions={
+        live !== undefined ? (
+          <Status
+            label={live ? "مباشر" : "منتظر"}
+            tone={live ? "good" : "quiet"}
+            pulse={live}
+          />
+        ) : undefined
+      }
+      bodyClassName="space-y-3"
+    >
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold text-zinc-100">سعر البيتكوين الفوري</h2>
-            {live !== undefined && (
-              <span
-                className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                  live ? "bg-emerald-500/15 text-emerald-300" : "bg-zinc-700/40 text-zinc-400"
-                }`}
-              >
-                <span className={`h-1.5 w-1.5 rounded-full ${live ? "bg-emerald-400" : "bg-zinc-500"}`} />
-                {live ? "مباشر" : "منتظر"}
-              </span>
-            )}
-          </div>
-          <p className="mt-1 text-[11px] text-zinc-500">
+          <p className="text-2xs text-muted">
             آخر تحديث {timeLabel(overview.updatedAt)} · {overview.sources.join(" + ")}
           </p>
           {live && liveUpdatedAt != null && (
-            <p className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium text-emerald-300/90">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+            <p className="mt-0.5 inline-flex items-center gap-1 text-2xs font-medium text-up-fg/90">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-up-fg" />
               تحديث مباشر {timeLabel(liveUpdatedAt)}
             </p>
           )}
@@ -114,7 +114,7 @@ export function InstantPriceBar({
             </p>
             <p
               className={`text-right text-sm font-semibold ${
-                up24h ? "text-emerald-400" : "text-red-400"
+                up24h ? "text-up-fg" : "text-down-fg"
               }`}
             >
               {formatPercent(overview.change24hPercent)} (24س)
@@ -179,14 +179,14 @@ export function InstantPriceBar({
           value={futVol ? `$${formatCompact(futVol)}` : "—"}
           sub="سوق عقود آجلة"
         />
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 px-3 py-2.5">
-          <p className="text-[10px] font-medium text-zinc-500">الترند الحالي</p>
+        <div className="rounded-panel border border-line bg-surface-2/30 px-3 py-2.5">
+          <p className="text-2xs text-muted">الترند الحالي</p>
           <span
-            className={`mt-1 inline-block rounded-md px-2 py-0.5 text-sm font-bold ${trendInfo.cls}`}
+            className={`mt-1 inline-block rounded-chip px-2 py-0.5 text-sm font-bold ${trendInfo.cls}`}
           >
             {trendInfo.text}
           </span>
-          {marketState && <p className="mt-1 text-[10px] text-zinc-500">توجه {trend}</p>}
+          {marketState && <p className="mt-1 text-2xs text-muted">توجه {trend}</p>}
         </div>
         <Tile
           label="التصفيات"
@@ -204,6 +204,6 @@ export function InstantPriceBar({
           sub={orderBook ? `${formatPrice(orderBook.bestBid)} / ${formatPrice(orderBook.bestAsk)}` : undefined}
         />
       </div>
-    </section>
+    </Card>
   );
 }

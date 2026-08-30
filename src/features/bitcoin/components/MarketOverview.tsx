@@ -9,124 +9,99 @@ import {
   isUp,
   timeLabel,
 } from "../utils";
-
-function Stat({
-  label,
-  value,
-  tone,
-  sub,
-}: {
-  label: string;
-  value: string;
-  tone?: "up" | "down" | "neutral";
-  sub?: string;
-}) {
-  const toneClass =
-    tone === "up"
-      ? "text-emerald-400"
-      : tone === "down"
-      ? "text-red-400"
-      : "text-zinc-50";
-  return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
-      <p className="text-xs font-medium text-zinc-500">{label}</p>
-      <p className={`mt-1.5 text-lg font-bold ${toneClass}`}>{value}</p>
-      {sub && <p className="mt-1 text-xs text-zinc-500">{sub}</p>}
-    </div>
-  );
-}
+import { Card, MetricCard } from "@/components/ui/index";
 
 export function MarketOverviewCard({ overview }: { overview: MarketOverview | null }) {
   if (!overview) {
     return (
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6 text-center text-zinc-500">
+      <Card className="py-10 text-center text-2xs text-muted">
         بيانات السوق غير متاحة حالياً
-      </div>
+      </Card>
     );
   }
 
   const up24h = isUp(overview.change24hPercent);
 
   return (
-    <section className="space-y-4 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6">
+    <Card bodyClassName="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-medium text-zinc-500">سعر البيتكوين الفوري</p>
+          <p className="text-2xs text-muted">سعر البيتكوين الفوري</p>
           <p className="mt-1 text-3xl font-extrabold text-zinc-50">
             {formatPrice(overview.price)}
           </p>
           <p
             className={`mt-1.5 inline-flex items-center gap-1 text-sm font-semibold ${
-              up24h ? "text-emerald-400" : "text-red-400"
+              up24h ? "text-up-fg" : "text-down-fg"
             }`}
           >
             {formatPercent(overview.change24hPercent)} (24 ساعة)
           </p>
         </div>
-        <div className="text-left text-xs text-zinc-500">
+        <div className="text-left text-2xs text-muted">
           <p>آخر تحديث: {timeLabel(overview.updatedAt)}</p>
           <p className="mt-1">المصدر: {overview.sources.join(" + ")}</p>
         </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat
+        <MetricCard
           label="أعلى سعر (24 ساعة)"
           value={formatPrice(overview.high24h)}
         />
-        <Stat
+        <MetricCard
           label="أدنى سعر (24 ساعة)"
           value={formatPrice(overview.low24h)}
         />
-        <Stat
+        <MetricCard
           label="حجم التداول (24 ساعة)"
           value={formatUsdCompact(overview.volume24h)}
         />
-        <Stat label="القيمة السوقية" value={formatUsdCompact(overview.marketCap)} />
+        <MetricCard label="القيمة السوقية" value={formatUsdCompact(overview.marketCap)} />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="هيمنة بيتكوين" value={formatPercent(overview.btcDominance, 2)} />
-        <Stat
+        <MetricCard label="هيمنة بيتكوين" value={formatPercent(overview.btcDominance, 2)} />
+        <MetricCard
           label="المعروض المتداول"
           value={`${formatCompact(overview.circulatingSupply)} BTC`}
         />
-        <Stat
+        <MetricCard
           label="معدل التمويل"
           value={formatPercent(overview.fundRate, 4)}
         />
-        <Stat
+        <MetricCard
           label="العقود المفتوحة (OI)"
           value={overview.openInterest != null ? `${formatCompact(overview.openInterest)} BTC` : "غير متاح"}
-          sub={overview.openInterestChange != null ? formatSigned(overview.openInterestChange) + "%" : undefined}
+          hint={overview.openInterestChange != null ? formatSigned(overview.openInterestChange) + "%" : undefined}
         />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat
+        <MetricCard
           label="نسبة الطويل / القصير"
           value={
             overview.longShortRatio != null
               ? overview.longShortRatio.toFixed(3)
               : "غير متاح"
           }
-          sub={
+          hint={
             overview.longAccount != null
               ? `طويل ${overview.longAccount.toFixed(0)}% / قصير ${overview.shortAccount?.toFixed(0)}%`
               : undefined
           }
         />
-        <Stat
+        <MetricCard
           label="أساس العقود الآجلة"
           value={formatPercent(overview.basis, 3)}
         />
-        <Stat
+        <MetricCard
           label="حجم العقود الآجلة"
           value={formatUsdCompact(overview.futuresVolume)}
         />
-        <Stat label="التصفيات" value="غير متاح" sub="غير متوفرة عبر المصدر الحالي" />
+        <MetricCard label="التصفيات" value="غير متاح" hint="غير متوفرة عبر المصدر الحالي" />
       </div>
-    </section>
+    </Card>
   );
 }
 

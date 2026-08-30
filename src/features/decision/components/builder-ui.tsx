@@ -7,7 +7,6 @@ export function Segmented<T extends string>({
   value,
   options,
   onChange,
-  size = "sm",
 }: {
   value: T;
   options: { value: T; label: ReactNode; activeClass?: string }[];
@@ -15,16 +14,16 @@ export function Segmented<T extends string>({
   size?: "xs" | "sm";
 }) {
   return (
-    <div className="inline-flex items-center overflow-hidden rounded-md border border-zinc-700/80 bg-zinc-950/60">
+    <div className="inline-flex items-center overflow-hidden rounded-md border border-line bg-surface-1">
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
           onClick={() => onChange(o.value)}
-          className={`whitespace-nowrap border-e border-zinc-700/60 px-2 py-1 text-[11px] font-semibold last:border-e-0 ${
+          className={`whitespace-nowrap border-e border-line px-2 py-1 text-2xs font-semibold last:border-e-0 ${
             value === o.value
-              ? (o.activeClass ?? "bg-zinc-700 text-zinc-100")
-              : "text-zinc-500 hover:text-zinc-300"
+              ? (o.activeClass ?? "bg-surface-2 text-zinc-100")
+              : "text-muted hover:text-zinc-300"
           }`}
         >
           {o.label}
@@ -50,11 +49,11 @@ export function Toggle({
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className="inline-flex items-center gap-1.5 text-[11px] text-zinc-400"
+      className="inline-flex items-center gap-1.5 text-2xs text-muted"
     >
       <span
         className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full transition-colors ${
-          checked ? "bg-emerald-500/80" : "bg-zinc-700"
+          checked ? "bg-up/80" : "bg-surface-3"
         }`}
       >
         <span
@@ -63,7 +62,7 @@ export function Toggle({
           }`}
         />
       </span>
-      {label && <span className={checked ? "text-emerald-300" : "text-zinc-500"}>{label}</span>}
+      {label && <span className={checked ? "text-up-fg" : "text-muted"}>{label}</span>}
     </button>
   );
 }
@@ -84,7 +83,7 @@ export function FieldSelect({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className={`h-7 rounded-md border border-zinc-700 bg-zinc-950 px-2 text-[12px] text-zinc-100 focus:border-emerald-500/60 focus:outline-none ${className}`}
+      className={`h-7 rounded-md border border-line bg-surface-1 px-2 text-xs text-zinc-100 focus:border-up/60 focus:outline-none ${className}`}
     >
       {children}
     </select>
@@ -115,10 +114,10 @@ export function ValueInput({
           if (!Number.isNaN(n)) onCommit(n);
         }}
         title={hint}
-        className="h-7 w-20 rounded-md border border-zinc-700 bg-zinc-950 px-2 text-right text-[12px] font-mono text-zinc-100 focus:border-emerald-500/60 focus:outline-none"
+        className="h-7 w-20 rounded-md border border-line bg-surface-1 px-2 text-right text-xs font-mono text-zinc-100 focus:border-up/60 focus:outline-none"
       />
       {unit && (
-        <span className="w-4 text-[12px] font-semibold text-zinc-500" dir="ltr">
+        <span className="w-4 text-xs font-semibold text-muted" dir="ltr">
           {unit}
         </span>
       )}

@@ -2,16 +2,14 @@
 
 import { useMemo } from "react";
 import type { DecisionMarketDeps } from "./types-props";
-import { Card } from "./ui";
+import { Card, text as toneText } from "@/components/ui/index";
 import { formatPrice, formatPercent } from "../../bitcoin/utils";
 
 function Tone({ label, tone, value }: { label: string; value?: string; tone: "up" | "down" | "neutral" }) {
-  const color =
-    tone === "up" ? "text-emerald-400" : tone === "down" ? "text-red-400" : "text-zinc-400";
   return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-2.5">
-      <div className="text-[10px] uppercase tracking-wide text-zinc-500">{label}</div>
-      <div className={`mt-0.5 text-sm font-bold ${color}`} dir="ltr">
+    <div className="rounded-panel border border-line bg-surface-2/30 px-3 py-2.5">
+      <div className="text-2xs uppercase tracking-wide text-muted">{label}</div>
+      <div className={`mt-0.5 text-sm font-bold ${toneText[tone]}`} dir="ltr">
         {value ?? "N/A"}
       </div>
     </div>

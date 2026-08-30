@@ -6,6 +6,7 @@ import { Header } from "./components/Header";
 import { DecisionSummary } from "./components/DecisionSummary";
 import { StrategyConditionViewer } from "./components/StrategyConditionViewer";
 import { StrategyList } from "./components/StrategyList";
+import { Card } from "@/components/ui/index";
 
 export function DecisionPage() {
   const dc = useDecisionCenter();
@@ -32,15 +33,15 @@ export function DecisionPage() {
       />
 
       {isEmpty ? (
-        <div className="rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/40 p-8 text-center">
+        <div className="rounded-card border border-dashed border-line bg-surface-1/40 p-8 text-center">
           <div className="text-lg">🧩</div>
-          <div className="mt-2 text-sm font-semibold text-zinc-200">لا توجد استراتيجيات بعد</div>
-          <p className="mt-1 text-xs text-zinc-500">
+          <div className="mt-2 text-sm font-semibold text-zinc-100">لا توجد استراتيجيات بعد</div>
+          <p className="mt-1 text-xs text-muted">
             أنشئ استراتيجية أولاً في صفحة الإدارة لتقييم شروطها مقابل البيانات الحية للبيتكوين.
           </p>
           <Link
             href="/strategies"
-            className="mt-4 inline-block rounded-md bg-emerald-500/80 px-4 py-2 text-xs font-bold text-zinc-950 hover:bg-emerald-400"
+            className="mt-4 inline-block rounded-md bg-up/80 px-4 py-2 text-xs font-bold text-background hover:bg-up-fg"
           >
             إنشاء استراتيجية
           </Link>
@@ -56,7 +57,7 @@ export function DecisionPage() {
           />
         </>
       ) : (
-        <div className="rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/40 p-8 text-center text-xs text-zinc-500">
+        <div className="rounded-card border border-dashed border-line bg-surface-1/40 p-8 text-center text-xs text-muted">
           اختر استراتيجية من القائمة لعرض تقييم شروطها مقابل البيانات الحية.
         </div>
       )}
@@ -72,21 +73,21 @@ export function DecisionPage() {
           onCreate={persisted.createStrategy}
         />
 
-        <div className="lg:col-span-2 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
-          <div className="text-sm font-semibold text-zinc-200">
-            {strategy ? `الاستراتيجية النشطة: ${strategy.name}` : "لا توجد استراتيجية نشطة"}
-          </div>
-          <p className="mt-1 text-xs text-zinc-500">
+        <Card
+          title={strategy ? `الاستراتيجية النشطة: ${strategy.name}` : "لا توجد استراتيجية نشطة"}
+          className="lg:col-span-2"
+        >
+          <p className="text-xs text-muted">
             تُقيَّم الشروط أعلاه حصرًا على المعطيات الحقيقية الحالية. لا تُعامل UNKNOWN كـ TRUE أو
             FALSE. لإنشاء أو تعديل استراتيجية انتقل إلى صفحة الإدارة.
           </p>
           <Link
             href="/strategies"
-            className="mt-3 inline-block rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20"
+            className="mt-3 inline-block rounded-md border border-up/40 bg-up/10 px-3 py-1.5 text-xs font-semibold text-up-fg hover:bg-up/20"
           >
             إدارة الاستراتيجيات وتحريرها
           </Link>
-        </div>
+        </Card>
       </div>
     </div>
   );

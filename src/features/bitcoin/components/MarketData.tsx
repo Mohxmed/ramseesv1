@@ -7,24 +7,14 @@ import {
   formatPrice,
   formatSigned,
 } from "../utils";
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between border-b border-zinc-800/60 py-2 last:border-0">
-      <span className="text-xs text-zinc-500">{label}</span>
-      <span className="text-sm font-medium text-zinc-100" dir="ltr">
-        {value}
-      </span>
-    </div>
-  );
-}
+import { Card, DataRow } from "@/components/ui/index";
 
 export function MarketDataCard({ overview }: { overview: MarketOverview | null }) {
   if (!overview) {
     return (
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6 text-center text-zinc-500">
+      <Card className="py-10 text-center text-2xs text-muted">
         بيانات السوق غير متاحة
-      </div>
+      </Card>
     );
   }
 
@@ -47,59 +37,59 @@ export function MarketDataCard({ overview }: { overview: MarketOverview | null }
   ];
 
   return (
-    <section className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6">
-      <h2 className="mb-4 text-sm font-semibold text-zinc-200">
-        بيانات السوق التفصيلية
-      </h2>
+    <Card title="بيانات السوق التفصيلية">
       <div className="grid gap-6 md:grid-cols-3">
         <div>
-          <p className="mb-2 text-xs font-medium text-zinc-400">المغامرة اللحظية</p>
-          <Row label="السعر الحالي" value={formatPrice(overview.price)} />
-          <Row label="التغير (24 ساعة)" value={formatSigned(overview.change24h ?? 0) + "%"} />
-          <Row label="أعلى سعر" value={formatPrice(overview.high24h)} />
-          <Row label="أدنى سعر" value={formatPrice(overview.low24h)} />
-          <Row label="حجم التداول" value={`$${formatCompact(overview.volume24h)}`} />
+          <p className="mb-2 text-2xs font-medium text-zinc-400">المغامرة اللحظية</p>
+          <DataRow label="السعر الحالي" value={formatPrice(overview.price)} tone="neutral" />
+          <DataRow label="التغير (24 ساعة)" value={formatSigned(overview.change24h ?? 0) + "%"} tone="neutral" />
+          <DataRow label="أعلى سعر" value={formatPrice(overview.high24h)} tone="neutral" />
+          <DataRow label="أدنى سعر" value={formatPrice(overview.low24h)} tone="neutral" />
+          <DataRow label="حجم التداول" value={`$${formatCompact(overview.volume24h)}`} tone="neutral" />
         </div>
 
         <div>
-          <p className="mb-2 text-xs font-medium text-zinc-400">المشتقات والعقود</p>
-          <Row label="معدل التمويل" value={formatPercent(overview.fundRate, 4)} />
-          <Row
+          <p className="mb-2 text-2xs font-medium text-zinc-400">المشتقات والعقود</p>
+          <DataRow label="معدل التمويل" value={formatPercent(overview.fundRate, 4)} tone="neutral" />
+          <DataRow
             label="العقود المفتوحة"
             value={
               overview.openInterest != null
                 ? `${formatCompact(overview.openInterest)} BTC`
                 : "غير متاح"
             }
+            tone="neutral"
           />
-          <Row
+          <DataRow
             label="نسبة الطويل/القصير"
             value={
               overview.longShortRatio != null
                 ? overview.longShortRatio.toFixed(3)
                 : "غير متاح"
             }
+            tone="neutral"
           />
-          <Row label="أساس العقود" value={formatPercent(overview.basis, 3)} />
-          <Row
+          <DataRow label="أساس العقود" value={formatPercent(overview.basis, 3)} tone="neutral" />
+          <DataRow
             label="حجم العقود الآجلة"
             value={
               overview.futuresVolume != null
                 ? `$${formatCompact(overview.futuresVolume)}`
                 : "غير متاح"
             }
+            tone="neutral"
           />
         </div>
 
         <div>
-          <p className="mb-2 text-xs font-medium text-zinc-400">الإمداد والسوق</p>
-          <Row label="القيمة السوقية" value={`$${formatCompact(overview.marketCap)}`} />
-          <Row label="هيمنة بيتكوين" value={formatPercent(overview.btcDominance)} />
+          <p className="mb-2 text-2xs font-medium text-zinc-400">الإمداد والسوق</p>
+          <DataRow label="القيمة السوقية" value={`$${formatCompact(overview.marketCap)}`} tone="neutral" />
+          <DataRow label="هيمنة بيتكوين" value={formatPercent(overview.btcDominance)} tone="neutral" />
           {supplyRows.map((r) => (
-            <Row key={r.label} label={r.label} value={r.value} />
+            <DataRow key={r.label} label={r.label} value={r.value} tone="neutral" />
           ))}
         </div>
       </div>
-    </section>
+    </Card>
   );
 }

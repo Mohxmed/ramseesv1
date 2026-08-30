@@ -1,7 +1,8 @@
 "use client";
 
 import type { FuturesContext } from "../types";
-import { formatPercent, formatPrice, formatUsd } from "../utils";
+import { formatPercent, formatUsd } from "../utils";
+import { Card } from "@/components/ui/index";
 
 const OI_RELATION_LABEL: Record<string, string> = {
   "price-up-oi-up": "سعر ↑ + عقد مفتوح ↑",
@@ -12,28 +13,24 @@ const OI_RELATION_LABEL: Record<string, string> = {
 };
 
 const FUND_STYLE: Record<string, string> = {
-  strongPositive: "text-red-300",
-  positive: "text-red-400",
+  strongPositive: "text-down-fg",
+  positive: "text-down-fg",
   neutral: "text-zinc-300",
-  negative: "text-emerald-400",
-  strongNegative: "text-emerald-300",
+  negative: "text-up-fg",
+  strongNegative: "text-up-fg",
 };
 
 export function FuturesCard({ futures }: { futures: FuturesContext | null }) {
   if (!futures) {
     return (
-      <section className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5 text-center text-zinc-500">
+      <Card className="py-10 text-center text-2xs text-muted">
         بيانات العقود الآجلة غير متاحة
-      </section>
+      </Card>
     );
   }
 
   return (
-    <section className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
-      <h2 className="mb-4 text-sm font-semibold text-zinc-100">
-        تحليل العقود الآجلة (سوق، وليس حساب)
-      </h2>
-
+    <Card title="تحليل العقود الآجلة (سوق، وليس حساب)">
       <div className="grid grid-cols-2 gap-3">
         <Metric label="العقد المفتوح (OI)" value={futures.openInterest ? `${formatUsd(futures.openInterest * futures.markPrice)}` : "—"} />
         <Metric label="تغيّر OI (1س)" value={futures.oiChange1h != null ? formatPercent(futures.oiChange1h) : "—"} tone={futures.oiChange1h != null && futures.oiChange1h > 0 ? "up" : futures.oiChange1h != null && futures.oiChange1h < 0 ? "down" : "flat"} />
@@ -45,24 +42,24 @@ export function FuturesCard({ futures }: { futures: FuturesContext | null }) {
         <Metric label="الأساس (Basis)" value={futures.basis != null ? formatPercent(futures.basis, 3) : "—"} />
       </div>
 
-      <div className="mt-4 rounded-lg border border-zinc-800 bg-zinc-950/50 p-3">
-        <p className="text-[11px] text-zinc-500">علاقة السعر / OI (سياق سوق)</p>
+      <div className="mt-4 rounded-panel border border-line bg-surface-2/30 p-3">
+        <p className="text-2xs text-muted">علاقة السعر / OI (سياق سوق)</p>
         <p className="mt-1 text-sm font-semibold text-zinc-100">
           {OI_RELATION_LABEL[futures.priceOiContext] ?? futures.priceOiContext}
         </p>
-        <p className="mt-1 text-[10px] leading-4 text-zinc-500">
+        <p className="mt-1 text-2xs text-muted">
           تُستخدم كسياق وليست إشارة مؤكدة للاتجاه.
         </p>
       </div>
 
       {futures.fundingHistory.length > 0 && (
         <div className="mt-4">
-          <p className="mb-2 text-[11px] text-zinc-500">آخر معدلات الفاندينغ</p>
+          <p className="mb-2 text-2xs text-muted">آخر معدلات الفاندينغ</p>
           <div className="flex flex-wrap gap-1.5">
             {futures.fundingHistory.slice(0, 6).map((f, i) => (
               <span
                 key={i}
-                className="rounded bg-zinc-900/60 px-2 py-0.5 font-mono text-[10px] text-zinc-300"
+                className="rounded-chip bg-surface-1/40 px-2 py-0.5 font-mono text-2xs text-zinc-300"
               >
                 {formatPercent(f.rate, 3)}
               </span>
@@ -70,20 +67,20 @@ export function FuturesCard({ futures }: { futures: FuturesContext | null }) {
           </div>
         </div>
       )}
-    </section>
+    </Card>
   );
 }
 
 function Metric({ label, value, tone, customClass }: { label: string; value: string; tone?: string; customClass?: string }) {
   const toneClass =
     tone === "up"
-      ? "text-emerald-400"
+      ? "text-up-fg"
       : tone === "down"
-      ? "text-red-400"
+      ? "text-down-fg"
       : "text-zinc-200";
   return (
-    <div className="rounded-lg bg-zinc-950/40 px-3 py-2">
-      <p className="text-[10px] text-zinc-500">{label}</p>
+    <div className="rounded-panel bg-surface-2/30 px-3 py-2">
+      <p className="text-2xs text-muted">{label}</p>
       <p className={`mt-0.5 text-xs font-semibold ${customClass || toneClass}`} dir="ltr">
         {value}
       </p>
