@@ -41,6 +41,24 @@ export function TargetIcon({ className = "h-5 w-5" }: IconProps) {
   );
 }
 
+export function MarketIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 17l6-6 4 4 8-8" />
+      <path d="M14 7h7v7" />
+    </svg>
+  );
+}
+
 export function SettingsIcon({ className = "h-5 w-5" }: IconProps) {
   return (
     <svg

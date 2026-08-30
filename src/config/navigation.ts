@@ -1,12 +1,12 @@
 import type { ComponentType } from "react";
 import {
   DashboardIcon,
-  TargetIcon,
   SettingsIcon,
   BitcoinIcon,
   DecisionIcon,
   StrategyIcon,
   ScalpIcon,
+  MarketIcon,
   type IconProps,
 } from "@/components/icons/icons";
 
@@ -23,24 +23,24 @@ export const NAVIGATION: NavItem[] = [
     icon: DashboardIcon,
   },
   {
-    label: "الهدف الذهبي",
-    href: "/golden-target",
-    icon: TargetIcon,
-  },
-  {
-    label: "مركز قيادة بيتكوين",
+    label: "مركز تحليل بيتكوين",
     href: "/bitcoin",
     icon: BitcoinIcon,
-  },
-  {
-    label: "مركز القرارات",
-    href: "/decision-center",
-    icon: DecisionIcon,
   },
   {
     label: "المضاربة الفورية",
     href: "/scalping",
     icon: ScalpIcon,
+  },
+  {
+    label: "الحالة العامة للسوق",
+    href: "/market",
+    icon: MarketIcon,
+  },
+  {
+    label: "مركز القرارات",
+    href: "/decision-center",
+    icon: DecisionIcon,
   },
   {
     label: "الاستراتيجيات",
