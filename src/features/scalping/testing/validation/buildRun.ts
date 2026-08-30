@@ -1,7 +1,7 @@
 import type { BtcCandle } from "../../../bitcoin/types";
 import type {
   DecisionSnapshot,
-  SimStrategyConfig,
+  RunConfiguration,
   ValidationDecisionRecord,
   ValidationMetrics,
   ValidationRun,
@@ -9,7 +9,6 @@ import type {
 } from "../types";
 import {
   ENGINE_VERSION,
-  DATASET_SOURCE,
   STRATEGY_VERSION,
 } from "./versions";
 import { evaluateDecision } from "../evaluation/evaluate";
@@ -27,11 +26,7 @@ import { computeValidationMetrics } from "../aggregation/metrics";
 export interface BuildRunInput {
   decisions: DecisionSnapshot[];
   candles: BtcCandle[];
-  config: SimStrategyConfig;
-  symbol: string;
-  timeframe: string;
-  from: number;
-  to: number;
+  configuration: RunConfiguration;
 }
 
 export interface BuildRunResult {
@@ -42,7 +37,7 @@ export interface BuildRunResult {
 }
 
 export function buildValidationRun(input: BuildRunInput): BuildRunResult {
-  const { decisions, candles, config, symbol, timeframe, from, to } = input;
+  const { decisions, candles, configuration } = input;
   const createdAt = Date.now();
   const runId = `run_${createdAt}`;
 
@@ -63,36 +58,28 @@ export function buildValidationRun(input: BuildRunInput): BuildRunResult {
     createdAt,
     totalDecisions: metrics.totals.totalDecisions,
     accuracy60: metrics.horizons["60s"].accuracy,
+    edge60sPp: metrics.horizons["60s"].edgePp,
     bestHorizon: metrics.best.bestHorizon,
     bestMarketRegime: metrics.best.bestMarketRegime,
-    symbol,
-    timeframe,
+    symbol: configuration.symbol,
+    timeframe: configuration.timeframe,
   };
 
   const run: ValidationRun = {
     runId,
     engineVersion: ENGINE_VERSION,
     strategyVersion: STRATEGY_VERSION,
-    datasetSource: DATASET_SOURCE,
-    symbol,
-    timeframe,
-    from,
-    to,
+    dataset: configuration.dataset,
+    symbol: configuration.symbol,
+    timeframe: configuration.timeframe,
+    from: configuration.from,
+    to: configuration.to,
     totalCandles: candles.length,
     totalDecisions: metrics.totals.totalDecisions,
+    configuration,
+    finalMetrics: metrics,
     createdAt,
-    configuration: { ...config },
   };
 
   return { run, records, metrics, summary };
-}
-
-/** Compact, stable signature of the strategy config for the comparison table. */
-export function configSignature(config: SimStrategyConfig): string {
-  return [
-    `r${(config.riskPerTrade * 100).toFixed(0)}`,
-    `sl${(config.slFraction * 100).toFixed(1)}`,
-    `tp${(config.tpFraction * 100).toFixed(1)}`,
-    `fee${(config.feeBps * 10000).toFixed(0)}`,
-  ].join("_");
 }

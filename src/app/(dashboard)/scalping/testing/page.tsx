@@ -1,11 +1,11 @@
-import { SimulationLab } from "@/features/scalping/testing/SimulationLab";
+import { ValidationLab } from "@/features/scalping/testing/ValidationLab";
 
 export const metadata = {
-  title: "مختبر المحاكاة واختبار الاستراتيجية — RAMSEES",
+  title: "مختبر التحقق من قرارات المحرك — RAMSEES",
   description:
-    "محاكاة واختبار محرك المضاربة على بيانات تاريخية BTCUSDT 1m عبر نفس محرك القرار المباشر — بدون تسريب مستقبلي.",
+    "يتحقق من دقة تنبؤ محرك القرار باتجاه BTC على بيانات تاريخية 1m عبر آفاق 30/60/120 ثانية — بدون محفظة أو أرباح، وبدون تسريب مستقبلي.",
 };
 
 export default function Page() {
-  return <SimulationLab />;
+  return <ValidationLab />;
 }

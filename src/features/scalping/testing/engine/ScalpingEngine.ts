@@ -95,8 +95,10 @@ export function runScalpingEngine(args: EngineCallArgs): EngineRunOutput {
     signed: signal.signed,
     confidence: signal.confidence,
     price: ctx.price,
+    features,
     featureValues,
-  };
+    familyVotes,
+  } as EngineRunOutput;
 }
 
 function describeRegime(features: ScalpingFeature[]): string {

@@ -265,7 +265,7 @@ function toRow(
     bestHorizon: m?.best.bestHorizon ?? s.bestHorizon,
     bestMarketRegime: m?.best.bestMarketRegime ?? s.bestMarketRegime,
     calibration: m ? calibrationOf(m) : null,
-    configSignature: "",
+    engineVersionLabel: s.engineVersion,
   };
 }
 
@@ -274,9 +274,9 @@ function calibrationOf(m: ValidationMetrics): number | null {
   let sum = 0;
   let n = 0;
   for (const [label, seg] of segs) {
-    if (seg.directionalCount <= 0 || seg.accuracy == null) continue;
+    if (seg.directionalCount <= 0 || seg.accuracy60 == null) continue;
     const mid = label === "<60" ? 50 : (parseFloat(label.split("-")[0] ?? "") || 0) + 5;
-    sum += Math.abs(seg.accuracy - mid);
+    sum += Math.abs(seg.accuracy60 - mid);
     n++;
   }
   return n ? sum / n : null;

@@ -12,15 +12,12 @@ import type {
 } from "../types";
 
 /**
- * Evaluation — computes a decision's realised outcomes over the validation
+ * Evaluation — compute a decision's realised outcomes over the validation
  * horizons (30s / 60s / 120s) + MFE / MAE.
  *
  * This runs AFTER the replay, over the full historical series, and ONLY fills
  * the `horizons` field. It is NOT part of the decision loop — a decision's
  * snapshot (timestamp/price/direction/features) never contains future data.
- *
- * Forward resolution uses the candle whose close is at/after the decision
- * price for the horizon; MFE/MAE use the extreme prices inside the window.
  */
 
 function safePct(from: number, to: number): number | null {
@@ -44,12 +41,7 @@ function priceAtForward(
   return { price: null, found: false };
 }
 
-/**
- * Compute MFE / MAE for a horizon window relative to the decision price:
- *  - LONG  : MFE = best (max) upward move, MAE = worst (min) draw vs entry.
- *  - SHORT : MFE = best (max) downward move, MAE = worst upward against entry.
- * Scaled to price percent.
- */
+/** Compute MFE / MAE for a horizon window relative to the decision price. */
 function excursion(
   direction: "LONG" | "SHORT",
   entry: number,
@@ -57,8 +49,8 @@ function excursion(
   decisionTimeMs: number,
   horizonMs: number
 ): { mfe: number | null; mae: number | null } {
-  let maxF = 0; // favorable in price units (signed toward profit)
-  let maxA = 0; // adverse (signed toward loss)
+  let maxF = 0;
+  let maxA = 0;
   let any = false;
   for (const c of candles) {
     const open = c.time * 1000;
@@ -80,7 +72,6 @@ function excursion(
 function evaluateHorizon(
   direction: "LONG" | "SHORT",
   price: number,
-  timeframe: string,
   candles: BtcCandle[],
   decisionTimeMs: number,
   horizonS: HorizonValue
@@ -115,8 +106,6 @@ function evaluateHorizon(
   const { mfe, mae } = excursion(direction, price, candles, decisionTimeMs, horizonMs);
   base.mfe = mfe;
   base.mae = mae;
-
-  void timeframe;
   return base;
 }
 
@@ -130,19 +119,15 @@ export function evaluateDecision(
   snapshot: DecisionSnapshot,
   candles: BtcCandle[]
 ): ValidationDecisionRecord {
-  const direction: "LONG" | "SHORT" | "NEUTRAL" =
-    snapshot.decision === "LONG" || snapshot.decision === "SHORT"
-      ? snapshot.decision
-      : "NEUTRAL";
+  const direction = snapshot.direction;
   const price = snapshot.price;
   const decisionTimeMs = snapshot.timestamp;
-  const timeframe = snapshot.timeframe;
 
   const horizons = {} as Record<HorizonKey, HorizonEval>;
   for (const s of HORIZONS_S) {
     const key = horizonKey(s);
     if (direction !== "NEUTRAL" && isFinite(price) && price > 0) {
-      horizons[key] = evaluateHorizon(direction, price, timeframe, candles, decisionTimeMs, s);
+      horizons[key] = evaluateHorizon(direction, price, candles, decisionTimeMs, s);
     } else {
       horizons[key] = {
         horizonS: s,
@@ -158,7 +143,7 @@ export function evaluateDecision(
 
   return {
     id: snapshot.id,
-    runId: snapshot.sessionId,
+    runId: snapshot.runId,
     timestamp: snapshot.timestamp,
     price: snapshot.price,
     direction,
@@ -167,54 +152,10 @@ export function evaluateDecision(
     expectedMovePct: snapshot.expectedMovePct,
     regime: snapshot.regime,
     symbol: snapshot.symbol,
-    timeframe,
+    timeframe: snapshot.timeframe,
     candleIndex: snapshot.candleIndex,
     seq: snapshot.seq,
-    features: snapshot.features ?? {},
+    featureValues: snapshot.featureValues ?? {},
     horizons,
-  };
-}
-
-/**
- * Build a validation record by direct fields (used when a decision was captured
- * with full features but no snapshot type). Keeps API consistent.
- */
-export function toValidationDecision(
-  runId: string,
-  direction: "LONG" | "SHORT" | "NEUTRAL",
-  price: number,
-  candleIndex: number,
-  confidence: number,
-  candleMinuteMs: number
-): ValidationDecisionRecord {
-  return {
-    id: `vdec_${candleIndex}_${candleMinuteMs}`,
-    runId,
-    timestamp: candleMinuteMs,
-    price,
-    direction,
-    confidence,
-    score: 0,
-    expectedMovePct: null,
-    regime: "unknown",
-    symbol: "BTCUSDT",
-    timeframe: "1m",
-    candleIndex,
-    seq: candleIndex,
-    features: {},
-    horizons: Object.fromEntries(
-      HORIZONS_S.map((s) => [
-        horizonKey(s),
-        {
-          horizonS: s,
-          key: horizonKey(s),
-          actualMovePct: null,
-          directionCorrect: null,
-          result: "neutral",
-          mfe: null,
-          mae: null,
-        } as HorizonEval,
-      ])
-    ) as Record<HorizonKey, HorizonEval>,
   };
 }

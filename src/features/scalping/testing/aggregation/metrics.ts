@@ -7,6 +7,7 @@ import {
 } from "../validation/versions";
 import type {
   AccuracySegment,
+  HorizonMetrics,
   RunSummaryRow,
   ValidationDecisionRecord,
   ValidationDirection,
@@ -19,8 +20,9 @@ import type {
  *
  * Pure + deterministic. Accuracy is directional: the fraction of LONG/SHORT
  * decisions whose realised move matched the predicted direction over a horizon,
- * expressed as a percentage (0..100). Reference return uses the 60s horizon
- * (documented), since it is a stable middle window.
+ * expressed as a percentage (0..100). Edge is accuracy minus the 50% baseline,
+ * in percentage points. Reference metrics (returns/excursion) use the 60s
+ * horizon (documented), since it is a stable middle window.
  */
 
 export const REFERENCE_HORIZON: HorizonKey = horizonKey(60);
@@ -36,45 +38,48 @@ function median(xs: number[]): number | null {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
-/** Accuracy (0..100) over directional decisions at a horizon. */
-function horizonAccuracy(
+/** Per-horizon directional performance from a set of records. */
+function horizonMetrics(
   records: ValidationDecisionRecord[],
   horizon: HorizonKey
-): { accuracy: number | null; winRate: number | null; sampleSize: number; averageMovePct: number | null } {
+): HorizonMetrics {
   const dir = records.filter((r) => r.direction !== "NEUTRAL");
   const scored = dir.filter((r) => r.horizons[horizon].directionCorrect != null);
   const wins = scored.filter((r) => r.horizons[horizon].directionCorrect === true).length;
+  const losses = scored.filter((r) => r.horizons[horizon].directionCorrect === false).length;
+  const accuracy = scored.length ? (wins / scored.length) * 100 : null;
+
   const moves = dir
     .map((r) => r.horizons[horizon].actualMovePct)
     .filter((x): x is number => x != null);
-  const accuracy = scored.length ? (wins / scored.length) * 100 : null;
+  const mfes = dir
+    .map((r) => r.horizons[horizon].mfe)
+    .filter((x): x is number => x != null);
+  const maes = dir
+    .map((r) => r.horizons[horizon].mae)
+    .filter((x): x is number => x != null);
+
   return {
-    accuracy,
-    winRate: accuracy,
+    key: horizon,
+    horizonS: horizon === "30s" ? 30 : horizon === "60s" ? 60 : 120,
     sampleSize: scored.length,
+    wins,
+    losses,
+    accuracy,
+    edgePp: accuracy == null ? null : accuracy - 50,
     averageMovePct: mean(moves),
+    medianMovePct: median(moves),
+    averageMFE: mean(mfes),
+    averageMAE: mean(maes),
   };
 }
 
-function segmentFor(
-  key: string,
-  records: ValidationDecisionRecord[]
-): AccuracySegment {
-  const byHorizon = HORIZON_KEYS.map((h) => ({
-    h,
-    acc: horizonAccuracy(records, h).accuracy,
-  }));
-  let bestHorizon: AccuracySegment["bestHorizon"] = null;
-  let bestAcc = -1;
-  for (const { h, acc } of byHorizon) {
-    if (acc != null && acc > bestAcc) {
-      bestAcc = acc;
-      bestHorizon = h;
-    }
-  }
+function segmentFor(key: string, records: ValidationDecisionRecord[]): AccuracySegment {
   const dir = records.filter((r) => r.direction !== "NEUTRAL");
   const ref = REFERENCE_HORIZON;
-  const wins = dir.filter((r) => r.horizons[ref].directionCorrect === true).length;
+  const scored = dir.filter((r) => r.horizons[ref].directionCorrect != null);
+  const wins = scored.filter((r) => r.horizons[ref].directionCorrect === true).length;
+
   const moves = dir
     .map((r) => r.horizons[ref].actualMovePct)
     .filter((x): x is number => x != null);
@@ -84,16 +89,24 @@ function segmentFor(
   const maes = dir
     .map((r) => r.horizons[ref].mae)
     .filter((x): x is number => x != null);
+
+  const longCount = records.filter((r) => r.direction === "LONG").length;
+  const shortCount = records.filter((r) => r.direction === "SHORT").length;
+  let classification: ValidationDirection | null = null;
+  if (longCount > 0 && longCount >= shortCount) classification = "LONG";
+  else if (shortCount > 0) classification = "SHORT";
+  else if (records.some((r) => r.direction === "NEUTRAL")) classification = "NEUTRAL";
+
   return {
     key,
     count: records.length,
     directionalCount: dir.length,
-    accuracy: byHorizon.find((b) => b.h === ref)?.acc ?? null,
+    accuracy60: scored.length ? (wins / scored.length) * 100 : null,
     winRate: dir.length ? (wins / dir.length) * 100 : null,
+    classification,
     averageReturnPct: mean(moves),
     averageMFE: mean(mfes),
     averageMAE: mean(maes),
-    bestHorizon,
   };
 }
 
@@ -149,11 +162,7 @@ export function computeValidationMetrics(
   };
 
   const horizons = Object.fromEntries(
-    HORIZONS_S.map((s) => {
-      const k = horizonKey(s);
-      const h = horizonAccuracy(records, k);
-      return [k, { accuracy: h.accuracy, winRate: h.winRate, sampleSize: h.sampleSize, averageMovePct: h.averageMovePct }];
-    })
+    HORIZONS_S.map((s) => [horizonKey(s), horizonMetrics(records, horizonKey(s))])
   ) as ValidationMetrics["horizons"];
 
   const ref = REFERENCE_HORIZON;
@@ -164,21 +173,32 @@ export function computeValidationMetrics(
 
   const segments = buildSegments(records);
 
-  const bestHorizonSpeed = HORIZON_KEYS.map((h) => ({ h, acc: horizonAccuracy(records, h).accuracy }));
   let bestHorizon: ValidationMetrics["best"]["bestHorizon"] = null;
   let bestAcc = -1;
-  for (const { h, acc } of bestHorizonSpeed) {
+  for (const k of HORIZON_KEYS) {
+    const acc = horizons[k].accuracy;
     if (acc != null && acc > bestAcc) {
       bestAcc = acc;
-      bestHorizon = h;
+      bestHorizon = k;
+    }
+  }
+
+  let bestDirection: ValidationDirection | null = null;
+  let bestDAcc = -1;
+  for (const d of ["LONG", "SHORT"] as ValidationDirection[]) {
+    const acc = segments.byDirection[d].accuracy60;
+    const cnt = segments.byDirection[d].directionalCount;
+    if (cnt > 0 && acc != null && acc > bestDAcc) {
+      bestDAcc = acc;
+      bestDirection = d;
     }
   }
 
   let bestConfidenceRange: string | null = null;
   let bestCAcc = -1;
   for (const [label, seg] of Object.entries(segments.byConfidence)) {
-    if (seg.directionalCount > 0 && seg.accuracy != null && seg.accuracy > bestCAcc) {
-      bestCAcc = seg.accuracy;
+    if (seg.directionalCount > 0 && seg.accuracy60 != null && seg.accuracy60 > bestCAcc) {
+      bestCAcc = seg.accuracy60;
       bestConfidenceRange = label;
     }
   }
@@ -188,13 +208,13 @@ export function computeValidationMetrics(
   let bestRAcc = -1;
   let worstRAcc = 101;
   for (const [label, seg] of Object.entries(segments.byRegime)) {
-    if (seg.directionalCount > 0 && seg.accuracy != null) {
-      if (seg.accuracy > bestRAcc) {
-        bestRAcc = seg.accuracy;
+    if (seg.directionalCount > 0 && seg.accuracy60 != null) {
+      if (seg.accuracy60 > bestRAcc) {
+        bestRAcc = seg.accuracy60;
         bestMarketRegime = label;
       }
-      if (seg.accuracy < worstRAcc) {
-        worstRAcc = seg.accuracy;
+      if (seg.accuracy60 < worstRAcc) {
+        worstRAcc = seg.accuracy60;
         weakestMarketRegime = label;
       }
     }
@@ -214,6 +234,7 @@ export function computeValidationMetrics(
     },
     best: {
       bestHorizon,
+      bestDirection,
       bestConfidenceRange,
       bestMarketRegime,
       weakestMarketRegime,
@@ -228,7 +249,7 @@ export function toRunSummaryRow(
   runId: string,
   engineVersion: string,
   createdAt: number,
-  configSignature: string
+  engineVersionLabel: string
 ): RunSummaryRow {
   return {
     runId,
@@ -246,7 +267,7 @@ export function toRunSummaryRow(
     bestHorizon: metrics.best.bestHorizon,
     bestMarketRegime: metrics.best.bestMarketRegime,
     calibration: computeCalibration(metrics),
-    configSignature,
+    engineVersionLabel,
   };
 }
 
@@ -256,9 +277,9 @@ export function computeCalibration(metrics: ValidationMetrics): number | null {
   let sum = 0;
   let n = 0;
   for (const [label, seg] of segs) {
-    if (seg.directionalCount <= 0 || seg.accuracy == null) continue;
+    if (seg.directionalCount <= 0 || seg.accuracy60 == null) continue;
     const mid = label === "<60" ? 50 : parseFloat(label.split("-")[0]) + 5;
-    sum += Math.abs(seg.accuracy - mid);
+    sum += Math.abs(seg.accuracy60 - mid);
     n++;
   }
   return n ? sum / n : null;

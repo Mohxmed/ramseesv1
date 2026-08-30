@@ -64,6 +64,7 @@ export function buildComparison(
   const target60 = targetRow?.accuracy["60s"] ?? null;
   const base60 = baselineRow?.accuracy["60s"] ?? null;
   const delta60s = ppDelta(base60, target60);
+  const targetEdge = targetRow?.accuracy["60s"] != null ? targetRow.accuracy["60s"]! - 50 : null;
 
   return {
     rows,
@@ -77,8 +78,8 @@ export function buildComparison(
           engineVersion: baselineRow.engineVersion,
           targetRunId: targetRow?.runId ?? null,
           delta60sPp: delta60s,
+          edge60sPp: targetEdge,
           improved: delta60s == null ? null : delta60s > 0,
-          improvementPp: delta60s,
           accuracy60: { from: base60, to: target60 },
         }
       : null,
