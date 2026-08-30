@@ -1,0 +1,25 @@
+{
+  "name": "ramsees-functions",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Firebase (2nd Gen) Cloud Functions — scheduled Brier self-calibration for the execution/decision engine.",
+  "engines": {
+    "node": "22"
+  },
+  "main": "lib/index.js",
+  "scripts": {
+    "build": "tsc",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.1.0",
+    "firebase-functions": "^6.3.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.3"
+  }
+}

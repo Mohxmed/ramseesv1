@@ -42,3 +42,10 @@ next-env.d.ts
 
 # local assets (never committed)
 /assets
+
+# Firebase Cloud Functions (functions/) — build output, deps, local emulator state
+functions/node_modules
+functions/lib/
+.firebase/
+firebase-debug.log
+functions/emulator-data/
