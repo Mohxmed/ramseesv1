@@ -22,7 +22,15 @@ import {
   appendTrade,
   saveAnalytics,
   updateSessionMeta,
+  saveValidationRun,
+  saveValidationDecisions,
+  saveValidationMetrics,
 } from "../services/firestore";
+import {
+  buildValidationRun,
+  type BuildRunResult,
+} from "../validation/buildRun";
+import { ENGINE_VERSION, STRATEGY_VERSION } from "../validation/versions";
 import type {
   ActionTaken,
   DecisionSnapshot,
@@ -106,6 +114,11 @@ export function useSimulation() {
   const [session, setSession] = useState<SimSession | null>(null);
   const [analytics, setAnalytics] = useState<ReturnType<typeof computeSessionAnalytics> | null>(null);
   const [validation, setValidation] = useState<ReturnType<typeof runValidation> | null>(null);
+  const [runPersistence, setRunPersistence] = useState<{
+    runId: string | null;
+    engineVersion: string;
+    status: "idle" | "saving" | "saved" | "error";
+  }>({ runId: null, engineVersion: ENGINE_VERSION, status: "idle" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -123,6 +136,7 @@ export function useSimulation() {
   const sessionIdRef = useRef<string | null>(null);
   const replayStateRef = useRef<ReplayState>("idle");
   const latestRef = useRef<EngineRunOutput | null>(null);
+  const rangeRef = useRef<{ from: number; to: number }>({ from: 0, to: 0 });
 
   useEffect(() => {
     configRef.current = config;
@@ -168,6 +182,7 @@ export function useSimulation() {
     setPending(null);
     setAnalytics(null);
     setValidation(null);
+    setRunPersistence({ runId: null, engineVersion: ENGINE_VERSION, status: "idle" });
   }, []);
 
   const buildSnapshot = useCallback(
@@ -214,6 +229,7 @@ export function useSimulation() {
         score: out.score,
         signed: out.signed,
         primaryProbability: decision.primaryProbability,
+        expectedMovePct: decision.expectedNetMovePct,
         blocked: decision.blocked,
         gate: decision.gate,
         regime: decision.regimeKey,
@@ -483,6 +499,7 @@ export function useSimulation() {
         setReplay(r.replayState);
         replayStateRef.current = r.replayState;
 
+        rangeRef.current = { from: params.startMs, to: params.endMs };
         const sessionId = `sim_${Date.now()}`;
         sessionIdRef.current = sessionId;
         const meta = {
@@ -562,6 +579,14 @@ export function useSimulation() {
     replayStateRef.current = r.replayState;
   }, [resetRuntime]);
 
+  /** Persist an immutable validation run to Firestore in batches. */
+  const persistRun = useCallback(async (built: BuildRunResult): Promise<void> => {
+    const { run, records, metrics, summary } = built;
+    await saveValidationRun(run, summary);
+    await saveValidationDecisions(run.runId, records);
+    await saveValidationMetrics(run.runId, metrics);
+  }, []);
+
   /** Finish the session: resolve remaining outcomes, analytics, validation. */
   const finalize = useCallback(() => {
     const r = replayRef.current;
@@ -609,7 +634,29 @@ export function useSimulation() {
       validation: report,
       lastSeq: seqRef.current,
     });
-  }, []);
+
+    // --- Immutable validation run: built once, written in batches. ---------
+    const rng = rangeRef.current;
+    if (candlesRef.current.length > 0 && decisionsResolved.length > 0) {
+      const built = buildValidationRun({
+        decisions: decisionsResolved,
+        candles: candlesRef.current,
+        config: configRef.current,
+        symbol: "BTCUSDT",
+        timeframe: "1m",
+        from: rng.from,
+        to: rng.to,
+      });
+      setRunPersistence({ runId: built.run.runId, engineVersion: ENGINE_VERSION, status: "saving" });
+      void persistRun(built)
+        .then(() =>
+          setRunPersistence({ runId: built.run.runId, engineVersion: ENGINE_VERSION, status: "saved" })
+        )
+        .catch(() =>
+          setRunPersistence({ runId: built.run.runId, engineVersion: ENGINE_VERSION, status: "error" })
+        );
+    }
+  }, [persistRun]);
 
   // Auto-play interval for AUTO mode.
   const intervalIdRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -661,5 +708,8 @@ export function useSimulation() {
     finalize,
     replayValue: replay,
     stats: analytics?.performance,
+    runPersistence,
+    engineVersion: ENGINE_VERSION,
+    strategyVersion: STRATEGY_VERSION,
   };
 }

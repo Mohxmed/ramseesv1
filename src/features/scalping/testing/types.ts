@@ -40,6 +40,8 @@ export interface DecisionSnapshot {
   signed: number;
   /** 0..1 calibrated directional probability (never truth until backtested). */
   primaryProbability: number | null;
+  /** Signed net expected move (%) decided by the engine, or null. */
+  expectedMovePct: number | null;
   blocked: boolean;
   gate: string;
   regime: string;
@@ -376,4 +378,188 @@ export interface ReplayCursor {
   count: number; // total candles
   timeMs: number; // simulated wall-clock of the current candle open
   bar: BtcCandle | null; // current candle
+}
+
+/* ========================================================================
+ * Decision-Engine VALIDATION (validationRuns), distinct from the execution
+ * simulation above.
+ *
+ * A ValidationRun measures how well the Decision Engine's *direction* holds up
+ * over 30s / 60s / 120s horizons, independent of virtual execution. It is
+ * written to Firestore under `validationRuns/{runId}` once, after aggregation,
+ * and is immutable (bound to an engineVersion).
+ *
+ * IMPORTANT: the decision-time snapshot NEVER contains future data. Horizon
+ * outcomes are computed AFTER the replay by `evaluation/evaluate.ts` and stored
+ * as the `horizons` map on the record — evaluation only, never look-ahead.
+ * ======================================================================== */
+
+/** Directional outcome of a decision used for validation. */
+export type ValidationDirection = "LONG" | "SHORT" | "NEUTRAL";
+
+/** Per-horizon evaluation of a single decision. */
+export interface HorizonEval {
+  /** 30 | 60 | 120 */
+  horizonS: number;
+  key: "30s" | "60s" | "120s";
+  /** Realised price move (%) from decision price to the horizon close. */
+  actualMovePct: number | null;
+  /** True when LONG moved up or SHORT moved down (null for NEUTRAL/insufficient). */
+  directionCorrect: boolean | null;
+  /** win / loss / neutral (null = not resolvable). */
+  result: "win" | "loss" | "neutral" | null;
+  /** Max favourable excursion (%) within the horizon window (|move| up for long). */
+  mfe: number | null;
+  /** Max adverse excursion (%) within the horizon window. */
+  mae: number | null;
+}
+
+/**
+ * One validated decision. Fields up to `features` are the frozen decision-time
+ * snapshot; `horizons` is filled ONLY by the evaluation pass (after replay).
+ */
+export interface ValidationDecisionRecord {
+  id: string;
+  runId: string;
+  // --- decision-time snapshot (no future data) -------------------------
+  timestamp: number;
+  price: number;
+  direction: ValidationDirection;
+  confidence: number;
+  score: number;
+  expectedMovePct: number | null;
+  regime: string;
+  symbol: string;
+  timeframe: string;
+  candleIndex: number;
+  seq: number;
+  features: Record<string, number | null>;
+  // --- evaluation (filled after replay) --------------------------------
+  horizons: Record<"30s" | "60s" | "120s", HorizonEval>;
+}
+
+/** Immutable snapshot of a validation run (the Run Summary document). */
+export interface ValidationRun {
+  runId: string;
+  /** version of the Decision Engine that produced this run (see versions.ts). */
+  engineVersion: string;
+  strategyVersion: string;
+  datasetSource: string;
+  symbol: string;
+  timeframe: string;
+  from: number;
+  to: number;
+  totalCandles: number;
+  totalDecisions: number;
+  createdAt: number;
+  /** Frozen strategy/execution configuration used (not read later). */
+  configuration: SimStrategyConfig;
+}
+
+/** Aggregated final metrics for a single run (validationRuns/{runId}/metrics). */
+export interface ValidationMetrics {
+  runId: string;
+  engineVersion: string;
+  computedAt: number;
+  totals: {
+    totalDecisions: number;
+    longDecisions: number;
+    shortDecisions: number;
+    neutralDecisions: number;
+    directionalDecisions: number;
+  };
+  horizons: Record<
+    "30s" | "60s" | "120s",
+    {
+      /** Directional accuracy (% of directional decisions correct), 0..100. */
+      accuracy: number | null;
+      winRate: number | null;
+      sampleSize: number;
+      averageMovePct: number | null;
+    }
+  >;
+  returns: {
+    averageReturnPct: number | null;
+    medianReturnPct: number | null;
+    averageMFE: number | null;
+    averageMAE: number | null;
+  };
+  best: {
+    bestHorizon: "30s" | "60s" | "120s" | null;
+    bestConfidenceRange: string | null;
+    bestMarketRegime: string | null;
+    weakestMarketRegime: string | null;
+  };
+  segments: {
+    byDirection: Record<ValidationDirection, AccuracySegment>;
+    byConfidence: Record<string, AccuracySegment>;
+    byRegime: Record<string, AccuracySegment>;
+    byTimeframe: Record<string, AccuracySegment>;
+  };
+}
+
+/** Accuracy + return stats for one group of decisions. */
+export interface AccuracySegment {
+  key: string;
+  count: number;
+  directionalCount: number;
+  /** Directional accuracy 0..100 (over directional decisions in group). */
+  accuracy: number | null;
+  winRate: number | null;
+  averageReturnPct: number | null;
+  averageMFE: number | null;
+  averageMAE: number | null;
+  bestHorizon: "30s" | "60s" | "120s" | null;
+}
+
+/** A run summary row for the comparison dashboard (cheap to render). */
+export interface RunSummaryRow {
+  runId: string;
+  engineVersion: string;
+  createdAt: number;
+  totalDecisions: number;
+  accuracy: Record<"30s" | "60s" | "120s", number | null>;
+  averageMovePct: number | null;
+  averageMFE: number | null;
+  averageMAE: number | null;
+  bestHorizon: "30s" | "60s" | "120s" | null;
+  bestMarketRegime: string | null;
+  /** Calibration error (mean |accuracy - group-confidence|), pp. */
+  calibration: number | null;
+  /** Frozen config label (risk/SL/TP) for audits. */
+  configSignature: string;
+}
+
+/** Result of comparing a set of runs, incl. pp deltas vs a golden baseline. */
+export interface RunComparison {
+  rows: RunSummaryRow[];
+  sorted: RunSummaryRow[]; // best-accuracy first (60s then 120s then 30s)
+  bestRunId: string | null;
+  bestEngineVersion: string | null;
+  bestHorizon: "30s" | "60s" | "120s" | null;
+  baseline: {
+    runId: string | null;
+    engineVersion: string | null;
+    /** target run compared to baseline (defaults to best). */
+    targetRunId: string | null;
+    /** (target - baseline) 60s accuracy in percentage points. */
+    delta60sPp: number | null;
+    improved: boolean | null;
+    improvementPp: number | null;
+    accuracy60: { from: number | null; to: number | null };
+  } | null;
+}
+
+/** A Firestore-side lightweight summary doc for the dashboard list view. */
+export interface ValidationRunSummaryDoc {
+  runId: string;
+  engineVersion: string;
+  strategyVersion: string;
+  createdAt: number;
+  totalDecisions: number;
+  accuracy60: number | null;
+  bestHorizon: "30s" | "60s" | "120s" | null;
+  bestMarketRegime: string | null;
+  symbol: string;
+  timeframe: string;
 }

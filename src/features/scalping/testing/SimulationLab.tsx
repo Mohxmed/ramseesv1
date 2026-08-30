@@ -12,6 +12,7 @@ import {
   type Tone,
 } from "../components/terminal/TradingPrimitives";
 import type { SimMode } from "./types";
+import { ValidationDashboard } from "./ValidationDashboard";
 
 /** 8-tier Scalping Simulation & Validation Lab — premium dark-minimal. */
 export function SimulationLab() {
@@ -232,6 +233,13 @@ export function SimulationLab() {
           حدّد النطاق الزمني ثم اضغط «بدء محاكاة جديدة» لتحميل البيانات وتشغيل محرك القرار.
         </div>
       )}
+
+      {/* Layer 9 — Validation History & Comparison (always visible) */}
+      <ValidationDashboard
+        currentRunId={sim.runPersistence.runId}
+        engineVersion={sim.engineVersion}
+        strategyVersion={sim.strategyVersion}
+      />
     </div>
   );
 }
