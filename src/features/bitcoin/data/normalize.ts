@@ -222,10 +222,10 @@ export function normalizeMarketOverview(input: {
       ? parsed(input.longShort[0].longShortRatio, 0)
       : null,
     longAccount: input.longShort?.[0]
-      ? parsed(input.longShort[0].longAccount, 0) * 100
+      ? parsed(input.longShort[0].longAccount, 0)
       : null,
     shortAccount: input.longShort?.[0]
-      ? parsed(input.longShort[0].shortAccount, 0) * 100
+      ? parsed(input.longShort[0].shortAccount, 0)
       : null,
     liquidations: null,
     futuresVolume,

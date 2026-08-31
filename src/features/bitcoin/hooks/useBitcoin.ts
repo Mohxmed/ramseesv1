@@ -411,7 +411,7 @@ export function useBitcoinPipeline() {
           ? parseFloat(lsrRaw[lsrRaw.length - 1].longShortRatio)
           : null,
         longAccountShare: lsrRaw?.length
-          ? parseFloat(lsrRaw[lsrRaw.length - 1].longAccount)
+          ? parseFloat(lsrRaw[lsrRaw.length - 1].longAccount) / 100
           : null,
         futuresVolume: futTickerRaw ? parseFloat(futTickerRaw.quoteVolume) : null,
         openInterest: oiRaw ? parseFloat(oiRaw.openInterest) : null,

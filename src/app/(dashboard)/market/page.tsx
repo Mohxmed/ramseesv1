@@ -46,14 +46,14 @@ export default function MarketPage() {
     data.status === "ready" ||
     !!overview || !!orderBook || !!forecast || !!marketState;
 
-  const biasScore = marketState?.biasScore ?? overview?.change24hPercent ?? 0;
+  const biasScore = marketState?.biasScore ?? 0;
   const direction = biasScore >= 0 ? "LONG" : "SHORT";
   const biasUp = (Math.min(100, Math.max(-100, biasScore)) + 100) / 2;
 
   const horizons = (forecast?.horizons ?? []).map((h) => ({
     minutes: h.minutes,
     probabilityUp: h.probabilityUp,
-    expectedMovePct: h.drift,
+    expectedMovePct: h.expectedReturn,
     confidence: h.confidence,
   }));
 
@@ -223,8 +223,8 @@ export default function MarketPage() {
               <MetricCard label="التغيير 24س" value={fmtPct(overview.change24hPercent)} tone={overview.change24hPercent !== null && overview.change24hPercent >= 0 ? "up" : "down"} />
               <MetricCard label="أعلى 24س" value={fmtPrice(overview.high24h)} />
               <MetricCard label="أدنى 24س" value={fmtPrice(overview.low24h)} />
-              <MetricCard label="التمويل سنوي" value={futures ? fmtPct(futures.fundingRate * 100) : fmtPct(overview.fundRate !== null ? overview.fundRate : null)} />
-              <MetricCard label="الرهانات الطويلة" value={overview.longAccount != null ? `${(overview.longAccount * 100).toFixed(1)}%` : "—"} tone="neutral" />
+              <MetricCard label="التمويل سنوي" value={futures ? fmtPct(futures.fundingRate) : fmtPct(overview.fundRate !== null ? overview.fundRate : null)} />
+              <MetricCard label="الرهانات الطويلة" value={overview.longAccount != null ? `${overview.longAccount.toFixed(1)}%` : "—"} tone="neutral" />
             </div>
           ) : null}
 
@@ -233,7 +233,7 @@ export default function MarketPage() {
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
                 <Stat label="الرافعة الطويلة/القصيرة" value={futures.longShortRatio.toFixed(3)} />
                 <Stat label="سيولة مفتوحة" value={fmt24h(futures.openInterest)} />
-                <Stat label="التمويل" value={fmtPct(futures.fundingRate * 100)} tone={futures.fundingRegime === "strongNegative" ? "up" : "down"} />
+                <Stat label="التمويل" value={fmtPct(futures.fundingRate)} tone={futures.fundingRegime === "strongNegative" ? "up" : "down"} />
                 <Stat label="سعر السوق" value={fmtPrice(futures.markPrice)} />
                 <Stat label="السعر الأساس" value={futures.basisBps != null ? `${futures.basisBps.toFixed(1)} ب.أ` : "—"} />
                 <Stat label="التصفية التراكمية" value={futures.cumulativeLiquidations != null ? formatCompact(futures.cumulativeLiquidations) : "—"} />
