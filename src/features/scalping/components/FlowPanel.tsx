@@ -125,11 +125,11 @@ function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
     ERROR: "warn",
   };
   const statusShort: Record<string, string> = {
-    LIVE: "LIVE",
-    STALE: "STAL",
-    CONNECTING: "CONN",
-    DISCONNECTED: "DISC",
-    ERROR: "ERR",
+    LIVE: "مباشر",
+    STALE: "قديم",
+    CONNECTING: "اتصال",
+    DISCONNECTED: "مقصوص",
+    ERROR: "خطأ",
   };
 
   return (
@@ -204,24 +204,34 @@ function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
           <div className="mt-2 flex flex-wrap gap-1.5">
             {connections.map((c) => {
               const tone: Tone = statusTone[c.status] ?? "quiet";
-              const prefix = c.status === "LIVE" ? "●" : "○";
-              const latTxt = c.status === "LIVE" && c.latency >= 0 ? `${Math.round(c.latency)}ms` : "N/A";
+              const isLive = c.status === "LIVE";
+              const latTxt = isLive && c.latency >= 0 ? `${Math.round(c.latency)}` : "—";
               return (
                 <Tip
                   key={c.exchange}
                   title={`${c.exchange} · ${c.status}${c.lastError ? " · " + c.lastError : ""} · ${c.eventCount} events`}
                 >
                   <span
-                    className={`inline-flex items-center gap-1 rounded-chip border px-1.5 py-0.5 text-2xs ${TONE_BAR[tone]} bg-surface-2/30`}
-                    dir="ltr"
+                    className={`inline-flex items-center gap-x-2 overflow-hidden rounded-chip border py-0.5 pl-2 pr-1 text-2xs ${TONE_BAR[tone]} ${
+                      isLive ? "border-fg/10 bg-surface-2/50" : "border-line/60 bg-surface-1/40"
+                    }`}
                   >
-                    <Dot tone={tone} />
-                    <span className="font-semibold">{ADAPTER_LABELS[c.exchange] ?? c.exchange}</span>
-                    <span className="w-3 text-center opacity-70">{prefix}</span>
-                    <span className={`inline-block w-7 text-center font-semibold tabular-nums`}>
-                      {statusShort[c.status] ?? c.status}
+                    <span className="flex items-center gap-1.5">
+                      <Dot tone={tone} pulse={isLive} />
+                      <span className={`font-bold ${isLive ? "text-zinc-50" : "text-muted"}`}>
+                        {ADAPTER_LABELS[c.exchange] ?? c.exchange}
+                      </span>
                     </span>
-                    <span className={`inline-block w-10 text-right font-medium tabular-nums`}>{latTxt}</span>
+                    <span className="h-3.5 w-px bg-line/70" />
+                    <span className="grid grid-cols-1 content-center leading-tight" dir="rtl">
+                      <span className={`w-16 text-left font-medium tabular-nums ${isLive ? "text-zinc-200" : "text-muted"}`}>
+                        {statusShort[c.status] ?? c.status}
+                      </span>
+                      <span className="w-24 text-left font-medium tabular-nums text-zinc-400">
+                        {latTxt}
+                        <span className="mr-1 text-muted/70">مللي ثانية</span>
+                      </span>
+                    </span>
                   </span>
                 </Tip>
               );
