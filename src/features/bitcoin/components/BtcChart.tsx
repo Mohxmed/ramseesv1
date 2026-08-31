@@ -28,7 +28,6 @@ import type {
   Zone,
   LiquidityAnalysis,
   MarketStructureAnalysis,
-  Wave,
 } from "../analysis";
 import { TIMEFRAMES, TIMEFRAME_MINUTES } from "../constants";
 import { formatPrice } from "../utils";
@@ -48,7 +47,6 @@ type Props = {
   analysis?: SupportResistanceResult | null;
   liquidity?: LiquidityAnalysis | null;
   structure?: MarketStructureAnalysis | null;
-  waves?: Wave[];
   /** Additive decision price-line overlay (entry / SL / TP) from Decision Center. */
   decision?: DecisionOverlay | null;
 };
@@ -114,14 +112,13 @@ function formatCountdown(ms: number): string {
   return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
-export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liquidity, structure, waves, decision }: Props) {
+export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liquidity, structure, decision }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const overlayRef = useRef<Map<OverlayKey, ISeriesApi<"Line">>>(new Map());
   const zoneSeriesRef = useRef<ISeriesApi<"Baseline">[]>([]);
-  const waveSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const futureSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
   const markersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const lastFittedTfRef = useRef<BtcTimeframe | null>(null);
@@ -204,14 +201,6 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
       scaleMargins: { top: 0.82, bottom: 0.02 },
     });
 
-    const waveSeries = chart.addSeries(LineSeries, {
-      color: "#f0abfc",
-      lineWidth: 2,
-      lastValueVisible: false,
-      priceLineVisible: false,
-      crosshairMarkerVisible: false,
-    });
-
     // Series that only carries *future* whitespace points (time, no value).
     // It gives the time scale real future timestamps so the user can pan to
     // the right and later draw forecasts / projected paths / targets there.
@@ -227,7 +216,6 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
 
     candleSeriesRef.current = candleSeries;
     volumeSeriesRef.current = volumeSeries;
-    waveSeriesRef.current = waveSeries;
     futureSeriesRef.current = futureSeries;
     markersRef.current = createSeriesMarkers(candleSeries);
     chartRef.current = chart;
@@ -278,7 +266,6 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
       chartRef.current = null;
       candleSeriesRef.current = null;
       volumeSeriesRef.current = null;
-      waveSeriesRef.current = null;
       futureSeriesRef.current = null;
       markersRef.current = null;
       overlayRef.current.clear();
@@ -482,12 +469,13 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
       title: "السعر",
     });
 
-    // Liquidity zones (distinct purple styling)
+    // Liquidity zones (distinct purple styling) — only recent (within 5% of price)
     if (liquidity && liquidity.zones.length > 0) {
+      const currentPrice = analysis?.currentPrice ?? candles[candles.length - 1].close;
       const targetZones = liquidity.zones
-        .slice()
+        .filter((z) => Math.abs(((z.center - currentPrice) / currentPrice) * 100) <= 5)
         .sort((a, b) => b.strength - a.strength)
-        .slice(0, 6);
+        .slice(0, 4);
       for (const zone of targetZones) {
         const fill = zone.kind === "support" ? "rgba(168,85,247,0.10)" : "rgba(168,85,247,0.10)";
         const zoneSeries = chart.addSeries(BaselineSeries, {
@@ -520,24 +508,6 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
       }
     }
 
-    // Current waves as a connecting polyline (30m-domain)
-    if (waves && waves.length > 1 && waveSeriesRef.current) {
-      const pts = waves
-        .filter((w) => !!w.startTime && !!w.endTime)
-        .map((w) => ({
-          time: Math.floor(w.startTime / 1000) as UTCTimestamp,
-          value: w.startPrice,
-        }));
-      const last = waves[waves.length - 1];
-      if (last && last.endTime) {
-        pts.push({
-          time: Math.floor(last.endTime / 1000) as UTCTimestamp,
-          value: last.endPrice,
-        });
-      }
-      waveSeriesRef.current.setData(pts as LineData[]);
-    }
-
     // Market structure markers (HH/HL/LH/LL) on the candle series
     if (structure && structure.points.length > 0) {
       const markers: SeriesMarker<Time>[] = structure.points
@@ -554,7 +524,7 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
         });
       markersRef.current?.setMarkers(markers);
     }
-  }, [analysis, candles, liquidity, structure, waves]);
+  }, [analysis, candles, liquidity, structure]);
 
   // --------------------------------------------------- decision overlay
   // Additive, non-breaking: when the Decision Center supplies an entry / SL / TP
@@ -591,7 +561,7 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
     addLine(decision.stopLoss, COLOR.decisionStop, "DEC:SL", LineStyle.Dotted);
     addLine(decision.takeProfit, COLOR.decisionTarget, "DEC:TP", LineStyle.Solid);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [analysis, candles, liquidity, structure, waves, decision]);
+  }, [analysis, candles, liquidity, structure, decision]);
 
   // ------------------------------------------------------------ navigation
   const autoScale = useCallback(() => {
@@ -647,7 +617,7 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
           <h2 className="text-sm font-semibold text-zinc-100">BTC/USDT</h2>
           {analysis && (
             <span className="hidden text-[11px] text-zinc-500 sm:inline">
-              {analysis.candleCount} شمعة 30m
+              {analysis.candleCount} شمعة {timeframe.toUpperCase()}
             </span>
           )}
         </div>
@@ -848,16 +818,18 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
   );
 }
 
-/** Selects the zones to draw: nearest always + strongest, capped. */
+/** Selects the zones to draw: nearest always + strongest recent, capped. */
 function pickZones(analysis: SupportResistanceResult): Zone[] {
-  const MAX = 16;
-  const strong = analysis.zones
-    .filter((z) => z.strength >= 30 || z.isNearest)
+  const MAX = 6;
+  const MAX_DISTANCE_PCT = 5;
+
+  const recent = analysis.zones
+    .filter((z) => Math.abs(z.distancePercent) <= MAX_DISTANCE_PCT && (z.strength >= 40 || z.isNearest))
     .sort((a, b) => b.strength - a.strength);
 
   const selected: Zone[] = [];
   const ids = new Set<string>();
-  for (const z of strong) {
+  for (const z of recent) {
     if (selected.length >= MAX) break;
     if (ids.has(z.id)) continue;
     ids.add(z.id);

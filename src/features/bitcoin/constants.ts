@@ -38,7 +38,7 @@ export const TIMEFRAME_MINUTES: Record<BtcTimeframe, number> = {
   "1d": 1440,
 };
 
-export const CHART_DEFAULT_TIMEFRAME: BtcTimeframe = "30m";
+export const CHART_DEFAULT_TIMEFRAME: BtcTimeframe = "5m";
 
 export const API_ENDPOINTS = {
   SPOT_TICKER:

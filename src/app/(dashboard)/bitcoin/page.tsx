@@ -89,7 +89,6 @@ export default function BitcoinPage() {
             analysis={analysis30m}
             liquidity={liquidity}
             structure={structure}
-            waves={waves}
           />
 
           {/* Live instant spot price data */}
