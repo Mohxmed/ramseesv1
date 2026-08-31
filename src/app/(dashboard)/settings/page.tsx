@@ -1,4 +1,5 @@
 import { PageHeader, Card, DataRow, Badge, Status } from "@/components/ui/index";
+import { SettingsIcon } from "@/components/icons/icons";
 
 export const metadata = {
   title: "الإعدادات | RAMSEES",
@@ -10,6 +11,7 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <PageHeader
         eyebrow="Settings"
+        icon={<SettingsIcon className="h-5 w-5 text-muted" />}
         title="الإعدادات"
         description="تفضيلات النظام والإعدادات."
         right={<Status label="محفوظة" tone="good" />}

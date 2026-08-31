@@ -1,9 +1,11 @@
 import { PageHeader, Badge } from "@/components/ui/index";
+import { TargetIcon } from "@/components/icons/icons";
 
 export function GoldenTargetHeader() {
   return (
     <PageHeader
       eyebrow="Golden Target"
+      icon={<TargetIcon className="h-5 w-5 text-muted" />}
       title="الهدف الذهبي"
       description="استراتيجية نمو تراكمي: في كل حركة تستهدف مضاعفة قيمة رأس المال بنسبة 100%، بدءًا من قيمة 2 وصولًا إلى 1,048,576 بعد 20 حركة."
       actions={

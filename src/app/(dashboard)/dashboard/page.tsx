@@ -12,6 +12,7 @@ import {
   Badge,
   Progress,
 } from "@/components/ui/index";
+import { DashboardIcon } from "@/components/icons/icons";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -26,6 +27,7 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <PageHeader
         eyebrow="Overview"
+        icon={<DashboardIcon className="h-5 w-5 text-muted" />}
         title="لوحة التحكم"
         description="نظرة عامة على النظام والوصول السريع إلى الميزات."
         right={<Badge tone="good">نشط</Badge>}

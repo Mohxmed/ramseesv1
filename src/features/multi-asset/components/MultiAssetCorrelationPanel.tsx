@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Card, Badge, Stat, DataRow, Status, Progress } from "@/components/ui/index";
 import { Tabs } from "@/components/ui/controls";
 import { num } from "@/components/ui/design-tokens";
+import { Zap, PauseCircle, Circle, Star } from "lucide-react";
 import { MULTI_ASSET_CONFIG } from "../config";
 import type { AssetCorrelation, MultiAssetSnapshot } from "../types";
 
@@ -70,13 +71,16 @@ function SignalBar({
 
   if (suppressed) {
     return (
-      <div className="rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-2xs text-warn-fg">
-        ⏸ إشارات متوقفة مؤقتاً — {reconnecting || asset.suppressed
-          ? "اتصال قاعدة البيانات قيد إعادة الربط، نمنع الإشارات للحفاظ على النزاهة."
-          : "جمع بيانات كافية للارتباط…"}
-        {asset.correlation != null && asset.correlation < MULTI_ASSET_CONFIG.suppressCorrBelow
-          ? " (الارتباط دون 65%.)"
-          : ""}
+      <div className="flex items-start gap-2 rounded-md border border-warn/40 bg-warn/10 px-3 py-2 text-2xs text-warn-fg">
+        <PauseCircle className="mt-px h-3.5 w-3.5 shrink-0" />
+        <span>
+          إشارات متوقفة مؤقتاً — {reconnecting || asset.suppressed
+            ? "اتصال قاعدة البيانات قيد إعادة الربط، نمنع الإشارات للحفاظ على النزاهة."
+            : "جمع بيانات كافية للارتباط…"}
+          {asset.correlation != null && asset.correlation < MULTI_ASSET_CONFIG.suppressCorrBelow
+            ? " (الارتباط دون 65%.)"
+            : ""}
+        </span>
       </div>
     );
   }
@@ -89,7 +93,12 @@ function SignalBar({
       ? "border-down/60 bg-down/10 text-down-fg shadow-[0_0_18px_-2px_rgba(239,68,68,0.55)]"
       : "border-line bg-surface-2/40 text-zinc-300";
 
-  const glyph = isLong ? "⚡" : isShort ? "⚡" : "•";
+  const glyph =
+    isLong || isShort ? (
+      <Zap className="h-3.5 w-3.5 shrink-0" />
+    ) : (
+      <Circle className="h-2.5 w-2.5 shrink-0 fill-current" />
+    );
   const text =
     isLong
       ? `إشارة Long خاطفة على ${asset.label} (تأخر السعر)`
@@ -98,12 +107,12 @@ function SignalBar({
         : SIGNAL_LABEL.neutral;
 
   return (
-    <div className={`rounded-md border px-3 py-2 text-2xs font-semibold ${glow}`}>
-      <span className="ml-1">{glyph}</span>
-      {text}
+    <div className={`flex items-center gap-2 rounded-md border px-3 py-2 text-2xs font-semibold ${glow}`}>
+      {glyph}
+      <span className="flex-1">{text}</span>
       {asset.spreadPct != null ? (
         <span className="font-mono tabular-nums text-[10px] opacity-80">
-          {"  "}spread {pct(asset.spreadPct)} · corr {corrLabel(asset.correlation)}
+          spread {pct(asset.spreadPct)} · corr {corrLabel(asset.correlation)}
         </span>
       ) : null}
     </div>
@@ -282,7 +291,9 @@ export function MultiAssetCorrelationPanel({ snap }: { snap: MultiAssetSnapshot 
                 <div key={a.symbol} className={isTop ? "rounded-md ring-1 ring-up/40" : ""}>
                   <AssetRow asset={a} active={a.symbol === active} onSelect={() => setActive(a.symbol)} />
                   {isTop && a.signal !== "neutral" && (
-                    <div className="px-3 pb-1 text-2xs text-up-fg">★ أفضل فرصة (أعلى فجوة × ارتباط)</div>
+                    <div className="flex items-center gap-1 px-3 pb-1 text-2xs text-up-fg">
+                      <Star className="h-3 w-3 fill-current" /> أفضل فرصة (أعلى فجوة × ارتباط)
+                    </div>
                   )}
                 </div>
               );

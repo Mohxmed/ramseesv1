@@ -1,6 +1,7 @@
 "use client";
 
 import { useMarketData } from "@/features/bitcoin/store/market-context";
+import { MarketIcon } from "@/components/icons/icons";
 import {
   PageHeader,
   Card,
@@ -73,6 +74,7 @@ export default function MarketPage() {
     <div className="space-y-6">
       <PageHeader
         eyebrow="Market Overview"
+        icon={<MarketIcon className="h-5 w-5 text-muted" />}
         title="الحالة العامة للسوق"
         description="نظرة موحّدة على حالة BTC الحية: تدفق الأوامر، السيولة، التنبؤ والنظام العام — من مصدر بيانات واحد."
         right={

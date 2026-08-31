@@ -13,6 +13,7 @@ import { FuturesCard } from "@/features/bitcoin/components/FuturesCard";
 import { StructureWavesCard } from "@/features/bitcoin/components/StructureWavesCard";
 import { InstantPriceBar } from "@/features/bitcoin/components/InstantPriceBar";
 import { PageHeader, Badge, Status } from "@/components/ui/index";
+import { BitcoinIcon } from "@/components/icons/icons";
 
 export default function BitcoinPage() {
   const {
@@ -43,6 +44,7 @@ export default function BitcoinPage() {
     <div className="space-y-6">
       <PageHeader
         eyebrow="BTC Intelligence"
+        icon={<BitcoinIcon className="h-5 w-5 text-muted" />}
         title="مركز قيادة بيتكوين"
         description="مركز استخبارات سوق BTC الحية: بيانات فورية (سبوت + عقود آجلة) + تحليل متعدد الأطر + توقع احتمالي قصير المدى (30م / ساعة / ساعتان) مدعوم بمقارنة الحالات التاريخية. بيانات حقيقية من CoinGecko وبينانس."
         actions={[

@@ -110,6 +110,7 @@ export function Section(props: CardProps) {
 
 export interface PageHeaderProps {
   eyebrow?: ReactNode;
+  icon?: ReactNode;
   title: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
@@ -119,6 +120,7 @@ export interface PageHeaderProps {
 
 export function PageHeader({
   eyebrow,
+  icon,
   title,
   description,
   actions,
@@ -131,7 +133,10 @@ export function PageHeader({
         {eyebrow ? (
           <div className="text-3xs font-semibold uppercase tracking-[0.2em] text-muted">{eyebrow}</div>
         ) : null}
-        <h1 className="text-xl font-bold text-zinc-100">{title}</h1>
+        <h1 className="flex items-center gap-2 text-xl font-bold text-zinc-100">
+          {icon ? <span className="shrink-0 text-muted [&>svg]:h-5 [&>svg]:w-5">{icon}</span> : null}
+          {title}
+        </h1>
         {description ? <p className="mt-1 max-w-2xl text-xs text-muted">{description}</p> : null}
         {actions ? <div className="mt-2 flex flex-wrap items-center gap-2">{actions}</div> : null}
       </div>
