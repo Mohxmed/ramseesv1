@@ -1,11 +1,29 @@
 /**
  * Base WebSocket Exchange Adapter
  *
- * Shared WebSocket lifecycle management following aggr.trade patterns.
- * Concrete adapters extend this and implement normalizeTrade/normalizeLiquidation.
+ * Shared WebSocket lifecycle management following aggr.trade patterns, plus a
+ * connection state machine and per-exchange diagnostics:
+ *
+ *   CONNECTING   — transport not yet open or no valid trade received yet
+ *   LIVE         — WS open + subscription accepted + valid fresh trade received
+ *   STALE        — no valid trade within the stale threshold (via last valid event)
+ *   DISCONNECTED — WS connection lost / never connected
+ *   ERROR        — unrecovered WS error
+ *
+ * Concrete adapters extend this and implement
+ * normalizeTrade/normalizeLiquidation/handleMessage.
  */
 
-import type { ExchangeAdapter, ExchangeStatus, NormalizedTrade } from "../types";
+import type {
+  ExchangeAdapter,
+  ExchangeConnection,
+  ExchangeStatus,
+  NormalizedTrade,
+  SubscriptionStatus,
+} from "../types";
+
+/** How long after the last valid event before an exchange is marked STALE. */
+export const STALE_EVENT_THRESHOLD_MS = 5000;
 
 export abstract class BaseExchangeAdapter implements ExchangeAdapter {
   abstract readonly id: string;
@@ -13,13 +31,29 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
   abstract readonly market: "spot" | "perpetual" | "futures";
 
   protected ws: WebSocket | null = null;
-  protected status: ExchangeStatus = "disconnected";
-  protected latency = 0;
+  protected wsOpen = false;
   protected reconnectCount = 0;
   protected subscribedSymbols = new Set<string>();
   protected pingInterval: ReturnType<typeof setInterval> | null = null;
   protected reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   protected lastPong = 0;
+
+  // Diagnostics / health
+  protected lastValidAt = 0; // receivedAt of last valid trade (0 = none)
+  protected lastEventTs = 0; // exchange timestamp of last valid trade (0 = none)
+  protected eventCount = 0;
+  protected latency = -1; // -1 = N/A
+  protected subscription: SubscriptionStatus = "pending";
+  protected lastError = "";
+  protected wsEverOpened = false;
+
+  // Clock-skew estimation. Independent exchanges timestamp events in true UTC,
+  // which may be ahead of this host's local clock (NTP skew). We estimate the
+  // skew as the most-ahead (timestamp - receivedAt) sample and subtract it, so
+  // reported latency reflects real network latency and is never negative.
+  private skewSamples: number[] = [];
+  private skewOffset = 0;
+  private static readonly SKEW_WINDOW = 64;
 
   /** Ingest callback — set by the engine to feed trades into the flow. */
   onTrade: ((trade: NormalizedTrade) => void) | null = null;
@@ -39,12 +73,10 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
 
   connect(): void {
     if (this.ws) return;
-    this.status = "connecting";
     this.createWs();
   }
 
   disconnect(): void {
-    this.status = "disconnected";
     this.clearTimers();
     if (this.ws) {
       this.ws.onclose = null;
@@ -52,28 +84,117 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
       this.ws.close();
       this.ws = null;
     }
+    this.wsOpen = false;
   }
 
   subscribe(symbol: string): void {
-    this.subscribedSymbols.add(symbol);
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+    if (!this.subscribedSymbols.has(symbol)) {
+      this.subscribedSymbols.add(symbol);
+      this.subscription = "pending";
+    }
+    if (this.wsOpen) {
       this.send(this.getSubscribeMsg(symbol));
     }
   }
 
   unsubscribe(symbol: string): void {
     this.subscribedSymbols.delete(symbol);
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+    if (this.wsOpen) {
       this.send(this.getUnsubscribeMsg(symbol));
     }
   }
 
-  getStatus(): ExchangeStatus {
-    return this.status;
+  /**
+   * Called by the engine for every non-duplicate, valid real trade. Updates the
+   * last-valid-event clock (source of STALE/LIVE) and stores latency ONLY when
+   * it is finite and non-negative (a future/invalid timestamp is never shown).
+   */
+  markTradeValid(trade: NormalizedTrade): void {
+    const received = Number.isFinite(trade.receivedAt) ? trade.receivedAt : Date.now();
+    this.eventCount++;
+    this.lastEventTs = trade.timestamp;
+    this.lastValidAt = received;
+    this.lastError = "";
+
+    if (Number.isFinite(trade.timestamp) && trade.timestamp > 0) {
+      // Estimate clock skew: the most-ahead (timestamp - receivedAt) sample
+      // approximates how far the exchange clock leads this host's clock.
+      this.skewSamples.push(trade.timestamp - received);
+      if (this.skewSamples.length > BaseExchangeAdapter.SKEW_WINDOW) {
+        this.skewSamples = this.skewSamples.slice(-BaseExchangeAdapter.SKEW_WINDOW);
+      }
+      let maxSkew = this.skewSamples[0];
+      for (let i = 1; i < this.skewSamples.length; i++) {
+        if (this.skewSamples[i] > maxSkew) maxSkew = this.skewSamples[i];
+      }
+      this.skewOffset = maxSkew;
+
+      // Corrected network latency = (receivedAt - timestamp) + skewOffset.
+      const latency = received - trade.timestamp + this.skewOffset;
+      if (Number.isFinite(latency) && latency >= 0) {
+        this.latency = latency;
+      }
+    }
   }
 
-  getLatency(): number {
-    return this.latency;
+  getHealth(): ExchangeConnection {
+    const now = Date.now();
+    let status: ExchangeStatus = this.computeStatus(now);
+
+    // A latched ERROR with no live socket: keep ERROR (real error is recorded).
+    if (this.lastError && status === "DISCONNECTED" && this.reconnectCount === 0) {
+      status = "ERROR";
+    }
+
+    return {
+      exchange: this.id,
+      label: this.label,
+      status,
+      latency: this.latency,
+      lastEvent: this.lastEventTs,
+      receivedAt: this.lastValidAt,
+      eventCount: this.eventCount,
+      subscription: this.subscription,
+      wsOpen: this.wsOpen,
+      reconnectCount: this.reconnectCount,
+      lastError: this.lastError,
+      subscribedSymbols: Array.from(this.subscribedSymbols),
+    };
+  }
+
+  protected computeStatus(now: number): ExchangeStatus {
+    if (!this.wsOpen) {
+      // Connection lost — a real trade may still be recent enough to show STALE.
+      if (this.lastValidAt > 0 && now - this.lastValidAt <= STALE_EVENT_THRESHOLD_MS) {
+        return "STALE";
+      }
+      return "DISCONNECTED";
+    }
+
+    // Socket is open.
+    if (this.lastValidAt > 0 && now - this.lastValidAt > STALE_EVENT_THRESHOLD_MS) {
+      return "STALE";
+    }
+    if (this.lastValidAt > 0 && this.subscription !== "failed") {
+      return "LIVE";
+    }
+    return "CONNECTING";
+  }
+
+  /** Record the subscription was accepted by the exchange (optional, improves diagnostics). */
+  protected confirmSubscription(): void {
+    this.subscription = "subscribed";
+  }
+
+  /** Record a real upstream subscription/connection error message. */
+  protected recordError(message: string): void {
+    if (message) this.lastError = String(message).slice(0, 300);
+  }
+
+  /** Raise/latch an error state with a real error message. */
+  protected setError(message: string): void {
+    this.recordError(message);
+    if (this.subscription !== "subscribed") this.subscription = "failed";
   }
 
   // ── WebSocket internals ────────────────────────────────────────────
@@ -83,13 +204,12 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
     const ws = new WebSocket(url);
 
     ws.onopen = () => {
-      this.status = "connected";
+      this.wsOpen = true;
+      this.wsEverOpened = true;
       this.lastPong = Date.now();
-      // Subscribe pending symbols
       for (const symbol of this.subscribedSymbols) {
         this.send(this.getSubscribeMsg(symbol));
       }
-      // Start ping
       this.startPing();
     };
 
@@ -103,14 +223,15 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
       }
     };
 
-    ws.onerror = () => {
-      this.status = "error";
+    ws.onerror = (event) => {
+      const msg = (event as { message?: string })?.message || "WebSocket error";
+      this.recordError(msg);
     };
 
     ws.onclose = () => {
-      this.status = "disconnected";
-      this.stopPing();
+      this.wsOpen = false;
       this.ws = null;
+      this.stopPing();
       this.scheduleReconnect();
     };
 
@@ -130,7 +251,6 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
       this.pingInterval = setInterval(() => {
         const msg = this.getPingMsg();
         if (msg) this.send(msg);
-        // Timeout detection
         if (Date.now() - this.lastPong > interval * 3) {
           this.ws?.close();
         }
@@ -148,7 +268,6 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
   protected scheduleReconnect(): void {
     this.reconnectCount++;
     const delay = Math.min(1000 * Math.pow(2, this.reconnectCount), 30_000);
-    this.status = "reconnecting";
     this.reconnectTimeout = setTimeout(() => {
       this.reconnectTimeout = null;
       this.createWs();

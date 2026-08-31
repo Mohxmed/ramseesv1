@@ -1,10 +1,11 @@
 /**
- * Bitget Adapter (v3)
+ * Bitget Adapter (v3 / UTA)
  *
  * WebSocket: wss://ws.bitget.com/v3/ws/public
- * Trades: publicTrade on usdt-futures  |  Liquidations: "liquidation" topic
- * Side: supplied directly
- * Liquidation side is INVERTED (buy → sell, sell → buy)
+ * Trades: topic "publicTrade" per symbol on usdt-futures
+ * Liquidations: topic "liquidation" on usdt-futures
+ * Side: S === "buy" ? 'buy' : 'sell'
+ * Liquidation side is INVERTED (S = closed position direction).
  */
 
 import type { NormalizedTrade } from "../types";
@@ -26,8 +27,8 @@ export class BitgetAdapter extends BaseExchangeAdapter {
     return {
       op: "subscribe",
       args: [
-        { instType: "usdt-futures", channel: "publicTrade", symbol, instId: symbol },
-        { instType: "usdt-futures", channel: "liquidation", symbol, instId: symbol },
+        { instType: "usdt-futures", topic: "publicTrade", symbol },
+        { instType: "usdt-futures", topic: "liquidation", symbol },
       ],
     };
   }
@@ -35,7 +36,7 @@ export class BitgetAdapter extends BaseExchangeAdapter {
   protected getUnsubscribeMsg(symbol: string): unknown {
     return {
       op: "unsubscribe",
-      args: [{ instType: "usdt-futures", channel: "publicTrade", symbol, instId: symbol }],
+      args: [{ instType: "usdt-futures", topic: "publicTrade", symbol }],
     };
   }
 
@@ -49,21 +50,30 @@ export class BitgetAdapter extends BaseExchangeAdapter {
 
   protected handleMessage(data: unknown): void {
     if (data === "pong") return;
-    const msg = data as { arg?: { channel: string }; data?: unknown[] };
-    if (!msg.arg) return;
+    const msg = data as { event?: string; arg?: { topic?: string; symbol?: string }; data?: unknown };
+    if (msg.event === "subscribe" || msg.event === "unsubscribe") {
+      this.confirmSubscription();
+      return;
+    }
+    if (msg.event === "error") {
+      this.setError(String(msg.data ?? "Bitget subscription error"));
+      return;
+    }
+    const topic = msg.arg?.topic;
+    if (!topic) return;
 
-    if (msg.arg.channel === "publicTrade") {
-      const trades = this.normalizeTrade(msg.data);
+    if (topic === "publicTrade") {
+      const trades = this.normalizeTrade(msg.data, msg.arg?.symbol ?? "");
       for (const t of trades) this.emitTrade(t);
-    } else if (msg.arg.channel === "liquidation") {
-      const liqs = this.normalizeLiquidation(msg.data);
+    } else if (topic === "liquidation") {
+      const liqs = this.normalizeLiquidation(msg.data, msg.arg?.symbol ?? "");
       for (const t of liqs) this.emitTrade(t);
     }
   }
 
-  normalizeTrade(data: unknown): NormalizedTrade[] {
+  normalizeTrade(data: unknown, fallbackSymbol = ""): NormalizedTrade[] {
     const json = data as {
-      ts: string; p: string; v: string; s: string; side: string; tradeId?: string;
+      i?: string; p: string; v: string; S: string; T: string; s?: string;
     }[];
     const now = Date.now();
 
@@ -73,22 +83,22 @@ export class BitgetAdapter extends BaseExchangeAdapter {
       return {
         exchange: this.id,
         market: this.market,
-        symbol: trade.s,
-        timestamp: parseInt(trade.ts),
+        symbol: trade.s || fallbackSymbol,
+        timestamp: parseInt(trade.T),
         receivedAt: now,
         price,
         quantity: qty,
         notional: price * qty,
-        side: trade.side === "buy" ? "buy" : "sell",
-        tradeId: trade.tradeId ?? `${trade.s}_${trade.ts}`,
+        side: trade.S === "buy" ? "buy" : "sell",
+        tradeId: trade.i ?? `${trade.s || fallbackSymbol}_${trade.T}`,
         liquidation: false,
       };
     });
   }
 
-  normalizeLiquidation(data: unknown): NormalizedTrade[] {
+  normalizeLiquidation(data: unknown, fallbackSymbol = ""): NormalizedTrade[] {
     const json = data as {
-      t: string; p: string; sz: string; s: string; side: string;
+      t?: string; p: string; sz: string; S: string; s?: string;
     }[];
     const now = Date.now();
 
@@ -98,15 +108,15 @@ export class BitgetAdapter extends BaseExchangeAdapter {
       return {
         exchange: this.id,
         market: this.market,
-        symbol: liq.s,
-        timestamp: parseInt(liq.t),
+        symbol: liq.s || fallbackSymbol,
+        timestamp: parseInt(String(liq.t ?? "")) || now,
         receivedAt: now,
         price,
         quantity: qty,
         notional: price * qty,
-        // Bitget liquidation side is INVERTED
-        side: liq.side === "buy" ? "sell" : "buy",
-        tradeId: `bitget_liq_${liq.t}`,
+        // Bitget liquidation side is INVERTED (S = closed position direction)
+        side: liq.S === "buy" ? "sell" : "buy",
+        tradeId: `bitget_liq_${liq.t ?? now}`,
         liquidation: true,
       };
     });

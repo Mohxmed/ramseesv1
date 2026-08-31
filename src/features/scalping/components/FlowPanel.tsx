@@ -96,7 +96,7 @@ function FlowSection({
 // ─── Live Flow header ────────────────────────────────────────────────
 
 function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
-  const { state } = snap;
+  const { state, connections } = snap;
   const level = state.quality.level;
 
   const levelTone: Record<string, Tone> = {
@@ -112,6 +112,18 @@ function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
     stale: "قديم",
   };
 
+  // Average latency only over LIVE exchanges with a valid latency.
+  const liveLat = connections.filter((c) => c.status === "LIVE" && c.latency >= 0).map((c) => c.latency);
+  const avgLatency = liveLat.length > 0 ? Math.round(liveLat.reduce((a, b) => a + b, 0) / liveLat.length) : null;
+
+  const statusTone: Record<string, Tone> = {
+    LIVE: "good",
+    STALE: "warn",
+    CONNECTING: "warn",
+    DISCONNECTED: "quiet",
+    ERROR: "warn",
+  };
+
   return (
     <FlowSection title="التدفق المباشر" eyebrow="01 · Live Flow">
       <div className="flex items-center justify-between gap-2">
@@ -119,6 +131,7 @@ function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
           <div className="text-3xs text-muted">الغطاء · الاعتماد</div>
           <div className={`${num} mt-0.5 text-lg font-extrabold leading-none text-zinc-50`} dir="ltr">
             {state.quality.coverage}
+            <span className="ml-1 text-2xs font-medium text-emerald-400">{liveLat.length > 0 ? "LIVE" : ""}</span>
           </div>
         </div>
         <div className="text-left">
@@ -128,27 +141,31 @@ function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
         <div className="text-left">
           <div className="text-3xs text-muted">الكمون</div>
           <div className={`${num} mt-0.5 text-base font-bold leading-none text-zinc-200`} dir="ltr">
-            {snap.connections.length > 0
-              ? `${Math.round(
-                  snap.connections.reduce((a, c) => a + c.latency, 0) / snap.connections.length
-                )}ms`
-              : "—"}
+            {avgLatency !== null ? `${avgLatency}ms` : "N/A"}
           </div>
         </div>
       </div>
 
       {/* per-exchange connection chips */}
       <div className="mt-2 flex flex-wrap gap-1.5">
-        {snap.connections.map((c) => {
-          const tone: Tone =
-            c.status === "connected" ? "good" : c.status === "connecting" || c.status === "reconnecting" ? "warn" : "quiet";
+        {connections.map((c) => {
+          const tone: Tone = statusTone[c.status] ?? "quiet";
+          const prefix = c.status === "LIVE" ? "●" : "○";
+          const latTxt = c.status === "LIVE" && c.latency >= 0 ? `${Math.round(c.latency)}ms` : "N/A";
           return (
-            <Tip key={c.exchange} title={`${c.exchange} · ${c.status} · ${c.latency}ms`}>
+            <Tip
+              key={c.exchange}
+              title={`${c.exchange} · ${c.status}${c.lastError ? " · " + c.lastError : ""} · ${c.eventCount} events`}
+            >
               <span
                 className={`inline-flex items-center gap-1 rounded-chip border px-1.5 py-0.5 text-2xs ${TONE_BAR[tone]} bg-surface-2/30`}
+                dir="ltr"
               >
                 <Dot tone={tone} />
                 <span className="font-semibold">{ADAPTER_LABELS[c.exchange] ?? c.exchange}</span>
+                <span className="opacity-70">{prefix}</span>
+                <span className="opacity-80">{c.status === "LIVE" ? c.status : latTxt}</span>
+                {c.status === "LIVE" && <span className="font-medium">{latTxt}</span>}
               </span>
             </Tip>
           );

@@ -48,7 +48,11 @@ export class BinanceSpotAdapter extends BaseExchangeAdapter {
   }
 
   protected handleMessage(data: unknown): void {
-    const json = data as { stream?: string; data?: Record<string, unknown> };
+    const json = data as { stream?: string; data?: Record<string, unknown>; result?: unknown };
+    if (typeof json.result !== "undefined") {
+      this.confirmSubscription();
+      return;
+    }
     if (json.stream && json.stream.endsWith("@aggTrade")) {
       const trades = this.normalizeTrade(json.data);
       for (const t of trades) this.emitTrade(t);

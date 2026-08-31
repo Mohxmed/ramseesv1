@@ -45,8 +45,12 @@ export class BybitAdapter extends BaseExchangeAdapter {
   }
 
   protected handleMessage(data: unknown): void {
-    const msg = data as { op?: string; topic?: string; data?: unknown };
+    const msg = data as { op?: string; success?: boolean; topic?: string; data?: unknown };
     if (msg.op === "pong") return;
+    if (msg.op === "subscribe") {
+      this.confirmSubscription();
+      return;
+    }
     if (!msg.topic) return;
 
     if (msg.topic.startsWith("publicTrade.")) {

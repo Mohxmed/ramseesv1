@@ -26,7 +26,9 @@ export type NormalizedTrade = {
 
 // ─── Exchange Adapter ────────────────────────────────────────────────
 
-export type ExchangeStatus = "connecting" | "connected" | "reconnecting" | "disconnected" | "error";
+export type ExchangeStatus = "CONNECTING" | "LIVE" | "STALE" | "DISCONNECTED" | "ERROR";
+
+export type SubscriptionStatus = "pending" | "subscribed" | "failed" | "none";
 
 export type ExchangeAdapter = {
   readonly id: string;
@@ -44,8 +46,15 @@ export type ExchangeAdapter = {
   /** Parse raw WS message into liquidation trades. Returns empty array if not a liquidation. */
   normalizeLiquidation(data: unknown): NormalizedTrade[];
 
-  getStatus(): ExchangeStatus;
-  getLatency(): number;
+  /**
+   * Mark a valid (fresh, non-duplicate) normalized trade as received. Updates
+   * last-valid-event tracking, event count and latency. Used by the engine on
+   * every ingested real trade and by the adapter to drive its LIVE status.
+   */
+  markTradeValid(trade: NormalizedTrade): void;
+
+  /** Full per-exchange diagnostic state (authoritative for the UI). */
+  getHealth(): ExchangeConnection;
 
   /** Ingest callback — set by the engine to feed normalized trades into the flow. */
   onTrade: ((trade: NormalizedTrade) => void) | null;
@@ -55,10 +64,22 @@ export type ExchangeAdapter = {
 
 export type ExchangeConnection = {
   exchange: string;
+  label: string;
   status: ExchangeStatus;
-  latency: number; // ms
-  lastEvent: number; // ms epoch
+  /** Latency (ms) of the last valid event. `-1` means N/A (no valid event yet). */
+  latency: number;
+  /** ms epoch of the last valid trade's exchange timestamp (0 = none). */
+  lastEvent: number;
+  /** ms epoch of the last valid trade's local receipt time (0 = none). */
+  receivedAt: number;
+  /** Count of valid (non-duplicate) real trades ingested. */
+  eventCount: number;
+  subscription: SubscriptionStatus;
+  /** Whether raw WS transport is currently open. */
+  wsOpen: boolean;
   reconnectCount: number;
+  /** Last real error message ("" if none). Not a placeholder. */
+  lastError: string;
   subscribedSymbols: string[];
 };
 

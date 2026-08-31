@@ -10,7 +10,7 @@
 import type { NormalizedTrade } from "../types";
 import { BaseExchangeAdapter } from "./base";
 
-const WS_URL = "wss://fstream.binance.com/stream";
+const WS_URL = "wss://fstream.binance.com/market/ws";
 const PING_INTERVAL = 30_000;
 
 type BinanceFuturesSpec = { contractSize: number; type: " linear" | "inverse" };
@@ -58,14 +58,20 @@ export class BinanceFuturesAdapter extends BaseExchangeAdapter {
   }
 
   protected handleMessage(data: unknown): void {
-    const msg = data as { stream?: string; data?: Record<string, unknown> };
-    if (!msg.stream || !msg.data) return;
+    const msg = data as { stream?: string; data?: Record<string, unknown>; result?: unknown };
+    if (typeof msg.result !== "undefined") {
+      // Subscription ack (e.g. { result: null, id: ... })
+      this.confirmSubscription();
+      return;
+    }
 
-    if (msg.stream.endsWith("@aggTrade")) {
-      const trades = this.normalizeTrade(msg.data);
+    const payload = msg.stream && msg.data ? msg.data : (data as Record<string, unknown>);
+    const e = payload?.e as string;
+    if (e === "aggTrade") {
+      const trades = this.normalizeTrade(payload);
       for (const t of trades) this.emitTrade(t);
-    } else if (msg.stream.endsWith("@forceOrder")) {
-      const liqs = this.normalizeLiquidation(msg.data);
+    } else if (e === "forceOrder") {
+      const liqs = this.normalizeLiquidation(payload);
       for (const t of liqs) this.emitTrade(t);
     }
   }

@@ -21,11 +21,17 @@ export class CoinbaseAdapter extends BaseExchangeAdapter {
     return WS_URL;
   }
 
+  /** Coinbase product ids are "BTC-USD" (engine passes "BTCUSDT"). */
+  protected productFor(symbol: string): string {
+    if (symbol.includes("-")) return symbol;
+    return symbol.replace(/USDT$/, "-USD").replace(/USDC$/, "-USDC");
+  }
+
   protected getSubscribeMsg(symbol: string): unknown {
     return {
       type: "subscribe",
       channel: "market_trades",
-      product_ids: [symbol],
+      product_ids: [this.productFor(symbol)],
     };
   }
 
@@ -33,7 +39,7 @@ export class CoinbaseAdapter extends BaseExchangeAdapter {
     return {
       type: "unsubscribe",
       channel: "market_trades",
-      product_ids: [symbol],
+      product_ids: [this.productFor(symbol)],
     };
   }
 
@@ -46,7 +52,15 @@ export class CoinbaseAdapter extends BaseExchangeAdapter {
   }
 
   protected handleMessage(data: unknown): void {
-    const msg = data as { channel?: string; events?: { type?: string; trades?: Record<string, unknown>[] }[] };
+    const msg = data as { type?: string; channel?: string; message?: string; events?: { type?: string; trades?: Record<string, unknown>[] }[] };
+    if (msg.channel === "subscriptions" || msg.type === "subscriptions") {
+      this.confirmSubscription();
+      return;
+    }
+    if (msg.type === "error") {
+      this.setError(msg.message || "Coinbase error");
+      return;
+    }
     if (msg.channel !== "market_trades") return;
 
     for (const event of msg.events ?? []) {

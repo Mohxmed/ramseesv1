@@ -108,7 +108,6 @@ const DEFAULT_CONFIG: FlowEngineConfig = {
 
 const config = { ...DEFAULT_CONFIG };
 let adapters: ExchangeAdapter[] = [];
-let connections: ExchangeConnection[] = [];
 
 // Raw trade buffer (most recent for tape display)
 const rawTradeRing = new RingBuffer<NormalizedTrade>(DEFAULT_CONFIG.maxRawTrades);
@@ -139,8 +138,15 @@ let duplicateEvents = 0;
 let lastEventTime = 0;
 let eventRateBuffer: number[] = [];
 
-// Connection tracking
-let reconnectCounts = new Map<string, number>();
+// Connection tracking (per-adapter diagnostics reflected into snapshots)
+function syncConnections(): ExchangeConnection[] {
+  return adapters.map((a) => a.getHealth());
+}
+
+// Kept for data-quality reconnect accounting.
+function totalReconnects(): number {
+  return adapters.reduce((sum, a) => sum + a.getHealth().reconnectCount, 0);
+}
 
 // Snapshot callback
 let onSnapshot: ((snapshot: FlowSnapshot) => void) | null = null;
@@ -154,16 +160,6 @@ export function initFlowEngine(
 ): void {
   adapters = adapters_;
   onSnapshot = onSnapshot_;
-
-  // Initialize connections
-  connections = adapters.map((a) => ({
-    exchange: a.id,
-    status: "disconnected" as const,
-    latency: 0,
-    lastEvent: 0,
-    reconnectCount: 0,
-    subscribedSymbols: [],
-  }));
 
   // Connect all adapters
   for (const adapter of adapters) {
@@ -185,7 +181,6 @@ export function destroyFlowEngine(): void {
     adapter.disconnect();
   }
   adapters = [];
-  connections = [];
   onSnapshot = null;
 }
 
@@ -203,7 +198,6 @@ export function resetFlowState(): void {
   duplicateEvents = 0;
   lastEventTime = 0;
   eventRateBuffer = [];
-  reconnectCounts = new Map();
   // Drain ring buffers
   rawTradeRing.clear();
   largeBuyRing.clear();
@@ -221,14 +215,10 @@ export function ingestTrade(trade: NormalizedTrade): void {
     return;
   }
 
-  // Track latency
-  const latency = trade.receivedAt - trade.timestamp;
-  const conn = connections.find((c) => c.exchange === trade.exchange);
-  if (conn) {
-    conn.lastEvent = trade.timestamp;
-    conn.latency = latency;
-    lastEventTime = Math.max(lastEventTime, trade.receivedAt);
-  }
+  // Track latency + last-valid-event on the adapter (drives LIVE/STALE status).
+  const adapter = adapters.find((a) => a.id === trade.exchange);
+  adapter?.markTradeValid(trade);
+  lastEventTime = Math.max(lastEventTime, trade.receivedAt);
 
   // Store raw trade
   rawTradeRing.push(trade);
@@ -424,7 +414,7 @@ function computeExchangeFlows(): ExchangeFlow[] {
       else sell += t.notional;
     }
 
-    const conn = connections.find((c) => c.exchange === adapter.id);
+    const conn = adapter.getHealth();
 
     return {
       exchange: adapter.id,
@@ -432,7 +422,7 @@ function computeExchangeFlows(): ExchangeFlow[] {
       sellNotional: sell,
       netFlow: buy - sell,
       tradeCount: trades.length,
-      connected: conn?.status === "connected",
+      connected: conn.status === "LIVE",
     };
   });
 }
@@ -506,11 +496,14 @@ function computeFlowPriceAnalysis(): FlowPriceAnalysis {
 // ─── Data Quality ───────────────────────────────────────────────────
 
 function computeDataQuality(): DataQuality {
-  const connectedCount = connections.filter((c) => c.status === "connected").length;
+  const conns = syncConnections();
+  const liveCount = conns.filter((c) => c.status === "LIVE").length;
   const totalCount = adapters.length;
-  const coverage = `${connectedCount}/${totalCount}`;
+  const coverage = `${liveCount}/${totalCount}`;
 
-  const avgLatency = connections.reduce((sum, c) => sum + c.latency, 0) / Math.max(1, connections.length);
+  // Average latency only over LIVE connections with valid (non-negative, finite) latency.
+  const liveLatencies = conns.filter((c) => c.status === "LIVE" && c.latency >= 0 && Number.isFinite(c.latency)).map((c) => c.latency);
+  const avgLatency = liveLatencies.length > 0 ? liveLatencies.reduce((a, b) => a + b, 0) / liveLatencies.length : 0;
   const eventRate = eventRateBuffer.length;
 
   const now = Date.now();
@@ -518,20 +511,20 @@ function computeDataQuality(): DataQuality {
   const dataGap = lastEventTime > 0 && now - lastEventTime > 5_000;
 
   let level: DataQuality["level"] = "full";
-  if (connectedCount === 0) level = "degraded";
-  else if (connectedCount < totalCount / 2) level = "partial";
+  if (liveCount === 0) level = "degraded";
+  else if (liveCount < totalCount / 2) level = "partial";
   else if (stale) level = "stale";
 
   return {
     level,
-    connectedCount,
+    connectedCount: liveCount,
     totalCount,
     coverage,
     latency: avgLatency,
     eventRate,
     droppedEvents,
     duplicateEvents,
-    reconnectCount: Array.from(reconnectCounts.values()).reduce((a, b) => a + b, 0),
+    reconnectCount: totalReconnects(),
     dataGap,
   };
 }
@@ -574,7 +567,7 @@ function publishSnapshot(): void {
   onSnapshot({
     state,
     recentTrades,
-    connections,
+    connections: syncConnections(),
   });
 }
 
@@ -585,5 +578,5 @@ export function getConfig(): FlowEngineConfig {
 }
 
 export function getConnections(): ExchangeConnection[] {
-  return connections;
+  return syncConnections();
 }

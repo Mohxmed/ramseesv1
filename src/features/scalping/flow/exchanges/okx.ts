@@ -18,15 +18,46 @@ export class OkxAdapter extends BaseExchangeAdapter {
   readonly label = "OKX";
   readonly market = "perpetual" as const;
 
+  /** instId ctVal (contract size in base) per symbol, fetched from REST. */
+  private ctVals = new Map<string, number>();
+
+  private instIdFor(symbol: string): string {
+    // Accepts "BTCUSDT" -> "BTC-USDT-SWAP"; if already dashed, pass through.
+    if (symbol.includes("-")) return symbol;
+    const m = symbol.match(/^([A-Z0-9]+?)(USDT|USDC|BTC|ETH)$/);
+    if (m) return `${m[1]}-${m[2]}-SWAP`;
+    return `${symbol}-USDT-SWAP`;
+  }
+
+  protected async initCtVals(): Promise<void> {
+    try {
+      const res = await fetch("https://www.okx.com/api/v5/public/instruments?instType=SWAP");
+      if (!res.ok) return;
+      const body = (await res.json()) as { data?: { instId: string; ctVal: string }[] };
+      for (const it of body.data ?? []) {
+        this.ctVals.set(it.instId, parseFloat(it.ctVal) || 1);
+      }
+    } catch {
+      // Non-fatal — notional falls back to ctVal=1.
+    }
+  }
+
   protected getWsUrl(): string {
     return WS_URL;
   }
 
+  connect(): void {
+    void this.initCtVals();
+    super.connect();
+  }
+
   protected getSubscribeMsg(symbol: string): unknown {
+    const instId = this.instIdFor(symbol);
+    this.ctVals.set(instId, this.ctVals.get(instId) ?? 1);
     return {
       op: "subscribe",
       args: [
-        { channel: "trades", instId: symbol },
+        { channel: "trades", instId },
         { channel: "liquidation-orders", instType: "SWAP" },
       ],
     };
@@ -35,7 +66,7 @@ export class OkxAdapter extends BaseExchangeAdapter {
   protected getUnsubscribeMsg(symbol: string): unknown {
     return {
       op: "unsubscribe",
-      args: [{ channel: "trades", instId: symbol }],
+      args: [{ channel: "trades", instId: this.instIdFor(symbol) }],
     };
   }
 
@@ -54,8 +85,16 @@ export class OkxAdapter extends BaseExchangeAdapter {
       return;
     }
 
-    const msg = data as { op?: string; arg?: { channel: string }; data?: unknown };
-    if (msg.op === "subscribe" || msg.op === "unsubscribe" || msg.op === "error") return;
+    const msg = data as { op?: string; event?: string; code?: string; msg?: string; arg?: { channel: string }; data?: unknown };
+    if (msg.op === "subscribe" || msg.event === "subscribe") {
+      this.confirmSubscription();
+      return;
+    }
+    if (msg.event === "error") {
+      this.setError(msg.msg || `OKX error ${msg.code ?? ""}`.trim());
+      return;
+    }
+    if (msg.op === "subscribe" || msg.op === "unsubscribe") return;
     const channel = msg.arg?.channel;
     if (!channel) return;
 
@@ -75,8 +114,9 @@ export class OkxAdapter extends BaseExchangeAdapter {
     return json.map((trade) => {
       const price = parseFloat(trade.px);
       const sz = parseFloat(trade.sz);
-      // OKX SWAP: sz is in contracts; ctVal defaults to 1 → notional = price * sz
-      const notional = price * sz;
+      // OKX SWAP: sz is in contracts; notional = price * sz * ctVal
+      const ctVal = this.ctVals.get(trade.instId) ?? 1;
+      const notional = price * sz * ctVal;
       return {
         exchange: this.id,
         market: this.market,
@@ -84,7 +124,7 @@ export class OkxAdapter extends BaseExchangeAdapter {
         timestamp: parseInt(trade.ts),
         receivedAt: now,
         price,
-        quantity: sz,
+        quantity: sz * ctVal,
         notional,
         side: trade.side === "buy" ? "buy" : "sell",
         tradeId: trade.tradeId,
