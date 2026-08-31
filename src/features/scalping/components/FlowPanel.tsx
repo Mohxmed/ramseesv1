@@ -1,29 +1,58 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import type {
-  FlowSnapshot,
-  FlowWindow,
-  NormalizedTrade,
-} from "../flow/types";
-import { TONE_TEXT, TONE_BAR, Dot, Tag, Tone } from "./terminal/TradingPrimitives";
-import { num } from "@/components/ui/design-tokens";
-import { Tip } from "./terminal/TerminalTip";
+import {
+  Box,
+  Card,
+  CardContent,
+  Chip,
+  Divider,
+  IconButton,
+  LinearProgress,
+  Tooltip,
+  Typography,
+} from "@mui/material";
+import { Activity, ChevronDown, ChevronUp, Flame, Zap } from "lucide-react";
+import { Area, AreaChart, ResponsiveContainer } from "recharts";
+import type { ReactNode } from "react";
+import { useState } from "react";
+import type { FlowSnapshot, FlowWindow, NormalizedTrade } from "../flow/types";
+import { ThemeGate } from "@/components/ui/mui-theme";
+import { colors, radius, typography } from "@/components/ui/design-tokens";
 import { ADAPTER_LABELS } from "../flow/exchanges";
+import type { Tone } from "./terminal/TradingPrimitives";
 
 /**
- * Real-Time AGGR Flow Window — vertical left panel.
+ * Real-Time AGGR Flow Window — rebuilt on Material UI.
  *
- * Section order (per the spec):
- *   LIVE FLOW → Connection/Coverage/Latency → BUY/SELL PRESSURE →
- *   NET FLOW/FLOW PER SEC → LIVE TRADE TAPE (largest) → LARGE TRADES →
- *   LIQUIDATIONS → CVD → FLOW EVENTS → FLOW × PRICE
- *
- * Every number is rendered directly from the engine snapshot. No duplicate
- * across sections; no mock data; real multi-exchange flow only.
+ * A single, consistent visual system (unified card chrome, one type scale,
+ * one colour grammar) so no two panels ever disagree. RTL-first, dark-only,
+ * tuned to the app's design tokens. Every number is read straight off the
+ * engine snapshot — no mocks, no recompute.
  */
 
-// ─── Formatting helpers ──────────────────────────────────────────────
+const toneOf: Record<Tone, string> = {
+  long: colors.upFg,
+  short: colors.downFg,
+  neutral: colors.foreground,
+  warn: colors.warnFg,
+  good: colors.good,
+  quiet: colors.muted,
+};
+
+const flowTone = (n: number): Tone => (n > 0 ? "long" : n < 0 ? "short" : "neutral");
+
+const row = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+} as const;
+
+const rowStart = {
+  display: "flex",
+  alignItems: "center",
+} as const;
+
+// ─── Formatting ──────────────────────────────────────────────────────
 
 function usd(v: number | null | undefined): string {
   if (v == null) return "—";
@@ -40,514 +69,487 @@ function signedUsd(v: number | null | undefined): string {
   return prefix + usd(Math.abs(v));
 }
 
-function compactUsd(v: number | null | undefined): string {
-  return usd(v);
-}
-
-function barPct(part: number, total: number): number {
+function pct(v: number, total: number): number {
   if (total <= 0) return 0;
-  return Math.min(100, Math.max(0, (part / total) * 100));
+  return Math.min(100, Math.max(0, (v / total) * 100));
 }
 
-/** Belt tone for a signed flow reading. */
-function flowTone(net: number): Tone {
-  if (net > 0) return "long";
-  if (net < 0) return "short";
-  return "neutral";
+function hhmmss(d: Date | number): string {
+  const x = typeof d === "number" ? new Date(d) : d;
+  const p = (n: number) => n.toString().padStart(2, "0");
+  return `${p(x.getHours())}:${p(x.getMinutes())}:${p(x.getSeconds())}`;
 }
 
-function hhmmss(ts: number): string {
-  const d = new Date(ts);
-  const h = d.getHours().toString().padStart(2, "0");
-  const m = d.getMinutes().toString().padStart(2, "0");
-  const s = d.getSeconds().toString().padStart(2, "0");
-  return `${h}:${m}:${s}`;
+/** Build a per-second net-flow series from the live tape. */
+function netFlowSeries(trades: NormalizedTrade[]): { t: number; v: number }[] {
+  const map = new Map<number, number>();
+  for (const t of trades) {
+    const key = Math.floor(t.timestamp / 1000);
+    const d = t.side === "buy" ? t.notional : -t.notional;
+    map.set(key, (map.get(key) ?? 0) + d);
+  }
+  return [...map.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([t, v]) => ({ t: t * 1000, v }));
 }
 
-// ─── Section wrapper ─────────────────────────────────────────────────
+// ─── Unified card chrome ─────────────────────────────────────────────
 
-function FlowSection({
+function FlowCard({
   title,
   eyebrow,
-  children,
+  icon,
+  tint,
   right,
+  children,
 }: {
   title: string;
   eyebrow?: string;
-  children: ReactNode;
+  icon?: ReactNode;
+  tint?: Tone;
   right?: ReactNode;
+  children: ReactNode;
 }) {
+  const accent = tint ? toneOf[tint] : colors.foreground;
   return (
-    <section className="rounded-panel border border-line/80 bg-surface-1/40 p-2.5">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-baseline gap-2">
-          <span className="text-3xs font-semibold uppercase tracking-[0.18em] text-muted">
-            {title}
-          </span>
-          {eyebrow && <span className="text-3xs text-muted/70">{eyebrow}</span>}
-        </div>
-        {right}
-      </div>
-      <div className="mt-2">{children}</div>
-    </section>
+    <Card
+      variant="outlined"
+      sx={{
+        bgcolor: "background.paper",
+        borderColor: "divider",
+        borderRadius: radius.panel,
+        borderWidth: 1,
+        "&:hover": { borderColor: "rgba(244,244,245,0.22)" },
+        overflow: "hidden",
+        boxShadow: "0 1px 0 rgba(255,255,255,0.02) inset",
+      }}
+    >
+      <Box sx={{ height: 2, background: `linear-gradient(90deg, transparent, ${accent}, transparent)`, opacity: 0.75 }} />
+      <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
+        <Box sx={{ ...rowStart, justifyContent: "space-between", mb: 1 }}>
+          <Box sx={{ ...rowStart, gap: 1 }}>
+            {icon ? (
+              <Box sx={{ color: "text.secondary", display: "flex" }}>{icon}</Box>
+            ) : null}
+            <Typography variant="subtitle1" sx={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", color: "text.primary" }}>
+              {title}
+            </Typography>
+            {eyebrow ? (
+              <Typography variant="caption" sx={{ color: "text.disabled", fontSize: 10 }}>
+                {eyebrow}
+              </Typography>
+            ) : null}
+          </Box>
+          {right}
+        </Box>
+        {children}
+      </CardContent>
+    </Card>
   );
 }
 
-// ─── Live Flow header ────────────────────────────────────────────────
+/** A labelled stat value cell with hover tooltip. */
+function StatCell({
+  label,
+  value,
+  tone = "neutral",
+  tip,
+  size = "md",
+}: {
+  label: string;
+  value: string;
+  tone?: Tone;
+  tip?: string;
+  size?: "md" | "lg";
+}) {
+  const body = (
+    <Box sx={{ border: `1px solid ${colors.line}`, borderRadius: radius.chip, bgcolor: "rgba(24,24,27,0.6)", px: 1.2, py: 1 }}>
+      <Typography variant="caption" sx={{ color: "text.secondary", fontSize: 10, lineHeight: 1, display: "block" }}>
+        {label}
+      </Typography>
+      <Typography
+        sx={{
+          mt: 0.5,
+          fontFamily: typography.mono,
+          fontWeight: 800,
+          fontSize: size === "lg" ? 20 : 15,
+          lineHeight: 1,
+          color: toneOf[tone],
+          letterSpacing: "-0.01em",
+        }}
+        dir="ltr"
+      >
+        {value}
+      </Typography>
+    </Box>
+  );
+  return tip ? <Tooltip title={tip} arrow>{body}</Tooltip> : body;
+}
 
-function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
-  const { state, connections } = snap;
-  const level = state.quality.level;
-  const [minimized, setMinimized] = useState(false);
+function Bar({ parts }: { parts: { value: number; color: string }[] }) {
+  return (
+    <Box sx={{ display: "flex", width: "100%", height: 6, borderRadius: 999, overflow: "hidden", bgcolor: "rgba(39,39,42,0.8)" }}>
+      {parts.map((p, i) => (
+        <Box key={i} sx={{ width: `${pct(p.value, parts.reduce((a, b) => a + b.value, 0))}%`, bgcolor: p.color, transition: "width 300ms ease" }} />
+      ))}
+    </Box>
+  );
+}
 
-  const levelTone: Record<string, Tone> = {
-    full: "good",
-    partial: "neutral",
-    degraded: "warn",
-    stale: "short",
-  };
-  const levelLabel: Record<string, string> = {
-    full: "كامل",
-    partial: "جزئي",
-    degraded: "متدهور",
-    stale: "قديم",
-  };
+// ─── 01 · Header (exchanges status) ──────────────────────────────────
 
-  // Average latency only over LIVE exchanges with a valid latency.
-  const liveLat = connections.filter((c) => c.status === "LIVE" && c.latency >= 0).map((c) => c.latency);
-  const avgLatency = liveLat.length > 0 ? Math.round(liveLat.reduce((a, b) => a + b, 0) / liveLat.length) : null;
+const statusTone: Record<string, Tone> = {
+  LIVE: "good",
+  STALE: "warn",
+  CONNECTING: "warn",
+  DISCONNECTED: "quiet",
+  ERROR: "warn",
+};
+const statusLabel: Record<string, string> = {
+  LIVE: "مباشر",
+  STALE: "متأخر",
+  CONNECTING: "يتصل",
+  DISCONNECTED: "مقطوع",
+  ERROR: "خطأ",
+};
 
-  const statusTone: Record<string, Tone> = {
-    LIVE: "good",
-    STALE: "warn",
-    CONNECTING: "warn",
-    DISCONNECTED: "quiet",
-    ERROR: "warn",
-  };
-  const statusShort: Record<string, string> = {
-    LIVE: "مباشر",
-    STALE: "قديم",
-    CONNECTING: "اتصال",
-    DISCONNECTED: "مقصوص",
-    ERROR: "خطأ",
-  };
+function StatusChip({ exchange, status, latency, ev }: { exchange: string; status: string; latency: number; ev: number }) {
+  const tone = statusTone[status] ?? "quiet";
+  const color = toneOf[tone];
+  const isLive = status === "LIVE";
+  return (
+    <Tooltip arrow title={`${ADAPTER_LABELS[exchange] ?? exchange} · ${statusLabel[status] ?? status} · ${ev} حدث`}>
+      <Box
+        sx={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 1,
+          border: `1px solid ${isLive ? "rgba(52,211,153,0.30)" : colors.line}`,
+          borderRadius: radius.chip,
+          bgcolor: isLive ? "rgba(16,185,129,0.08)" : "rgba(24,24,27,0.6)",
+          px: 1,
+          py: 0.5,
+          height: 34,
+          cursor: "default",
+        }}
+      >
+        <Box
+          sx={{
+            width: 6,
+            height: 6,
+            borderRadius: 99,
+            bgcolor: color,
+            boxShadow: isLive ? `0 0 8px ${color}` : "none",
+            animation: isLive ? "flowPulse 1.4s ease-in-out infinite" : "none",
+            flexShrink: 0,
+          }}
+        />
+        <Typography variant="caption" sx={{ fontSize: 10, fontWeight: 700, color: "text.primary" }}>
+          {ADAPTER_LABELS[exchange] ?? exchange}
+        </Typography>
+        <Typography variant="caption" sx={{ fontSize: 10, fontWeight: 600, color, whiteSpace: "nowrap" }}>
+          {statusLabel[status] ?? status}
+        </Typography>
+        <Typography
+          variant="caption"
+          sx={{ fontFamily: typography.mono, fontSize: 9, color: "text.secondary", minWidth: 40, textAlign: "right" }}
+          dir="ltr"
+        >
+          {isLive ? `${latency}ms` : "—"} مللي ثانية
+        </Typography>
+      </Box>
+    </Tooltip>
+  );
+}
+
+function LiveFlowHeader({ snap, minimized, onToggle }: { snap: FlowSnapshot; minimized: boolean; onToggle: () => void }) {
+  const { connections, state } = snap;
+  const live = connections.filter((c) => c.status === "LIVE");
+  const liveLat = live.filter((c) => c.latency >= 0);
+  const avgLatency = liveLat.length > 0 ? Math.round(liveLat.reduce((a, b) => a + b.latency, 0) / liveLat.length) : null;
 
   return (
-    <FlowSection
+    <FlowCard
       title="التدفق المباشر"
-      eyebrow={minimized ? undefined : "01 · Live Flow"}
+      eyebrow="Live Aggregation"
+      icon={<Activity size={13} />}
+      tint={live.length > 0 ? "good" : "warn"}
       right={
-        <div className="flex items-center gap-2">
-          {minimized && (
-            <span className="flex items-center gap-1.5 text-2xs text-muted/80">
-              {liveLat.length > 0 && <Dot tone="good" pulse />}
-              <span dir="ltr">
-                {connections.filter((c) => c.status === "LIVE").length}/{connections.length}
-              </span>
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={() => setMinimized((v) => !v)}
-            className="rounded-chip border border-line/70 bg-surface-2/50 px-1.5 py-0.5 text-2xs text-muted hover:text-zinc-100"
-            aria-expanded={!minimized}
-            aria-label={minimized ? "توسيع حالة البيانات" : "تصغير حالة البيانات"}
-          >
-            {minimized ? "+" : "−"}
-          </button>
-        </div>
+        <IconButton size="small" onClick={onToggle} sx={{ color: "text.secondary", p: 0.5, "&:hover": { color: "text.primary", bgcolor: "rgba(255,255,255,0.06)" } }}>
+          {minimized ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+        </IconButton>
       }
     >
       {minimized ? (
-        <div>
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <div className="text-3xs text-muted">الغطاء</div>
-              <div className={`${num} text-sm font-extrabold leading-none text-zinc-50`} dir="ltr">
-                {state.quality.coverage}
-                <span className="ml-1 text-2xs font-medium text-emerald-400">
-                  {liveLat.length > 0 ? "LIVE" : ""}
-                </span>
-              </div>
-            </div>
-            <div className="text-left">
-              <div className="text-3xs text-muted">الكمون</div>
-              <div className={`${num} text-sm font-bold leading-none text-zinc-200`} dir="ltr">
-                {avgLatency !== null ? `${avgLatency}ms` : "N/A"}
-              </div>
-            </div>
-          </div>
-        </div>
+        <Box sx={{ ...row, gap: 1 }}>
+          <StatCell label="الغطاء" value={state.quality.coverage} tone={live.length > 0 ? "good" : "warn"} />
+          <StatCell label="الكمون" value={avgLatency !== null ? `${avgLatency}ms` : "N/A"} tone={live.length > 0 ? "good" : "neutral"} />
+          <StatCell label="الحالة" value={live.length > 0 ? "مباشر" : "لا اتصال"} tone={live.length > 0 ? "good" : "warn"} />
+        </Box>
       ) : (
-        <>
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <div className="text-3xs text-muted">الغطاء · الاعتماد</div>
-              <div className={`${num} mt-0.5 text-lg font-extrabold leading-none text-zinc-50`} dir="ltr">
-                {state.quality.coverage}
-                <span className="ml-1 text-2xs font-medium text-emerald-400">{liveLat.length > 0 ? "LIVE" : ""}</span>
-              </div>
-            </div>
-            <div className="text-left">
-              <div className="text-3xs text-muted">حالة البيانات</div>
-              <Tag tone={levelTone[level] ?? "neutral"}>{levelLabel[level] ?? level}</Tag>
-            </div>
-            <div className="text-left">
-              <div className="text-3xs text-muted">الكمون</div>
-              <div className={`${num} mt-0.5 text-base font-bold leading-none text-zinc-200`} dir="ltr">
-                {avgLatency !== null ? `${avgLatency}ms` : "N/A"}
-              </div>
-            </div>
-          </div>
-
-          {/* per-exchange connection chips */}
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {connections.map((c) => {
-              const tone: Tone = statusTone[c.status] ?? "quiet";
-              const isLive = c.status === "LIVE";
-              const latTxt = isLive && c.latency >= 0 ? `${Math.round(c.latency)}` : "—";
-              return (
-                <Tip
-                  key={c.exchange}
-                  title={`${c.exchange} · ${c.status}${c.lastError ? " · " + c.lastError : ""} · ${c.eventCount} events`}
-                >
-                  <span
-                    className={`inline-flex items-center gap-x-2 overflow-hidden rounded-chip border py-0.5 pl-2 pr-1 text-2xs ${TONE_BAR[tone]} ${
-                      isLive ? "border-fg/10 bg-surface-2/50" : "border-line/60 bg-surface-1/40"
-                    }`}
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <Dot tone={tone} pulse={isLive} />
-                      <span className={`font-bold ${isLive ? "text-zinc-50" : "text-muted"}`}>
-                        {ADAPTER_LABELS[c.exchange] ?? c.exchange}
-                      </span>
-                    </span>
-                    <span className="h-3.5 w-px bg-line/70" />
-                    <span className="grid grid-cols-1 content-center leading-tight" dir="rtl">
-                      <span className={`w-16 text-left font-medium tabular-nums ${isLive ? "text-zinc-200" : "text-muted"}`}>
-                        {statusShort[c.status] ?? c.status}
-                      </span>
-                      <span className="w-24 text-left font-medium tabular-nums text-zinc-400">
-                        {latTxt}
-                        <span className="mr-1 text-muted/70">مللي ثانية</span>
-                      </span>
-                    </span>
-                  </span>
-                </Tip>
-              );
-            })}
-          </div>
-        </>
+        <Box sx={{ display: "grid", gap: 1.5 }}>
+          <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1 }}>
+            <StatCell label="الغطاء" value={state.quality.coverage} tone={live.length > 0 ? "good" : "warn"} tip="عدد البورصات المتصلة من الإجمالي" />
+            <StatCell label="الكمون" value={avgLatency !== null ? `${avgLatency}ms` : "N/A"} tip="متوسط زمن وصول الصفقات" />
+            <StatCell label="الأحداث/ث" value={`${state.quality.eventRate}`} tip="معدل الأحداث في الثانية" />
+          </Box>
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+            {connections.map((c) => (
+              <StatusChip key={c.exchange} exchange={c.exchange} status={c.status} latency={c.latency} ev={c.eventCount} />
+            ))}
+          </Box>
+        </Box>
       )}
-    </FlowSection>
+    </FlowCard>
   );
 }
 
-// ─── Buy / Sell pressure ─────────────────────────────────────────────
+// ─── 02 · Buy / Sell pressure ────────────────────────────────────────
 
 function PressurePanel({ snap }: { snap: FlowSnapshot }) {
-  const w = windowOf(snap, 60);
-  if (!w) {
-    return <FlowSection title="الضغط" eyebrow="02 · Buy/Sell">غير متاح</FlowSection>;
-  }
-  const buy = w.buyNotional;
-  const sell = w.sellNotional;
-  const total = buy + sell;
-  const buyPct = barPct(buy, total);
-  const sellPct = barPct(sell, total);
-
+  const w = snap.state.windows.find((x) => x.seconds === 60);
+  if (!w) return null;
+  const total = w.buyNotional + w.sellNotional;
   return (
-    <FlowSection title="الضغط" eyebrow="02 · Buy/Sell" right={<span className="text-2xs text-muted/70">1د</span>}>
-      {/* buy/sell bar */}
-      <div className="flex h-2 w-full overflow-hidden rounded-full bg-line" dir="ltr">
-        <div className="h-full bg-up-fg/80" style={{ width: `${buyPct}%` }} />
-        <div className="h-full bg-down-fg/80" style={{ width: `${sellPct}%` }} />
-      </div>
-      <div className="mt-2 grid grid-cols-2 gap-2">
-        <div className="rounded-panel border border-line bg-surface-1/30 px-2 py-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-3xs text-muted">شراء</span>
-            <span className={`${num} text-2xs font-semibold ${TONE_TEXT.long}`} dir="ltr">
-              {buyPct.toFixed(0)}%
-            </span>
-          </div>
-          <div className={`${num} mt-0.5 text-base font-extrabold leading-none ${TONE_TEXT.long}`} dir="ltr">
-            {usd(buy)}
-          </div>
-        </div>
-        <div className="rounded-panel border border-line bg-surface-1/30 px-2 py-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-3xs text-muted">بيع</span>
-            <span className={`${num} text-2xs font-semibold ${TONE_TEXT.short}`} dir="ltr">
-              {sellPct.toFixed(0)}%
-            </span>
-          </div>
-          <div className={`${num} mt-0.5 text-base font-extrabold leading-none ${TONE_TEXT.short}`} dir="ltr">
-            {usd(sell)}
-          </div>
-        </div>
-      </div>
-    </FlowSection>
+    <FlowCard title="ضغط الشراء / البيع" eyebrow="60s" icon={<Zap size={13} />}>
+      <Box sx={{ mb: 1.5 }}>
+        <Bar parts={[{ value: w.buyNotional, color: colors.upFg }, { value: w.sellNotional, color: colors.downFg }]} />
+      </Box>
+      <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
+        <StatCell label={`شراء · ${pct(w.buyNotional, total).toFixed(0)}%`} value={usd(w.buyNotional)} tone="long" />
+        <StatCell label={`بيع · ${pct(w.sellNotional, total).toFixed(0)}%`} value={usd(w.sellNotional)} tone="short" />
+      </Box>
+    </FlowCard>
   );
 }
 
-// ─── Net flow / per sec ──────────────────────────────────────────────
+// ─── 03 · Net flow ───────────────────────────────────────────────────
 
 function NetFlowPanel({ snap }: { snap: FlowSnapshot }) {
   const { state } = snap;
-  const w1s = windowOf(snap, 1);
-  const netPerSec = w1s?.netFlow ?? 0;
-  const accel = state.velocity.flowAcceleration;
+  const w1s = state.windows.find((x) => x.seconds === 1);
   const net = w1s?.netFlow ?? 0;
-  const accelTone: Tone = accel > 0 ? "long" : accel < 0 ? "short" : "neutral";
-
+  const data = netFlowSeries(snap.recentTrades);
+  const spyTone = flowTone(net) === "short" ? colors.downFg : colors.upFg;
   return (
-    <FlowSection title="التدفق الصافي" eyebrow="03 · Net / Sec">
-      <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-panel border border-line bg-surface-1/30 px-2 py-1.5">
-          <div className="text-3xs text-muted">صافي / ثانية</div>
-          <div className={`${num} mt-0.5 text-base font-extrabold leading-none ${TONE_TEXT[flowTone(netPerSec)]}`} dir="ltr">
-            {signedUsd(netPerSec)}
-          </div>
-        </div>
-        <div className="rounded-panel border border-line bg-surface-1/30 px-2 py-1.5">
-          <div className="text-3xs text-muted">تسارع</div>
-          <div className={`${num} mt-0.5 text-base font-extrabold leading-none ${TONE_TEXT[accelTone]}`} dir="ltr">
-            {signedUsd(accel)}
-          </div>
-        </div>
-      </div>
-      <div className="mt-2 flex h-1.5 w-full overflow-hidden rounded-full bg-line" dir="ltr">
-        <div
-          className={`h-full rounded-full transition-all duration-300 ${TONE_BAR[flowTone(net)]}`}
-          style={{ width: `${Math.min(100, Math.abs(net) / 2000)}%` }}
-        />
-      </div>
-    </FlowSection>
+    <FlowCard title="التدفق الصافي" eyebrow="Net / Sec" icon={<Activity size={13} />}>
+      <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1, mb: 1 }}>
+        <StatCell label="صافي / ثانية" value={signedUsd(net)} tone={flowTone(net)} tip="صافي حجم الأوامر خلال الثانية الماضية" />
+        <StatCell label="التسارع" value={signedUsd(state.velocity.flowAcceleration)} tone={flowTone(state.velocity.flowAcceleration)} />
+      </Box>
+      <Box sx={{ height: 34, width: "100%" }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={data} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+            <defs>
+              <linearGradient id="netflowFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={spyTone} stopOpacity={0.5} />
+                <stop offset="100%" stopColor={spyTone} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <Area type="monotone" dataKey="v" stroke={spyTone} strokeWidth={1.5} fill="url(#netflowFill)" isAnimationActive={false} />
+          </AreaChart>
+        </ResponsiveContainer>
+      </Box>
+    </FlowCard>
   );
 }
 
-// ─── Live trade tape (largest section) ───────────────────────────────
+// ─── 04 · Trade tape ─────────────────────────────────────────────────
+
+function TapeRow({ trade }: { trade: NormalizedTrade }) {
+  const tone: Tone = trade.side === "buy" ? "long" : "short";
+  const color = toneOf[tone];
+  return (
+    <Box sx={{ ...row, gap: 1, py: 0.6, px: 1, borderRadius: 1, bgcolor: "rgba(24,24,27,0.35)", "&:hover": { bgcolor: "rgba(39,39,42,0.5)" } }}>
+      <Typography variant="caption" sx={{ fontFamily: typography.mono, fontSize: 9, color: "text.disabled", width: 46 }} dir="ltr">
+        {hhmmss(trade.timestamp)}
+      </Typography>
+      <Typography variant="caption" sx={{ fontSize: 9, fontWeight: 600, color: "text.secondary", width: 40 }}>
+        {ADAPTER_LABELS[trade.exchange] ?? trade.exchange}
+      </Typography>
+      <Typography variant="caption" sx={{ fontSize: 9, fontWeight: 800, color, width: 34 }}>
+        {trade.side === "buy" ? "شراء" : "بيع"}
+      </Typography>
+      <Typography variant="caption" sx={{ fontFamily: typography.mono, fontSize: 10, fontWeight: 700, color: "text.primary", flex: 1, textAlign: "right" }} dir="ltr">
+        {usd(trade.notional)}
+      </Typography>
+      {trade.liquidation ? (
+        <Chip label="LIQ" size="small" sx={{ height: 16, fontSize: 8, fontWeight: 700, color: colors.warnFg, borderColor: "rgba(245,158,11,0.4)", bgcolor: "rgba(245,158,11,0.12)" }} />
+      ) : null}
+    </Box>
+  );
+}
 
 function TradeTape({ snap }: { snap: FlowSnapshot }) {
   const trades = snap.recentTrades;
-
   return (
-    <FlowSection
+    <FlowCard
       title="شريط الصفقات"
-      eyebrow="04 · Tape"
+      eyebrow="Tape"
+      icon={<Activity size={13} />}
+      tint="good"
       right={
-        <span className="flex items-center gap-1.5 text-2xs text-muted/70">
-          <Dot tone="good" pulse />
-          مباشر
-        </span>
+        <Box sx={{ ...rowStart, gap: 0.75 }}>
+          <Box sx={{ width: 6, height: 6, borderRadius: 99, bgcolor: colors.good, boxShadow: `0 0 8px ${colors.good}` }} />
+          <Typography variant="caption" sx={{ fontSize: 9, color: "text.secondary" }}>مباشر</Typography>
+        </Box>
       }
     >
       {trades.length === 0 ? (
-        <div className="py-3 text-center text-2xs text-muted">بانتظار الصفقات المباشرة…</div>
+        <Typography variant="caption" sx={{ color: "text.disabled", display: "block", textAlign: "center", py: 2 }}>
+          بانتظار الصفقات المباشرة…
+        </Typography>
       ) : (
-        <div className="space-y-0.5">
-          {/* apply max height with scroll for the largest section */}
-          <div className="max-h-[320px] space-y-0.5 overflow-y-auto pr-1">
-            {[...trades].reverse().map((t, i) => (
-              <TapeRow key={`${t.exchange}_${t.tradeId ?? i}_${i}`} trade={t} />
-            ))}
-          </div>
-        </div>
+        <Box sx={{ maxHeight: 256, overflow: "auto", pr: 0.5, display: "grid", gap: 0.5 }}>
+          {[...trades].reverse().map((t, i) => (
+            <TapeRow key={`${t.exchange}_${t.tradeId ?? i}_${i}`} trade={t} />
+          ))}
+        </Box>
       )}
-    </FlowSection>
+    </FlowCard>
   );
 }
 
-function TapeRow({ trade }: { trade: NormalizedTrade }) {
-  const side = trade.side;
-  const tone: Tone = side === "buy" ? "long" : "short";
-  const size = notionalSize(trade.notional);
-  return (
-    <div className="flex items-center justify-between gap-2 rounded bg-surface-2/20 px-1.5 py-0.5">
-      <span className={`${num} text-2xs text-muted`}>{hhmmss(trade.timestamp)}</span>
-      <span className="w-10 text-2xs font-semibold text-muted">{ADAPTER_LABELS[trade.exchange] ?? trade.exchange}</span>
-      <span className={`text-2xs font-extrabold ${TONE_TEXT[tone]}`}>{side === "buy" ? "BUY" : "SELL"}</span>
-      <span className={`${num} flex-1 text-right text-2xs font-semibold text-zinc-200`} dir="ltr">
-        {size}
-      </span>
-      {trade.liquidation ? (
-        <span className="rounded-chip border border-warn/40 bg-warn/10 px-1 text-2xs text-warn-fg">LIQ</span>
-      ) : null}
-    </div>
-  );
-}
-
-function notionalSize(v: number): string {
-  const abs = Math.abs(v);
-  if (abs >= 1_000_000) return `$${(abs / 1_000_000).toFixed(2)}M`;
-  if (abs >= 1_000) return `$${(abs / 1_000).toFixed(0)}K`;
-  return `$${abs.toFixed(0)}`;
-}
-
-// ─── Large trades ────────────────────────────────────────────────────
+// ─── 05 · Large trades ───────────────────────────────────────────────
 
 function LargeTrades({ snap }: { snap: FlowSnapshot }) {
   const { state } = snap;
-  const buys = state.largeBuys.slice(-6);
-  const sells = state.largeSells.slice(-6);
-  const all = [
-    ...buys.map((t) => ({ ...t, side: "buy" as const })),
-    ...sells.map((t) => ({ ...t, side: "sell" as const })),
-  ]
-    .sort((a, b) => b.timestamp - a.timestamp)
-    .slice(0, 8);
-
+  const buys = state.largeBuys.slice(-6).map((t) => ({ ...t, side: "buy" as const }));
+  const sells = state.largeSells.slice(-6).map((t) => ({ ...t, side: "sell" as const }));
+  const all = [...buys, ...sells].sort((a, b) => b.timestamp - a.timestamp).slice(0, 8);
   if (all.length === 0) {
     return (
-      <FlowSection title="الصفقات الكبيرة" eyebrow="05 · Large">
-        <div className="py-1 text-2xs text-muted">لا صفقات كبيرة مؤخراً</div>
-      </FlowSection>
+      <FlowCard title="الصفقات الكبيرة" eyebrow="Large">
+        <Typography variant="caption" sx={{ color: "text.disabled" }}>لا صفقات كبيرة مؤخراً</Typography>
+      </FlowCard>
     );
   }
-
   return (
-    <FlowSection title="الصفقات الكبيرة" eyebrow="05 · Large">
-      <div className="space-y-0.5">
+    <FlowCard title="الصفقات الكبيرة" eyebrow="Large" icon={<Activity size={13} />}>
+      <Box sx={{ display: "grid", gap: 0.5 }}>
         {all.map((t, i) => {
           const tone: Tone = t.side === "buy" ? "long" : "short";
           return (
-            <div key={`${t.exchange}_${t.timestamp}_${i}`} className="flex items-center justify-between gap-2 rounded bg-surface-2/20 px-1.5 py-0.5">
-              <span className={`${num} text-2xs text-muted`}>{hhmmss(t.timestamp)}</span>
-              <span className="w-10 text-2xs font-semibold text-muted">{ADAPTER_LABELS[t.exchange] ?? t.exchange}</span>
-              <span className={`text-2xs font-extrabold ${TONE_TEXT[tone]}`}>
-                {t.side === "buy" ? "BUY" : "SELL"}
-              </span>
-              <span className={`${num} flex-1 text-right text-2xs font-bold text-zinc-200`} dir="ltr">
-                {compactUsd(t.notional)}
-              </span>
-            </div>
+            <Box key={`${t.exchange}_${t.timestamp}_${i}`} sx={{ ...row, gap: 1, py: 0.5, px: 1, borderRadius: 1, "&:hover": { bgcolor: "rgba(39,39,42,0.5)" } }}>
+              <Typography variant="caption" sx={{ fontFamily: typography.mono, fontSize: 9, color: "text.disabled", width: 46 }} dir="ltr">
+                {hhmmss(t.timestamp)}
+              </Typography>
+              <Typography variant="caption" sx={{ fontSize: 9, fontWeight: 600, color: "text.secondary", width: 40 }}>
+                {ADAPTER_LABELS[t.exchange] ?? t.exchange}
+              </Typography>
+              <Typography variant="caption" sx={{ fontSize: 9, fontWeight: 800, color: toneOf[tone], width: 34 }}>
+                {t.side === "buy" ? "شراء" : "بيع"}
+              </Typography>
+              <Typography variant="caption" sx={{ fontFamily: typography.mono, fontSize: 10, fontWeight: 700, color: "text.primary", flex: 1, textAlign: "right" }} dir="ltr">
+                {usd(t.notional)}
+              </Typography>
+            </Box>
           );
         })}
-      </div>
-    </FlowSection>
+      </Box>
+    </FlowCard>
   );
 }
 
-// ─── Liquidations ────────────────────────────────────────────────────
+// ─── 06 · Liquidations ───────────────────────────────────────────────
 
 function Liquidations({ snap }: { snap: FlowSnapshot }) {
   const liq = snap.state.liquidations;
   const total = liq.totalVolume;
-  if (total === 0) {
-    return (
-      <FlowSection title="التصفية" eyebrow="06 · Liq">
-        <div className="py-1 text-2xs text-muted">لا تصفيات مباشرة</div>
-      </FlowSection>
-    );
-  }
-
-  const longPct = barPct(liq.longVolume, total);
-  const shortPct = barPct(liq.shortVolume, total);
-  const burstTone: Tone = liq.burst ? "short" : "neutral";
-
   return (
-    <FlowSection
+    <FlowCard
       title="التصفية"
-      eyebrow="06 · Liq"
-      right={liq.burst ? <Tag tone={burstTone}>انفجار</Tag> : undefined}
+      eyebrow="Liq"
+      icon={<Flame size={13} />}
+      tint={liq.burst ? "warn" : "neutral"}
+      right={
+        liq.burst ? (
+          <Chip label="انفجار" size="small" sx={{ height: 18, fontSize: 9, fontWeight: 700, color: colors.warnFg, borderColor: "rgba(245,158,11,0.4)", bgcolor: "rgba(245,158,11,0.12)" }} />
+        ) : undefined
+      }
     >
-      <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-panel border border-line bg-surface-1/30 px-2 py-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-3xs text-muted">تصفية لونج</span>
-            <span className={`${num} text-2xs font-semibold ${TONE_TEXT.short}`} dir="ltr">{longPct.toFixed(0)}%</span>
-          </div>
-          <div className={`${num} mt-0.5 text-sm font-extrabold leading-none ${TONE_TEXT.short}`} dir="ltr">
-            {usd(liq.longVolume)}
-          </div>
-        </div>
-        <div className="rounded-panel border border-line bg-surface-1/30 px-2 py-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-3xs text-muted">تصفية شورت</span>
-            <span className={`${num} text-2xs font-semibold ${TONE_TEXT.long}`} dir="ltr">{shortPct.toFixed(0)}%</span>
-          </div>
-          <div className={`${num} mt-0.5 text-sm font-extrabold leading-none ${TONE_TEXT.long}`} dir="ltr">
-            {usd(liq.shortVolume)}
-          </div>
-        </div>
-      </div>
-      <div className="mt-2 flex items-center justify-between text-2xs text-muted">
-        <span>السرعة</span>
-        <span className={`${num} font-semibold ${TONE_TEXT[burstTone]}`} dir="ltr">{usd(liq.velocity)}/s</span>
-      </div>
-    </FlowSection>
+      {total === 0 ? (
+        <Typography variant="caption" sx={{ color: "text.disabled" }}>لا تصفيات مباشرة</Typography>
+      ) : (
+        <Box sx={{ display: "grid", gap: 1.5 }}>
+          <Bar parts={[{ value: liq.longVolume, color: colors.downFg }, { value: liq.shortVolume, color: colors.upFg }]} />
+          <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1 }}>
+            <StatCell label={`لونج ${pct(liq.longVolume, total).toFixed(0)}%`} value={usd(liq.longVolume)} tone="short" />
+            <StatCell label={`شورت ${pct(liq.shortVolume, total).toFixed(0)}%`} value={usd(liq.shortVolume)} tone="long" />
+          </Box>
+          <Box sx={row}>
+            <Typography variant="caption" sx={{ fontSize: 10, color: "text.secondary" }}>السرعة</Typography>
+            <Typography variant="caption" sx={{ fontFamily: typography.mono, fontSize: 10, fontWeight: 700, color: toneOf[liq.burst ? "short" : "neutral"] }} dir="ltr">
+              {usd(liq.velocity)}/s
+            </Typography>
+          </Box>
+        </Box>
+      )}
+    </FlowCard>
   );
 }
 
-// ─── CVD ─────────────────────────────────────────────────────────────
+// ─── 07 · CVD ────────────────────────────────────────────────────────
 
 function CvdPanel({ snap }: { snap: FlowSnapshot }) {
   const cvd = snap.state.cvd;
-  const { cvdDelta1s, cvdDelta5s, cvdDelta30s, cvdDelta1m } = cvd;
+  const cells = [
+    { label: "1ث", v: cvd.cvdDelta1s },
+    { label: "5ث", v: cvd.cvdDelta5s },
+    { label: "30ث", v: cvd.cvdDelta30s },
+    { label: "1د", v: cvd.cvdDelta1m },
+  ];
   return (
-    <FlowSection title="دلتا الحجم التراكمي" eyebrow="07 · CVD">
-      <div className="grid grid-cols-2 gap-2">
-        <CvdCell label="1ث" value={cvdDelta1s} tone={flowTone(cvdDelta1s)} />
-        <CvdCell label="5ث" value={cvdDelta5s} tone={flowTone(cvdDelta5s)} />
-        <CvdCell label="30ث" value={cvdDelta30s} tone={flowTone(cvdDelta30s)} />
-        <CvdCell label="1د" value={cvdDelta1m} tone={flowTone(cvdDelta1m)} />
-      </div>
-    </FlowSection>
-  );
-}
-
-function CvdCell({ label, value, tone }: { label: string; value: number; tone: Tone }) {
-  return (
-    <div className="rounded-panel border border-line bg-surface-1/30 px-2 py-1.5">
-      <div className="text-3xs text-muted">{label}</div>
-      <div className={`${num} mt-0.5 text-sm font-extrabold leading-none ${TONE_TEXT[tone]}`} dir="ltr">
-        {signedUsd(value)}
-      </div>
-    </div>
-  );
-}
-
-// ─── Flow events / windows ──────────────────────────────────────────
-
-function FlowEvents({ snap }: { snap: FlowSnapshot }) {
-  const windows = snap.state.windows.filter((w) => [1, 5, 30, 60].includes(w.seconds));
-  return (
-    <FlowSection title="النوافذ" eyebrow="08 · Events">
-      <div className="space-y-1">
-        {windows.map((w) => (
-          <WindowRow key={w.seconds} w={w} />
+    <FlowCard title="دلتا الحجم التراكمي" eyebrow="CVD" icon={<Activity size={13} />}>
+      <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0.75 }}>
+        {cells.map((c) => (
+          <StatCell key={c.label} label={c.label} value={signedUsd(c.v)} tone={flowTone(c.v)} />
         ))}
-      </div>
-    </FlowSection>
+      </Box>
+    </FlowCard>
   );
 }
+
+// ─── 08 · Events / windows ───────────────────────────────────────────
 
 function WindowRow({ w }: { w: FlowWindow }) {
   const tone: Tone = flowTone(w.netFlow);
   const total = w.buyNotional + w.sellNotional;
-  const buyPct = barPct(w.buyNotional, total);
   return (
-    <div className="rounded bg-surface-2/20 px-1.5 py-1">
-      <div className="flex items-center justify-between">
-        <span className="text-2xs text-muted">{w.seconds}ث</span>
-        <span className={`${num} text-2xs font-extrabold ${TONE_TEXT[tone]}`} dir="ltr">
+    <Box sx={{ display: "grid", gap: 0.5, py: 0.25 }}>
+      <Box sx={row}>
+        <Typography variant="caption" sx={{ fontSize: 10, color: "text.secondary" }}>{w.seconds}ث</Typography>
+        <Typography variant="caption" sx={{ fontFamily: typography.mono, fontSize: 10, fontWeight: 700, color: toneOf[tone] }} dir="ltr">
           {signedUsd(w.netFlow)}
-        </span>
-        <span className={`${num} text-2xs text-muted`}>{w.tradeCount} ص</span>
-      </div>
-      <div className="mt-1 flex h-1 w-full overflow-hidden rounded-full bg-line" dir="ltr">
-        <div className="h-full bg-up-fg/80" style={{ width: `${buyPct}%` }} />
-      </div>
-    </div>
+        </Typography>
+        <Typography variant="caption" sx={{ fontFamily: typography.mono, fontSize: 9, color: "text.disabled" }}>{w.tradeCount} صفقة</Typography>
+      </Box>
+      <LinearProgress
+        variant="determinate"
+        value={pct(w.buyNotional, total)}
+        sx={{ height: 4, borderRadius: 99, bgcolor: "rgba(239,68,68,0.35)", "& .MuiLinearProgress-bar": { bgcolor: colors.upFg, borderRadius: 99 } }}
+      />
+    </Box>
   );
 }
 
-// ─── Flow × Price ────────────────────────────────────────────────────
+function FlowEvents({ snap }: { snap: FlowSnapshot }) {
+  const windows = snap.state.windows.filter((w) => [1, 5, 30, 60].includes(w.seconds));
+  return (
+    <FlowCard title="النوافذ" eyebrow="Time Windows" icon={<Activity size={13} />}>
+      <Box sx={{ display: "grid", gap: 1 }}>
+        {windows.map((w) => (
+          <WindowRow key={w.seconds} w={w} />
+        ))}
+      </Box>
+    </FlowCard>
+  );
+}
+
+// ─── 09 · Flow × Price ───────────────────────────────────────────────
 
 function FlowPricePanel({ snap }: { snap: FlowSnapshot }) {
   const a = snap.state.analysis;
-
   const responseTone: Tone =
     a.priceResponse === "strong_positive" || a.priceResponse === "positive"
       ? "long"
@@ -561,89 +563,68 @@ function FlowPricePanel({ snap }: { snap: FlowSnapshot }) {
     negative: "بيعي",
     strong_negative: "تأكيد بيعي",
   };
-
-  const absorbLabel: Record<string, string> = {
-    none: "—",
-    buy_absorption: "امتصاص شراء",
-    sell_absorption: "امتصاص بيع",
-  };
-  const absorbTone: Tone =
-    a.absorption === "buy_absorption" ? "short" : a.absorption === "sell_absorption" ? "long" : "neutral";
-
-  const divergeLabel: Record<string, string> = {
-    none: "—",
-    bullish_divergence: "تباعد صاعد",
-    bearish_divergence: "تباعد هابط",
-  };
-  const divergeTone: Tone =
-    a.divergence === "bullish_divergence" ? "long" : a.divergence === "bearish_divergence" ? "short" : "neutral";
-
-  const cascadeLabel: Record<string, string> = {
-    none: "منخفض",
-    low: "منخفض",
-    medium: "متوسط",
-    high: "مرتفع",
-  };
-  const cascadeTone: Tone = a.cascadeRisk === "high" ? "short" : a.cascadeRisk === "medium" ? "warn" : "neutral";
-
+  const rows: { label: string; value: string; tone: Tone }[] = [
+    { label: "استجابة السعر", value: responseLabel[a.priceResponse] ?? a.priceResponse, tone: responseTone },
+    { label: "امتصاص", value: a.absorption === "buy_absorption" ? "امتصاص شراء" : a.absorption === "sell_absorption" ? "امتصاص بيع" : "—", tone: a.absorption === "buy_absorption" ? "short" : a.absorption === "sell_absorption" ? "long" : "neutral" },
+    { label: "تباعد", value: a.divergence === "bullish_divergence" ? "تباعد صاعد" : a.divergence === "bearish_divergence" ? "تباعد هابط" : "—", tone: a.divergence === "bullish_divergence" ? "long" : a.divergence === "bearish_divergence" ? "short" : "neutral" },
+    { label: "خطر الانجراف", value: a.cascadeRisk === "high" ? "مرتفع" : a.cascadeRisk === "medium" ? "متوسط" : "منخفض", tone: a.cascadeRisk === "high" ? "short" : a.cascadeRisk === "medium" ? "warn" : "neutral" },
+  ];
   return (
-    <FlowSection title="التدفق مقابل السعر" eyebrow="09 · Flow×Price">
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between">
-          <span className="text-2xs text-muted">استجابة السعر</span>
-          <Tag tone={responseTone}>{responseLabel[a.priceResponse] ?? a.priceResponse}</Tag>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-2xs text-muted">امتصاص</span>
-          <Tag tone={absorbTone}>{absorbLabel[a.absorption] ?? a.absorption}</Tag>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-2xs text-muted">تباعد</span>
-          <Tag tone={divergeTone}>{divergeLabel[a.divergence] ?? a.divergence}</Tag>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-2xs text-muted">خطر الانجراف</span>
-          <Tag tone={cascadeTone}>{cascadeLabel[a.cascadeRisk] ?? a.cascadeRisk}</Tag>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-2xs text-muted">تغيّر السعر 5ث</span>
-          <span className={`${num} text-2xs font-extrabold ${TONE_TEXT[responseTone]}`} dir="ltr">
+    <FlowCard title="التدفق مقابل السعر" eyebrow="Flow × Price">
+      <Box sx={{ display: "grid", gap: 1 }}>
+        {rows.map((r) => (
+          <Box key={r.label} sx={row}>
+            <Typography variant="caption" sx={{ fontSize: 10, color: "text.secondary" }}>{r.label}</Typography>
+            <Typography variant="caption" sx={{ fontSize: 10, fontWeight: 700, color: toneOf[r.tone] }}>{r.value}</Typography>
+          </Box>
+        ))}
+        <Divider sx={{ borderColor: "divider", my: 0.5 }} />
+        <Box sx={row}>
+          <Typography variant="caption" sx={{ fontSize: 10, color: "text.secondary" }}>تغيّر السعر</Typography>
+          <Typography variant="caption" sx={{ fontFamily: typography.mono, fontSize: 11, fontWeight: 800, color: toneOf[responseTone] }} dir="ltr">
             {a.priceDelta >= 0 ? "+" : ""}
             {a.priceDelta.toFixed(3)}%
-          </span>
-        </div>
-      </div>
-    </FlowSection>
+          </Typography>
+        </Box>
+      </Box>
+    </FlowCard>
   );
 }
 
-// ─── Composite panel ─────────────────────────────────────────────────
-
-function windowOf(snap: FlowSnapshot, seconds: number): FlowWindow | null {
-  return snap.state.windows.find((w) => w.seconds === seconds) ?? null;
-}
+// ─── Composite ───────────────────────────────────────────────────────
 
 export function FlowPanel({ snap }: { snap: FlowSnapshot | null | undefined }) {
+  const [minimized, setMinimized] = useState(false);
+
   if (!snap) {
     return (
-      <div className="flex h-full flex-col items-center justify-center rounded-panel border border-line/80 bg-surface-1/40 p-6 text-center text-2xs text-muted">
-        <Dot tone="warn" pulse />
-        <span className="mt-2">جارٍ الاتصال بمصادر التدفق المباشر…</span>
-      </div>
+      <ThemeGate>
+        <Card variant="outlined" sx={{ bgcolor: "background.paper", borderColor: "divider", borderRadius: radius.panel }}>
+          <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1, py: 6 }}>
+            <Box sx={{ width: 8, height: 8, borderRadius: 99, bgcolor: colors.warnFg, boxShadow: `0 0 10px ${colors.warnFg}` }} />
+            <Typography variant="caption" sx={{ color: "text.disabled" }}>جارٍ الاتصال بمصادر التدفق المباشر…</Typography>
+          </CardContent>
+        </Card>
+      </ThemeGate>
     );
   }
 
   return (
-    <div className="space-y-2.5">
-      <LiveFlowHeader snap={snap} />
-      <PressurePanel snap={snap} />
-      <NetFlowPanel snap={snap} />
-      <TradeTape snap={snap} />
-      <LargeTrades snap={snap} />
-      <Liquidations snap={snap} />
-      <CvdPanel snap={snap} />
-      <FlowEvents snap={snap} />
-      <FlowPricePanel snap={snap} />
-    </div>
+    <ThemeGate>
+      <style>{`
+        @keyframes flowPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+      `}</style>
+      <Box sx={{ display: "grid", gap: 1.25 }}>
+        <LiveFlowHeader snap={snap} minimized={minimized} onToggle={() => setMinimized((v) => !v)} />
+        <PressurePanel snap={snap} />
+        <NetFlowPanel snap={snap} />
+        <TradeTape snap={snap} />
+        <LargeTrades snap={snap} />
+        <Liquidations snap={snap} />
+        <CvdPanel snap={snap} />
+        <FlowEvents snap={snap} />
+        <FlowPricePanel snap={snap} />
+      </Box>
+    </ThemeGate>
   );
 }
