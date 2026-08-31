@@ -96,11 +96,11 @@ export function StatisticalEdge({
                 <StatRow label="NO TRADE" value={recorder.noTrade} />
                 <StatRow
                   label="معدل الإصابات"
-                  value={`${(recorder.hitRate * 100).toFixed(0)}%`}
+                  value={recorder.hitRate != null ? `${(recorder.hitRate * 100).toFixed(0)}%` : "—"}
                   strong
                 />
-                <StatRow label="خطأ التناسب" value={recorder.calibrationError.toFixed(3)} />
-                <StatRow label="Brier" value={recorder.brier.toFixed(3)} />
+                <StatRow label="خطأ التناسب" value={recorder.calibrationError != null ? recorder.calibrationError.toFixed(3) : "—"} />
+                <StatRow label="Brier" value={recorder.brier != null ? recorder.brier.toFixed(3) : "—"} />
               </div>
               <div className="mt-3 border-t border-line pt-2">
                 <div className="mb-1 text-2xs text-muted">حسب الاتجاه</div>

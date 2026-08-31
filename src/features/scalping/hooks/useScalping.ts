@@ -214,17 +214,22 @@ export function useScalping(): ScalpingSnapshot {
       const series = buildPriceSeries(cmd.candles, drained);
       const regimeMonitor = buildMarketRegimeMonitor(cmd.multiTF);
 
-      // Recorder: capture every decision + resolve forward outcomes.
-      recorder.resolveLatest(price ?? now, SCALPING_CONFIG.forecastHorizonsS[0]);
-      recorder.record({
-        ts: now,
-        price: price ?? 0,
-        direction: toRecordedDirection(decision.direction),
-        primaryProbability: decision.outcome.primary,
-        score: signal.score,
-        regime: decision.regime.regime,
-        blocked: decision.blocked,
-      });
+      // Recorder: capture every decision + resolve forward outcomes. We only
+      // record/resolve against a valid live price — never a timestamp or 0 —
+      // so no division by zero / bogus forward return can enter the stats.
+      const livePrice = price != null && Number.isFinite(price) && price > 0 ? price : null;
+      if (livePrice != null) {
+        recorder.resolveLatest(livePrice, SCALPING_CONFIG.forecastHorizonsS[0]);
+        recorder.record({
+          ts: now,
+          price: livePrice,
+          direction: toRecordedDirection(decision.direction),
+          primaryProbability: decision.outcome.primary,
+          score: signal.score,
+          regime: decision.regime.regime,
+          blocked: decision.blocked,
+        });
+      }
       const cal = recorder.calibration();
       const recStats = recorder.stats();
       const distribution = recorder.distribution();

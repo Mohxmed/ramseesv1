@@ -116,13 +116,13 @@ export function composeDecision(input: DecisionInput): ScalpingDecision {
       : null;
 
   // --- Expected value -------------------------------------------------------
-  // Expected return is derived from the real short-window momentum (the move
-  // the market is actually printing), signed by the directional vote. This is
-  // a best-effort heuristic of the gross micro-move — NOT a backtested edge.
+  // Expected return is the REAL short-window momentum the market is printing
+  // (signed). We never fabricate a move when real 5s data is unavailable — a
+  // missing reading collapses to NO_TRADE (data-gated), not to an invented
+  // edge. The directional vote decides LONG/SHORT; the EV gate then requires
+  // the real move to clear total cost + margin.
   const shortRet = marketState.windows.find((w) => w.windowS === 5)?.returnPct ?? null;
-  const momentum = shortRet != null ? shortRet : signal.signed * 0.05;
-  const signedMomentum = Math.sign(signal.signed || 1) * Math.abs(momentum);
-  const expectedReturnPct = signedMomentum;
+  const expectedReturnPct = shortRet != null && Number.isFinite(shortRet) ? shortRet : null;
   const ev = expectedMove(expectedReturnPct, ctx.orderBook, cost);
 
   // --- EV gate ---------------------------------------------------------------

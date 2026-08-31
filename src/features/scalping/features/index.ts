@@ -72,7 +72,9 @@ export function computeFeatures(ctx: ScalpingContext): FeaturesResult {
     };
     const w = SCALPING_CONFIG.familyWeights[fam];
     weightedComposite += vote * w;
-    weightSum += w * (acc.unknown < acc.total ? 1 : 0.4);
+    // A family with NO available readings contributes no evidence at all and
+    // must not drag the composite toward neutral with a fabricated 0 vote.
+    weightSum += w * (acc.unknown < acc.total ? 1 : 0);
   }
 
   const composite = weightSum > 0 ? weightedComposite / weightSum : 0;

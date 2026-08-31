@@ -647,7 +647,17 @@ export function buildSignals(input: DecisionMarketInput): Signal[] {
 
   // ---------------- Risk / Reward ----------------
   // R:R derived from nearest S/R distances: (resistance distance) / (support distance).
-  const rr = ns != null && nr != null ? nr.distancePercent / Math.abs(ns.distancePercent) : null;
+  // Guarded so a support exactly AT price (distance 0) yields null, never Infinity.
+  const supportDist = ns?.distancePercent;
+  const resistanceDist = nr?.distancePercent;
+  const rr =
+    supportDist != null &&
+    resistanceDist != null &&
+    Number.isFinite(resistanceDist) &&
+    Number.isFinite(supportDist) &&
+    Math.abs(supportDist) > 1e-9
+      ? resistanceDist / Math.abs(supportDist)
+      : null;
   push(
     stat(
       "riskRewardOk",

@@ -35,8 +35,10 @@ const clamp = (v: number, lo = -1, hi = 1): number =>
 const magScore = (v: number, hi: number): number =>
   v <= 0 ? 0 : Math.round(clamp(v / Math.max(1e-9, hi), 0, 1) * 100);
 
-const pctChange = (from: number, to: number): number =>
-  from > 0 ? ((to - from) / from) * 100 : 0;
+const pctChange = (from: number, to: number): number | null => {
+  if (!Number.isFinite(from) || !Number.isFinite(to) || from <= 0) return null;
+  return ((to - from) / from) * 100;
+};
 
 function dirOfSigned(norm: number, dirThreshold: number): FeatureDirection {
   if (norm > dirThreshold) return "bullish";
@@ -105,7 +107,20 @@ export const FEATURE_REGISTRY: FeatureRegistryItem[] = [
           weightSum += w;
         }
       }
-      const avg = weightSum > 0 ? total / weightSum : 0;
+      const avg = weightSum > 0 ? total / weightSum : null;
+      if (avg == null) {
+        // No real momentum data yet — remain UNKNOWN so this feature is never
+        // counted as a fake neutral vote that dilutes the composite.
+        f.raw = null;
+        f.normalized = null;
+        f.state = "weak";
+        f.score = 0;
+        f.contribution = 0;
+        f.confidence = 0;
+        f.freshnessMs = ctx.priceAgeMs;
+        f.stale = f.freshnessMs != null && f.freshnessMs > SCALPING_CONFIG.priceStaleMs;
+        return f;
+      }
       const magnitude = Math.abs(avg);
       const norm = clamp(avg / 0.12); // ~0.12% weighted momentum => +/-1
       f.raw = avg;

@@ -55,7 +55,10 @@ export function expectedMove(
 ): ExpectedMove {
   const gross = expectedReturnPct != null && Number.isFinite(expectedReturnPct) ? expectedReturnPct / 100 : 0;
 
-  // Spread as a one-way cost on entry (price fraction).
+  // Spread as a one-way cost on entry (price fraction). When the live book is
+  // unavailable we still estimate a conservative spread, but the next gate
+  // redundantly demands a real (non-null) expected return so a missing book
+  // alone can never manufacture a tradeable edge.
   const spread = book?.spreadPercent != null ? book.spreadPercent / 100 / 2 : cost.minNetMove / 4;
 
   const fee = cost.feeRate / 2; // per-side, applied on the return
@@ -64,11 +67,16 @@ export function expectedMove(
 
   const net = gross - Math.sign(gross) * totalCost;
 
+  // Safety margin multiplier: the real expected move must exceed the cost
+  // stack by a factor (not just 1bp), because the gross move is a heuristic
+  // of the micro window. minNetMove stays as the absolute floor.
   const positive =
-    Math.abs(net) > cost.minNetMove && gross !== 0;
+    gross !== 0 &&
+    Math.abs(gross) > totalCost * SAFETY_MARGIN_K + cost.minNetMove &&
+    Math.abs(net) > cost.minNetMove;
 
   let reason: string | null = null;
-  if (gross === 0) reason = "توقّع صافي صفري — لا حافة";
+  if (gross === 0) reason = "لا حركة سوق حقيقية متاحة (توقّع صافي صفري) — NO TRADE";
   else if (!positive) {
     reason = `التكلفة (${(totalCost * 100).toFixed(3)}%) أعلى من الحركة المتوقعة — NO TRADE`;
   }
@@ -81,6 +89,9 @@ export function expectedMove(
     reason,
   };
 }
+
+/** Safety margin multiplier applied on top of the raw cost stack. */
+const SAFETY_MARGIN_K = 2;
 
 /** Default cost model suitable for a BTC/USDT perpetual taker. */
 export const DEFAULT_COST_MODEL: CostModel = {

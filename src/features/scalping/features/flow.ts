@@ -202,23 +202,38 @@ export function flowPriceResolution(ctx: ScalpingContext): ScalpingFeature {
   if (!snap) return f;
 
   const a = snap.state.analysis;
+  // Each reading carries a conviction weight; a stronger reading (higher
+  // weight) may overwrite a weaker one, but a weak reading never clobbers a
+  // strong one. Precedence: divergence > absorption > confirmation.
   let norm = 0;
+  let weight = 0;
 
-  // BUY/SALE CONFIRMATION: flow & price coincide.
-  if (a.priceResponse === "strong_positive" && a.flowDelta > 0) norm = 0.8;
-  else if (a.priceResponse === "strong_negative" && a.flowDelta < 0) norm = -0.8;
-  else if (a.priceResponse === "positive" && a.flowDelta > 0) norm = 0.5;
-  else if (a.priceResponse === "negative" && a.flowDelta < 0) norm = -0.5;
+  // CONFIRMATION: flow & price coincide.
+  if (a.priceResponse === "strong_positive" && a.flowDelta > 0) {
+    norm = 0.8; weight = 1;
+  } else if (a.priceResponse === "strong_negative" && a.flowDelta < 0) {
+    norm = -0.8; weight = 1;
+  } else if (a.priceResponse === "positive" && a.flowDelta > 0) {
+    norm = 0.5; weight = 0.7;
+  } else if (a.priceResponse === "negative" && a.flowDelta < 0) {
+    norm = -0.5; weight = 0.7;
+  }
 
-  // ABSORPTION: strong flow but price isn't moving (opposing absorption).
-  if (a.absorption === "buy_absorption") norm = -0.5; // buying absorbed – bearish
-  else if (a.absorption === "sell_absorption") norm = 0.5; // selling absorbed – bullish
+  // ABSORPTION: strong flow but price isn't following (counter-signal).
+  if (a.absorption === "buy_absorption" && weight < 0.8) {
+    norm = -0.5; weight = 0.7;
+  } else if (a.absorption === "sell_absorption" && weight < 0.8) {
+    norm = 0.5; weight = 0.7;
+  }
 
-  // DIVERGENCE: flow opposite price.
-  if (a.divergence === "bullish_divergence") norm = 0.55;
-  else if (a.divergence === "bearish_divergence") norm = -0.55;
+  // DIVERGENCE is the strongest conflicting signal and sets the direction.
+  if (a.divergence === "bullish_divergence") {
+    norm = weight < 1 ? 0.55 : Math.max(norm, 0.35);
+  } else if (a.divergence === "bearish_divergence") {
+    norm = weight < 1 ? -0.55 : Math.min(norm, -0.35);
+  }
 
-  // EXHAUSTION dampens conviction.
+  // Exhaustion damps conviction.
   if (a.exhaustion !== "none") norm *= 0.4;
 
   f.raw = a.priceDelta;

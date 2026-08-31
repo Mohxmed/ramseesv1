@@ -28,12 +28,16 @@ export function computeAtr(
   period = 14,
   frameLabel = "1م"
 ): AtrResult {
-  if (!Array.isArray(candles) || candles.length < period + 1) {
+  // Require one extra candle so we can drop the latest (potentially still
+  // forming) candle from the TR window — a half-built high/low must never skew ATR.
+  if (!Array.isArray(candles) || candles.length < period + 2) {
     return { value: null, pct: null, period, frameLabel };
   }
 
-  const n = Math.min(period, candles.length - 1);
-  const series = candles.slice(-(n + 1));
+  const n = Math.min(period, candles.length - 2);
+  // Only COMPLETED candles participate in TR; the newest candle is treated as
+  // forming and excluded.
+  const series = candles.slice(-(n + 2), -1);
   const trs: number[] = [];
 
   for (let i = 1; i < series.length; i++) {

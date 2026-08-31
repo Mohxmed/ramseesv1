@@ -145,9 +145,17 @@ export function logLoss(probability: number, outcome: 0 | 1): number {
 /** Mean Brier + log loss + calibration error over resolved forecasts. */
 export function calibrationReport(
   resolved: { probability: number; outcome: 0 | 1 }[]
-): Omit<CalibrationModel, "map" | "bins"> & { brier: number; logLoss: number } {
+): {
+  brier: number | null;
+  logLoss: number | null;
+  calibrationError: number | null;
+  sampleCount: number;
+} {
   if (!resolved.length) {
-    return { brier: 0, logLoss: 0, calibrationError: 0, sampleCount: 0 };
+    // No resolved forecasts => no calibration evidence at all. Report null
+    // (unavailable) instead of a fabricated 0, which would masquerade as a
+    // "perfect" score.
+    return { brier: null, logLoss: null, calibrationError: null, sampleCount: 0 };
   }
   let b = 0;
   let ll = 0;

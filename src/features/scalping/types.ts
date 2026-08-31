@@ -299,9 +299,9 @@ export type ScalpRecorderView = {
   directional: number;
   noTrade: number;
   resolved: number;
-  hitRate: number;
-  calibrationError: number;
-  brier: number;
+  hitRate: number | null;
+  calibrationError: number | null;
+  brier: number | null;
   /** LONG/SHORT/NO_TRADE distribution (bias monitor). */
   distribution: {
     total: number;

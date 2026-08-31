@@ -37,6 +37,7 @@ export type RecordedEvent = {
   outcomeLong: 0 | 1 | null;
 };
 
+/** Net R-ish hit-rate across directional records with a resolution (null when none). */
 export type RecorderStats = {
   count: number;
   directional: number;
@@ -44,8 +45,7 @@ export type RecorderStats = {
   winsLong: number;
   winsShort: number;
   resolved: number;
-  /** Net R-ish hit-rate across directional records with a resolution. */
-  hitRate: number;
+  hitRate: number | null;
 };
 
 /** Directional outcome distribution + per-direction calibration (bias monitor). */
@@ -107,14 +107,18 @@ export class EventRecorder {
   /**
    * Resolve the latest event(s) with the forward price.
    * @param seconds forward horizon to apply (e.g. 30/60/120).
+   * The live `nowPrice` must be a valid positive price; events with an invalid
+   * recorded entry price are never resolved (so no division by zero / Infinity).
    */
   resolveLatest(nowPrice: number, seconds: number): void {
+    if (!Number.isFinite(nowPrice) || nowPrice <= 0) return;
     // Resolve only events older than the horizon (still pending) against today's
     // price, using each event's own entry price for the forward % change.
     const cutoff = Date.now() - seconds * 1000;
     for (const ev of this.events) {
       if (ev.outcomePct != null) continue; // already resolved
-      if (ev.ts > cutoff) break; // events are ordered newest-first; stop
+      if (ev.ts > cutoff) break; // events are ordered oldest-first; stop
+      if (!Number.isFinite(ev.price) || ev.price <= 0) continue; // cannot resolve
       const forward = ((nowPrice - ev.price) / ev.price) * 100;
       ev.outcomePct = forward;
       ev.outcomeLong = forward > 0 ? 1 : 0;
@@ -148,7 +152,7 @@ export class EventRecorder {
       winsLong,
       winsShort,
       resolved: resolvedDir.length,
-      hitRate: resolvedDir.length ? (winsLong + winsShort) / resolvedDir.length : 0,
+      hitRate: resolvedDir.length ? (winsLong + winsShort) / resolvedDir.length : null,
     };
   }
 
