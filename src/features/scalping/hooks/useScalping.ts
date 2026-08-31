@@ -7,6 +7,7 @@ import type { SupportResistanceResult } from "../../bitcoin/analysis/types";
 import { SCALPING_CONFIG } from "../config";
 import { ingestPrice, lastPriceAgeMs, priceAt } from "../data/priceSeries";
 import { computeAtr } from "../data/atr";
+import { buildMarketRegimeMonitor } from "../data/marketRegime";
 import { computeFeatures } from "../features";
 import { computeSignal } from "../signal/engine";
 import { computeForecast } from "../forecast/engine";
@@ -161,6 +162,7 @@ export function useScalping(): ScalpingSnapshot {
 
       const decisionView = toDecisionView(decision, features);
       const series = buildPriceSeries(decisionView.marketState, ctx.samplePrice, price, cmd.candles);
+      const regimeMonitor = buildMarketRegimeMonitor(cmd.multiTF);
 
       // Recorder: capture every decision + resolve forward outcomes.
       recorder.resolveLatest(price ?? now, SCALPING_CONFIG.forecastHorizonsS[0]);
@@ -222,6 +224,7 @@ export function useScalping(): ScalpingSnapshot {
         execution,
         decision: decisionView,
         series,
+        regimeMonitor,
         recorder: recorderView,
         futuresState: cmd.futuresState,
         futuresFeed: {

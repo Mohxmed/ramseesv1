@@ -152,6 +152,12 @@ export type ScalpingSnapshot = {
   execution: ScalpingExecution | null;
   /** Real price-series readings (change/velocity/ATR) — populated by the hook. */
   series?: ScalpPriceSeries | null;
+  /**
+   * Market Regime Monitor — general market state + the current wave per
+   * timeframe (1m/5m/15m/30m/1h/4h), derived from the real multi-TF candles by
+   * the hook. Presentation only; null/incomplete entries render "غير متاح".
+   */
+  regimeMonitor?: MarketRegimeMonitor | null;
   /** Statistical decision engine outputs (added as-is, populated by the hook). */
   decision?: ScalpDecisionView | null;
   recorder?: ScalpRecorderView | null;
@@ -252,6 +258,7 @@ import type { LiquidityAnalysis } from "../bitcoin/analysis";
 import type { SupportResistanceResult } from "../bitcoin/analysis/types";
 import type { MarketStructureAnalysis } from "../bitcoin/analysis";
 import type { MarketStateSnapshot } from "./market-state";
+import type { MarketRegimeMonitor } from "./data/marketRegime";
 
 /** Everything the Feature Engine needs — all sourced from the shared SSOT. */
 export type ScalpingContext = {
