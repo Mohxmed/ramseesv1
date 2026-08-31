@@ -70,7 +70,7 @@ export function DashboardShell({
     <div className="flex min-h-screen w-full">
       {/* Desktop sidebar */}
       <aside
-        className={`hidden shrink-0 border-l border-zinc-800/80 bg-zinc-900/40 transition-[width] duration-300 ease-out lg:block ${
+        className={`hidden shrink-0 border-l border-line bg-surface-1/40 transition-[width] duration-300 ease-out lg:block ${
           collapsed ? "w-[68px]" : "w-64"
         }`}
       >
@@ -98,7 +98,7 @@ export function DashboardShell({
         />
         {/* Drawer */}
         <div
-          className={`absolute inset-y-0 right-0 flex w-72 flex-col bg-zinc-900 shadow-2xl transition-transform duration-300 ease-out ${
+          className={`absolute inset-y-0 right-0 flex w-72 flex-col bg-surface-1 shadow-2xl transition-transform duration-300 ease-out ${
             mobileOpen ? "translate-x-0" : "translate-x-full"
           }`}
           role="dialog"
@@ -109,7 +109,7 @@ export function DashboardShell({
             <button
               type="button"
               onClick={() => setMobileOpen(false)}
-              className="rounded-md p-2 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+              className="rounded-panel p-2 text-muted hover:bg-surface-2 hover:text-zinc-100"
               aria-label="إغلاق القائمة"
             >
               <CloseIcon className="h-5 w-5" />
@@ -128,11 +128,11 @@ export function DashboardShell({
       {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Mobile header */}
-        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-zinc-800/80 bg-zinc-950/90 px-4 py-3 backdrop-blur lg:hidden">
+        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-line bg-surface-1/90 px-4 py-3 backdrop-blur lg:hidden">
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
-            className="rounded-md p-2 text-zinc-300 hover:bg-zinc-800"
+            className="rounded-panel p-2 text-zinc-300 hover:bg-surface-2"
             aria-label="فتح القائمة"
           >
             <MenuIcon className="h-6 w-6" />
@@ -152,7 +152,7 @@ export function DashboardShell({
           <button
             type="button"
             onClick={toggleCollapse}
-            className="fixed bottom-4 left-4 z-20 hidden items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-300 shadow-lg transition-colors hover:bg-zinc-800 lg:flex"
+            className="fixed bottom-4 left-4 z-20 hidden items-center gap-2 rounded-panel border border-line bg-surface-1 px-3 py-2 text-xs font-medium text-zinc-300 shadow-pop transition-colors hover:bg-surface-2 lg:flex"
             aria-label={collapsed ? "توسيع الشريط" : "طي الشريط"}
           >
             <PanelLeftIcon className="h-4 w-4" />

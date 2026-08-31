@@ -10,7 +10,7 @@ export function GoogleSignInButton() {
       type="button"
       onClick={() => loginWithGoogle()}
       disabled={loading}
-      className="flex w-full items-center justify-center gap-3 rounded-md border border-zinc-700 bg-zinc-800/60 px-4 py-2 text-sm font-medium text-zinc-300 shadow-sm hover:bg-zinc-700 disabled:opacity-50"
+      className="flex w-full items-center justify-center gap-3 rounded-panel border border-line bg-surface-2/60 px-4 py-2 text-sm font-medium text-zinc-300 hover:bg-surface-3/60 disabled:opacity-50"
     >
       <svg className="h-5 w-5" viewBox="0 0 24 24">
         <path

@@ -33,17 +33,17 @@ function NavItem({
       href={href}
       onClick={onNavigate}
       aria-current={active ? "page" : undefined}
-      className={`group relative flex items-center gap-3 rounded-lg py-2.5 text-sm font-medium transition-colors ${
+      className={`group relative flex items-center gap-3 rounded-panel py-2.5 text-sm font-medium transition-colors ${
         collapsed ? "justify-center px-0" : "px-3"
       } ${
         active
-          ? "bg-emerald-500/10 text-emerald-300"
-          : "text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-100"
+          ? "bg-up/10 text-up-fg"
+          : "text-muted hover:bg-surface-2/70 hover:text-zinc-100"
       }`}
     >
       <span
         className={`flex shrink-0 items-center justify-center ${
-          active ? "text-emerald-300" : "text-zinc-500 group-hover:text-zinc-300"
+          active ? "text-up-fg" : "text-muted group-hover:text-zinc-300"
         }`}
       >
         <Icon className="h-5 w-5" />
@@ -51,13 +51,13 @@ function NavItem({
       {!collapsed && <span className="truncate">{label}</span>}
 
       {active && !collapsed && (
-        <span className="ml-auto h-5 w-0.5 rounded-full bg-emerald-400" />
+        <span className="ml-auto h-5 w-0.5 rounded-full bg-up-fg" />
       )}
 
       {collapsed && (
         <span
           role="tooltip"
-          className="pointer-events-none absolute right-full mr-3 hidden whitespace-nowrap rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs font-medium text-zinc-100 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 md:block"
+          className="pointer-events-none absolute right-full mr-3 hidden whitespace-nowrap rounded-panel border border-line bg-surface-2 px-2.5 py-1.5 text-xs font-medium text-zinc-100 opacity-0 shadow-pop transition-opacity group-hover:opacity-100 md:block"
         >
           {label}
         </span>
@@ -78,7 +78,7 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
     <div className="flex h-full flex-col">
       {/* Brand */}
       <div
-        className={`flex items-center border-b border-zinc-800/80 py-5 ${
+        className={`flex items-center border-b border-line py-5 ${
           collapsed ? "justify-center px-0" : "px-5"
         }`}
       >
@@ -94,7 +94,7 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
         {!collapsed && (
           <div className="mr-3 min-w-0">
             <h1 className="truncate text-sm font-bold text-zinc-50">RAMSEES</h1>
-            <p className="truncate text-[11px] text-zinc-500">
+            <p className="truncate text-2xs text-muted">
               نظام تداول البيتكوين
             </p>
           </div>
@@ -124,10 +124,10 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-zinc-800/80 p-3">
+      <div className="border-t border-line p-3">
         {!collapsed && (
-          <div className="mb-3 flex items-center gap-3 rounded-lg bg-zinc-800/30 px-3 py-2.5">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-700 text-sm font-semibold text-zinc-100">
+          <div className="mb-3 flex items-center gap-3 rounded-panel bg-surface-2/30 px-3 py-2.5">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-3/70 text-sm font-semibold text-zinc-100">
               {displayName.charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0">
@@ -135,7 +135,7 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
                 {displayName}
               </p>
               {user?.email && (
-                <p className="truncate text-xs text-zinc-500">{user.email}</p>
+                <p className="truncate text-xs text-muted">{user.email}</p>
               )}
             </div>
           </div>
@@ -145,18 +145,18 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
           <button
             type="button"
             onClick={() => logout()}
-            className={`group relative flex items-center gap-3 rounded-lg py-2.5 text-sm font-medium text-zinc-400 transition-colors hover:bg-red-500/10 hover:text-red-400 ${
+            className={`group relative flex items-center gap-3 rounded-panel py-2.5 text-sm font-medium text-muted transition-colors hover:bg-down/10 hover:text-down-fg ${
               collapsed ? "justify-center px-0" : "px-3"
             }`}
           >
-            <span className="flex shrink-0 items-center justify-center text-zinc-500 group-hover:text-red-400">
+            <span className="flex shrink-0 items-center justify-center text-muted group-hover:text-down-fg">
               <LogoutIcon className="h-5 w-5" />
             </span>
             {!collapsed && <span>تسجيل الخروج</span>}
             {collapsed && (
               <span
                 role="tooltip"
-                className="pointer-events-none absolute right-full mr-3 hidden whitespace-nowrap rounded-md border border-zinc-700 bg-zinc-800 px-2.5 py-1.5 text-xs font-medium text-zinc-100 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 md:block"
+                className="pointer-events-none absolute right-full mr-3 hidden whitespace-nowrap rounded-panel border border-line bg-surface-2 px-2.5 py-1.5 text-xs font-medium text-zinc-100 opacity-0 shadow-pop transition-opacity group-hover:opacity-100 md:block"
               >
                 تسجيل الخروج
               </span>
@@ -167,7 +167,7 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
             <button
               type="button"
               onClick={onToggleCollapse}
-              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-zinc-500 transition-colors hover:bg-zinc-800/70 hover:text-zinc-200"
+              className="flex items-center gap-3 rounded-panel px-3 py-2.5 text-sm font-medium text-muted transition-colors hover:bg-surface-2/70 hover:text-zinc-200"
             >
               <PanelLeftCloseIcon className="h-5 w-5 shrink-0" />
               <span>طي الشريط</span>

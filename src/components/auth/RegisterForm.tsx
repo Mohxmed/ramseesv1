@@ -36,7 +36,7 @@ export function RegisterForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {displayError && (
-        <div className="rounded-md bg-red-900/20 p-3 text-sm text-red-400">
+        <div className="rounded-panel border border-down/40 bg-down/10 p-3 text-sm text-down-fg">
           {displayError}
         </div>
       )}
@@ -58,7 +58,7 @@ export function RegisterForm() {
             clearError();
             setLocalError(null);
           }}
-          className="mt-1 block w-full rounded-md border border-zinc-700 bg-zinc-800/60 px-3 py-2 text-sm text-zinc-100 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+          className="mt-1 block w-full rounded-panel border border-line bg-surface-2/60 px-3 py-2 text-sm text-zinc-100 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
           dir="ltr"
         />
       </div>
@@ -80,7 +80,7 @@ export function RegisterForm() {
             clearError();
             setLocalError(null);
           }}
-          className="mt-1 block w-full rounded-md border border-zinc-700 bg-zinc-800/60 px-3 py-2 text-sm text-zinc-100 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+          className="mt-1 block w-full rounded-panel border border-line bg-surface-2/60 px-3 py-2 text-sm text-zinc-100 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
           dir="ltr"
         />
       </div>
@@ -102,7 +102,7 @@ export function RegisterForm() {
             clearError();
             setLocalError(null);
           }}
-          className="mt-1 block w-full rounded-md border border-zinc-700 bg-zinc-800/60 px-3 py-2 text-sm text-zinc-100 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+          className="mt-1 block w-full rounded-panel border border-line bg-surface-2/60 px-3 py-2 text-sm text-zinc-100 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
           dir="ltr"
         />
       </div>
@@ -110,7 +110,7 @@ export function RegisterForm() {
       <button
         type="submit"
         disabled={loading}
-        className="w-full rounded-md bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-300 disabled:opacity-50"
+        className="w-full rounded-panel bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-300 disabled:opacity-50"
       >
         {loading ? "جاري إنشاء الحساب..." : "إنشاء حساب"}
       </button>

@@ -20,13 +20,13 @@ export default function LoginPage() {
           <p className="mt-1 text-sm text-zinc-500">تسجيل الدخول إلى حسابك</p>
         </div>
 
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-6">
+        <div className="rounded-panel border border-line bg-surface-2/40 p-6">
           <LoginForm />
 
           <div className="my-4 flex items-center gap-3">
-            <div className="h-px flex-1 bg-zinc-800" />
-            <span className="text-xs text-zinc-500">أو</span>
-            <div className="h-px flex-1 bg-zinc-800" />
+            <div className="h-px flex-1 bg-line" />
+            <span className="text-xs text-muted">أو</span>
+            <div className="h-px flex-1 bg-line" />
           </div>
 
           <GoogleSignInButton />
