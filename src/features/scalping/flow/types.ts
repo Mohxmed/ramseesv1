@@ -114,10 +114,10 @@ export type FlowWindow = {
 
 export type CvdState = {
   cvd: number; // cumulative delta (total)
-  cvdDelta1s: number;
-  cvdDelta5s: number;
-  cvdDelta30s: number;
-  cvdDelta1m: number;
+  cvdDelta1s: number | null;
+  cvdDelta5s: number | null;
+  cvdDelta30s: number | null;
+  cvdDelta1m: number | null;
 };
 
 // ─── Flow Velocity ──────────────────────────────────────────────────

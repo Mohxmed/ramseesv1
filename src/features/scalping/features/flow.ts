@@ -119,9 +119,9 @@ export function flowCvd(ctx: ScalpingContext): ScalpingFeature {
   if (!snap) return f;
 
   const cvd = snap.state.cvd;
-  // Use 30s delta for a meaningful short-horizon read.
+  // Use 30s delta for a meaningful short-horizon read. Unknown or zero => no signal.
   const delta = cvd.cvdDelta30s;
-  if (delta === 0) return f;
+  if (delta == null || delta === 0) return f;
 
   const saturate = 1_000_000;
   const norm = clamp(delta / saturate);

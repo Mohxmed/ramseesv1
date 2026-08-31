@@ -123,11 +123,14 @@ let cvdSnapshots: { time: number; value: number }[] = [];
 
 // Flow velocity tracking
 let prevNetFlowPerSecond = 0;
+let prevVelocityTs = 0;
 
-// Liquidation tracking
+// Liquidation tracking (event ring keeps per-event notional so windowed
+// velocity/acceleration reflect the last 10s — never the session cumulative).
+type LiqEvent = { ts: number; notional: number; side: "buy" | "sell" };
 let longLiqVolume = 0;
 let shortLiqVolume = 0;
-let liqTimestamps: number[] = [];
+let liqEvents: LiqEvent[] = [];
 
 // Price tracking for flow × price
 let priceHistory: { time: number; price: number }[] = [];
@@ -190,9 +193,10 @@ export function resetFlowState(): void {
   cumulativeSell = 0;
   cvdSnapshots = [];
   prevNetFlowPerSecond = 0;
+  prevVelocityTs = 0;
   longLiqVolume = 0;
   shortLiqVolume = 0;
-  liqTimestamps = [];
+  liqEvents = [];
   priceHistory = [];
   droppedEvents = 0;
   duplicateEvents = 0;
@@ -272,10 +276,10 @@ function ingestLiquidation(trade: NormalizedTrade): void {
   } else {
     shortLiqVolume += trade.notional;
   }
-  liqTimestamps.push(trade.timestamp);
-  // Keep only last 60s of liq timestamps
+  liqEvents.push({ ts: trade.timestamp, notional: trade.notional, side: trade.side });
+  // Keep only last 60s of liq events
   const cutoff = Date.now() - 60_000;
-  liqTimestamps = liqTimestamps.filter((t) => t > cutoff);
+  liqEvents = liqEvents.filter((e) => e.ts > cutoff);
 }
 
 // ─── Flow Window Computation ────────────────────────────────────────
@@ -326,14 +330,19 @@ function computeCvd(): CvdState {
   const now = Date.now();
   const cvd = cumulativeBuy - cumulativeSell;
 
-  // Record CVD snapshot for delta computation
+  // Record CVD snapshot for delta computation. The ring must span the longest
+  // requested window (60s) at the 80ms snapshot cadence — 600 (48s) was too
+  // short, so cvdDelta1m could never resolve and always returned 0.
+  // 80ms * 1000 = 80s of history, comfortably covering the 60s window.
   cvdSnapshots.push({ time: now, value: cvd });
-  if (cvdSnapshots.length > 600) cvdSnapshots = cvdSnapshots.slice(-600);
+  const maxSnapshots = 1000;
+  if (cvdSnapshots.length > maxSnapshots) cvdSnapshots = cvdSnapshots.slice(-maxSnapshots);
 
-  const deltaAt = (ms: number): number => {
+  const deltaAt = (ms: number): number | null => {
     const cutoff = now - ms;
     const oldest = cvdSnapshots.find((s) => s.time >= cutoff);
-    if (!oldest) return 0;
+    // No snapshot old enough => delta is UNKNOWN, not zero.
+    if (!oldest) return null;
     return cvd - oldest.value;
   };
 
@@ -355,7 +364,13 @@ function computeVelocity(): FlowVelocity {
   const sellPerSec = window1s ? window1s.sellNotional : 0;
   const netPerSec = buyPerSec - sellPerSec;
 
-  const acceleration = netPerSec - prevNetFlowPerSecond;
+  // Acceleration = change in net flow-per-second, normalised to a per-second
+  // rate by the elapsed time since the previous compute (defaulting to the
+  // compute cadence when the first sample has no previous timestamp).
+  const now = Date.now();
+  const dtSec = prevVelocityTs > 0 ? Math.max(0.001, (now - prevVelocityTs) / 1000) : config.computeIntervalMs / 1000;
+  prevVelocityTs = now;
+  const acceleration = (netPerSec - prevNetFlowPerSecond) / dtSec;
   prevNetFlowPerSecond = netPerSec;
 
   return {
@@ -371,17 +386,20 @@ function computeVelocity(): FlowVelocity {
 function computeLiquidations(): LiquidationState {
   const now = Date.now();
   const cutoff10s = now - 10_000;
-  const cutoff30s = now - 30_000;
+  const cutoff20s = now - 20_000;
 
-  // Velocity: liquidation notional in last 10s / 10
-  const recentLiqCount = liqTimestamps.filter((t) => t > cutoff10s).length;
-  const recentLiqVolume = longLiqVolume + shortLiqVolume; // total
+  // Velocity: liquidation notional actually printed in the last 10s, / 10.
+  // (The old code divided the SESSION-cumulative volume by 10 — vastly
+  // overstated and ever-growing. Now it is a true 10s-windowed rate.)
+  const recent = liqEvents.filter((e) => e.ts > cutoff10s);
+  const recentLiqCount = recent.length;
+  const recentLiqVolume = recent.reduce((sum, e) => sum + e.notional, 0);
   const velocity = recentLiqCount > 0 ? recentLiqVolume / 10 : 0;
 
-  // Acceleration: compare to previous 10s window
-  const prevCutoff = cutoff30s;
-  const prevLiqCount = liqTimestamps.filter((t) => t > prevCutoff && t <= cutoff10s).length;
-  const prevVelocity = prevLiqCount > 0 ? recentLiqVolume / 10 : 0;
+  // Acceleration: compare the last-10s rate to the prior-10s rate.
+  const prevWindow = liqEvents.filter((e) => e.ts > cutoff20s && e.ts <= cutoff10s);
+  const prevWindowVolume = prevWindow.reduce((sum, e) => sum + e.notional, 0);
+  const prevVelocity = prevWindow.length > 0 ? prevWindowVolume / 10 : 0;
   const acceleration = velocity - prevVelocity;
 
   // Burst detection: >10 liquidation events in last 10s
@@ -394,7 +412,7 @@ function computeLiquidations(): LiquidationState {
     velocity,
     acceleration,
     burst,
-    lastEvent: liqTimestamps.length > 0 ? liqTimestamps[liqTimestamps.length - 1] : null,
+    lastEvent: liqEvents.length > 0 ? liqEvents[liqEvents.length - 1].ts : null,
   };
 }
 

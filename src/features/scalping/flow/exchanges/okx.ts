@@ -102,9 +102,22 @@ export class OkxAdapter extends BaseExchangeAdapter {
       const trades = this.normalizeTrade(msg.data);
       for (const t of trades) this.emitTrade(t);
     } else if (channel === "liquidation-orders") {
+      // `liquidation-orders` is subscribed by instType (all SWAP instruments),
+      // so it carries EVERY symbol's liquidations. Keep only the ones matching
+      // a subscribed symbol — otherwise they pollute the configured symbol's totals.
       const liqs = this.normalizeLiquidation(msg.data);
-      for (const t of liqs) this.emitTrade(t);
+      for (const t of liqs) {
+        if (this.isTrackedSymbol(t.symbol)) this.emitTrade(t);
+      }
     }
+  }
+
+  /** True when an instrument ids maps to a currently-subscribed symbol. */
+  private isTrackedSymbol(instId: string): boolean {
+    for (const s of this.subscribedSymbols) {
+      if (instId === this.instIdFor(s)) return true;
+    }
+    return false;
   }
 
   normalizeTrade(data: unknown): NormalizedTrade[] {

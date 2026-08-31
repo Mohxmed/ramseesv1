@@ -282,8 +282,32 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
     }
   }
 
-  /** Emit a trade through the ingest callback. */
+  /** Emit a trade through the ingest callback only if it is canonically valid. */
   protected emitTrade(trade: NormalizedTrade): void {
+    if (!BaseExchangeAdapter.isValidTrade(trade)) return;
+    // A valid trade after (re)connect means we are healthy again; reset the
+    // reconnect counter so diagnostics don't accumulate stale hits forever.
+    this.reconnectCount = 0;
     this.onTrade?.(trade);
+  }
+
+  /**
+   * Canonical numeric sanity check shared by every adapter (routed through
+   * emitTrade). Enforces price>0, bounded price, quantity>=0, finite notional,
+   * a valid side and finite/positive timestamps so a single bad field can
+   * never inject NaN/Infinity/negative-price garbage into the flow engine.
+   */
+  static isValidTrade(t: NormalizedTrade): boolean {
+    if (!t || typeof t !== "object") return false;
+    if (!Number.isFinite(t.price) || !(t.price > 0)) return false;
+    // Guard against absurd tick sizes / data glitches (e.g. price 1e-9 or 1e12).
+    if (t.price < 1e-9 || t.price > 1e12) return false;
+    if (t.quantity == null || !Number.isFinite(t.quantity) || t.quantity < 0) return false;
+    if (!Number.isFinite(t.notional) || t.notional < 0) return false;
+    if (t.side !== "buy" && t.side !== "sell") return false;
+    if (!Number.isFinite(t.timestamp) || t.timestamp <= 0) return false;
+    if (!Number.isFinite(t.receivedAt) || t.receivedAt <= 0) return false;
+    if (!Number.isFinite(t.exchange) && typeof t.exchange !== "string") return false;
+    return true;
   }
 }

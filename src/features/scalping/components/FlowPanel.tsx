@@ -39,7 +39,8 @@ const toneOf: Record<Tone, string> = {
   quiet: colors.muted,
 };
 
-const flowTone = (n: number): Tone => (n > 0 ? "long" : n < 0 ? "short" : "neutral");
+const flowTone = (n: number | null | undefined): Tone =>
+  n == null ? "neutral" : n > 0 ? "long" : n < 0 ? "short" : "neutral";
 
 const row = {
   display: "flex",
