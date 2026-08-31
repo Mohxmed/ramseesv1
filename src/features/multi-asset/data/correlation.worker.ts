@@ -288,20 +288,38 @@ function startFeed() {
       };
       ws.onmessage = (evt) => {
         try {
-          const parsed = JSON.parse(evt.data as string) as {
+          const raw = JSON.parse(evt.data as string) as {
             stream?: string;
-            data?: { e?: string; T?: number; p?: string };
+            data?: {
+              e?: string;
+              s?: string;
+              T?: number;
+              p?: string;
+            };
+            e?: string;
+            s?: string;
+            T?: number;
+            p?: string;
           };
-          const stream = parsed.stream ?? "";
-          const data = parsed.data;
+          // The /ws/ endpoint returns each aggTrade FLAT (e.g. { "e":"aggTrade",
+          // "s":"SOLUSDT","p":"123.4","T":... }) — there is NO {stream,data}
+          // wrapper unless the /stream?streams= combined format is used. Handle
+          // both: pull the event out of the wrapper when present, else use the
+          // flat top-level fields.
+          const wrapped = raw.data && raw.data.e ? raw.data : null;
+          // Flat payload from /ws/ carries its fields at the top level.
+          const data = wrapped ?? {
+            e: raw.e,
+            s: raw.s,
+            T: raw.T,
+            p: raw.p,
+          };
           if (data && data.e === "aggTrade" && data.T != null) {
             const t: number = data.T;
             const p = parseFloat(data.p ?? "NaN");
-            if (isFinite(t) && isFinite(p) && p > 0) {
-              const key = stream.replace("@aggTrade", "");
-              if (ALL_STREAMS.includes(key as never)) {
-                recordTick(key, t, p);
-              }
+            const key = (data.s ?? "").toLowerCase();
+            if (isFinite(t) && isFinite(p) && p > 0 && ALL_STREAMS.includes(key as never)) {
+              recordTick(key, t, p);
             }
             lastGlobalEvent = Date.now();
             wsStale = false;
