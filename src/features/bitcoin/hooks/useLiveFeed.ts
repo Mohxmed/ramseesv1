@@ -262,6 +262,9 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
               if (tradesRef.current.length % 5 === 0) computeFlow();
               // Feed the micro-tick buffer with every trade (no dedup — a pulse
               // chart wants each executed trade; bounded to a 120s window).
+              // NOTE: t.T is Binance aggTrade trade time in EPOCH MILLISECONDS —
+              // stored raw so the scalping drainer can compare it directly
+              // against Date.now() (also ms). Do NOT scale it (no *1000) here.
               const pt = toNum(t.p);
               if (pt > 0) {
                 microTicksRef.current.push({ t: t.T, p: pt, q: toNum(t.q), m: t.m });

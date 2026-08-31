@@ -88,19 +88,18 @@ export function drainMicroTicks(
   // Raw recent window for the sparkline (ascending, bounded to the window).
   const pulse = recent.slice();
 
-  // 1) Ticks/sec — strict sliding 1000ms window, counted, no extrapolation.
-  // Iterate from the NEWEST tick backwards and STOP at the first tick older
-  // than `now - 1000`. This never counts the whole drained array, so ticks
-  // accumulated over >1s cannot inflate the reading (no thousands/millions).
+  // 1) Ticks/sec — strict sliding 1000ms window that RESETS every drain.
+  // Count ONLY ticks with t >= oneSecondAgo (a plain filter over the recent
+  // ring). Because the ref is flushed each cycle and this is a 1s windowed
+  // count — never a total accumulation across the app lifetime — the reading
+  // stays a realistic live rate (e.g. 15-85 Ticks/s) and cannot grow endlessly.
+  // The filter is order-independent (unlike a backward "break"), so out-of-order
+  // arrivals across cycles can't over/undercount.
   let ticksPerSec: number | null = null;
   {
-    const rateCutoff = now - TICK_RATE_WINDOW_MS;
-    let count = 0;
-    for (let i = pulse.length - 1; i >= 0; i--) {
-      if (pulse[i].t < rateCutoff) break;
-      count++;
-    }
-    ticksPerSec = count > 0 ? count : null;
+    const oneSecondAgo = now - TICK_RATE_WINDOW_MS;
+    const recentTicks = pulse.filter((tick) => tick.t >= oneSecondAgo);
+    ticksPerSec = recentTicks.length > 0 ? recentTicks.length : null;
   }
 
   // 2) Sub-second volatility — peak-to-peak in bps over the trailing window.
