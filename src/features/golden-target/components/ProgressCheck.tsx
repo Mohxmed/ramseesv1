@@ -73,7 +73,7 @@ export function ProgressCheck({
       onClick={onClose}
     >
       <div
-        className="animate-pop-in w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl"
+        className="animate-pop-in w-full max-w-md rounded-card border border-line bg-surface-1 p-6 shadow-modal"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-start justify-between">
@@ -81,14 +81,14 @@ export function ProgressCheck({
             <h2 className="text-xl font-bold text-zinc-50">
               فحص الحركة {String(move.move).padStart(2, "0")}
             </h2>
-            <p className="mt-1 text-sm text-zinc-500">
+            <p className="mt-1 text-sm text-muted">
               الهدف: {formatNumber(move.targetValue)} (+100%)
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"
+            className="rounded-panel p-1 text-muted hover:bg-surface-2 hover:text-zinc-300"
             aria-label="إغلاق"
           >
             ✕
@@ -112,7 +112,7 @@ export function ProgressCheck({
                 required
                 value={startingValue}
                 onChange={(e) => handleChange("start", e.target.value)}
-                className="mt-1 block w-full rounded-md border border-zinc-700 bg-zinc-800/60 px-3 py-2 text-sm text-zinc-100 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+                className="mt-1 block w-full rounded-panel border border-line bg-surface-2/60 px-3 py-2 text-sm text-zinc-100 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
                 dir="ltr"
               />
             </div>
@@ -131,15 +131,15 @@ export function ProgressCheck({
                 required
                 value={endingValue}
                 onChange={(e) => handleChange("end", e.target.value)}
-                className="mt-1 block w-full rounded-md border border-zinc-700 bg-zinc-800/60 px-3 py-2 text-sm text-zinc-100 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
+                className="mt-1 block w-full rounded-panel border border-line bg-surface-2/60 px-3 py-2 text-sm text-zinc-100 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
                 dir="ltr"
               />
             </div>
           </div>
 
           {showGrowth && (
-            <div className="rounded-lg bg-zinc-800/40 p-3 text-center">
-              <p className="text-xs text-zinc-400">نسبة النمو المتوقعة</p>
+            <div className="rounded-panel bg-surface-2/40 p-3 text-center">
+              <p className="text-xs text-muted">نسبة النمو المتوقعة</p>
               <p className="mt-1 text-2xl font-bold text-zinc-100">
                 {growth >= 0 ? "+" : ""}
                 {growth.toFixed(2)}%
@@ -149,10 +149,10 @@ export function ProgressCheck({
 
           {result && (
             <div
-              className={`animate-pop-in rounded-lg border p-4 text-sm ${
+              className={`animate-pop-in rounded-panel border p-4 text-sm ${
                 result.achieved
-                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-                  : "border-red-500/40 bg-red-500/10 text-red-300"
+                  ? "border-up/40 bg-up/10 text-up-fg"
+                  : "border-down/40 bg-down/10 text-down-fg"
               }`}
             >
               {result.achieved ? (
@@ -175,7 +175,7 @@ export function ProgressCheck({
               type="button"
               onClick={handleCompute}
               disabled={!showGrowth || saving}
-              className="w-full rounded-md border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-200 hover:bg-zinc-800 disabled:opacity-40"
+              className="w-full rounded-panel border border-line px-4 py-2 text-sm font-medium text-zinc-200 hover:bg-surface-2 disabled:opacity-40"
             >
               احسب النتيجة
             </button>
@@ -184,14 +184,14 @@ export function ProgressCheck({
                 type="button"
                 onClick={handleConfirm}
                 disabled={saving || !computed || !result?.achieved}
-                className="flex-1 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-500 disabled:opacity-40"
+                className="flex-1 rounded-panel bg-up px-4 py-2 text-sm font-medium text-zinc-950 transition-colors hover:bg-up-fg disabled:opacity-40"
               >
                 {saving ? "جارٍ الحفظ..." : "إكمال الحركة"}
               </button>
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-md border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-300 hover:bg-zinc-800"
+                className="rounded-panel border border-line px-4 py-2 text-sm font-medium text-zinc-300 hover:bg-surface-2"
               >
                 إلغاء
               </button>
