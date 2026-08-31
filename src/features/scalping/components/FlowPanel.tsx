@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type {
   FlowSnapshot,
   FlowWindow,
@@ -73,7 +73,7 @@ function FlowSection({
   right,
 }: {
   title: string;
-  eyebrow: string;
+  eyebrow?: string;
   children: ReactNode;
   right?: ReactNode;
 }) {
@@ -84,7 +84,7 @@ function FlowSection({
           <span className="text-3xs font-semibold uppercase tracking-[0.18em] text-muted">
             {title}
           </span>
-          <span className="text-3xs text-muted/70">{eyebrow}</span>
+          {eyebrow && <span className="text-3xs text-muted/70">{eyebrow}</span>}
         </div>
         {right}
       </div>
@@ -98,6 +98,7 @@ function FlowSection({
 function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
   const { state, connections } = snap;
   const level = state.quality.level;
+  const [minimized, setMinimized] = useState(false);
 
   const levelTone: Record<string, Tone> = {
     full: "good",
@@ -125,52 +126,100 @@ function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
   };
 
   return (
-    <FlowSection title="التدفق المباشر" eyebrow="01 · Live Flow">
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <div className="text-3xs text-muted">الغطاء · الاعتماد</div>
-          <div className={`${num} mt-0.5 text-lg font-extrabold leading-none text-zinc-50`} dir="ltr">
-            {state.quality.coverage}
-            <span className="ml-1 text-2xs font-medium text-emerald-400">{liveLat.length > 0 ? "LIVE" : ""}</span>
-          </div>
-        </div>
-        <div className="text-left">
-          <div className="text-3xs text-muted">حالة البيانات</div>
-          <Tag tone={levelTone[level] ?? "neutral"}>{levelLabel[level] ?? level}</Tag>
-        </div>
-        <div className="text-left">
-          <div className="text-3xs text-muted">الكمون</div>
-          <div className={`${num} mt-0.5 text-base font-bold leading-none text-zinc-200`} dir="ltr">
-            {avgLatency !== null ? `${avgLatency}ms` : "N/A"}
-          </div>
-        </div>
-      </div>
-
-      {/* per-exchange connection chips */}
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {connections.map((c) => {
-          const tone: Tone = statusTone[c.status] ?? "quiet";
-          const prefix = c.status === "LIVE" ? "●" : "○";
-          const latTxt = c.status === "LIVE" && c.latency >= 0 ? `${Math.round(c.latency)}ms` : "N/A";
-          return (
-            <Tip
-              key={c.exchange}
-              title={`${c.exchange} · ${c.status}${c.lastError ? " · " + c.lastError : ""} · ${c.eventCount} events`}
-            >
-              <span
-                className={`inline-flex items-center gap-1 rounded-chip border px-1.5 py-0.5 text-2xs ${TONE_BAR[tone]} bg-surface-2/30`}
-                dir="ltr"
-              >
-                <Dot tone={tone} />
-                <span className="font-semibold">{ADAPTER_LABELS[c.exchange] ?? c.exchange}</span>
-                <span className="opacity-70">{prefix}</span>
-                <span className="opacity-80">{c.status === "LIVE" ? c.status : latTxt}</span>
-                {c.status === "LIVE" && <span className="font-medium">{latTxt}</span>}
+    <FlowSection
+      title="التدفق المباشر"
+      eyebrow={minimized ? undefined : "01 · Live Flow"}
+      right={
+        <div className="flex items-center gap-2">
+          {minimized && (
+            <span className="flex items-center gap-1.5 text-2xs text-muted/80">
+              {liveLat.length > 0 && <Dot tone="good" pulse />}
+              <span dir="ltr">
+                {connections.filter((c) => c.status === "LIVE").length}/{connections.length}
               </span>
-            </Tip>
-          );
-        })}
-      </div>
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => setMinimized((v) => !v)}
+            className="rounded-chip border border-line/70 bg-surface-2/50 px-1.5 py-0.5 text-2xs text-muted hover:text-zinc-100"
+            aria-expanded={!minimized}
+            aria-label={minimized ? "توسيع حالة البيانات" : "تصغير حالة البيانات"}
+          >
+            {minimized ? "+" : "−"}
+          </button>
+        </div>
+      }
+    >
+      {minimized ? (
+        <div>
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <div className="text-3xs text-muted">الغطاء</div>
+              <div className={`${num} text-sm font-extrabold leading-none text-zinc-50`} dir="ltr">
+                {state.quality.coverage}
+                <span className="ml-1 text-2xs font-medium text-emerald-400">
+                  {liveLat.length > 0 ? "LIVE" : ""}
+                </span>
+              </div>
+            </div>
+            <div className="text-left">
+              <div className="text-3xs text-muted">الكمون</div>
+              <div className={`${num} text-sm font-bold leading-none text-zinc-200`} dir="ltr">
+                {avgLatency !== null ? `${avgLatency}ms` : "N/A"}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <div className="text-3xs text-muted">الغطاء · الاعتماد</div>
+              <div className={`${num} mt-0.5 text-lg font-extrabold leading-none text-zinc-50`} dir="ltr">
+                {state.quality.coverage}
+                <span className="ml-1 text-2xs font-medium text-emerald-400">{liveLat.length > 0 ? "LIVE" : ""}</span>
+              </div>
+            </div>
+            <div className="text-left">
+              <div className="text-3xs text-muted">حالة البيانات</div>
+              <Tag tone={levelTone[level] ?? "neutral"}>{levelLabel[level] ?? level}</Tag>
+            </div>
+            <div className="text-left">
+              <div className="text-3xs text-muted">الكمون</div>
+              <div className={`${num} mt-0.5 text-base font-bold leading-none text-zinc-200`} dir="ltr">
+                {avgLatency !== null ? `${avgLatency}ms` : "N/A"}
+              </div>
+            </div>
+          </div>
+
+          {/* per-exchange connection chips */}
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {connections.map((c) => {
+              const tone: Tone = statusTone[c.status] ?? "quiet";
+              const prefix = c.status === "LIVE" ? "●" : "○";
+              const latTxt = c.status === "LIVE" && c.latency >= 0 ? `${Math.round(c.latency)}ms` : "N/A";
+              return (
+                <Tip
+                  key={c.exchange}
+                  title={`${c.exchange} · ${c.status}${c.lastError ? " · " + c.lastError : ""} · ${c.eventCount} events`}
+                >
+                  <span
+                    className={`inline-flex items-center gap-1 rounded-chip border px-1.5 py-0.5 text-2xs ${TONE_BAR[tone]} bg-surface-2/30`}
+                    dir="ltr"
+                  >
+                    <Dot tone={tone} />
+                    <span className="font-semibold">{ADAPTER_LABELS[c.exchange] ?? c.exchange}</span>
+                    <span className="opacity-70">{prefix}</span>
+                    <span className="opacity-80">{c.status === "LIVE" ? c.status : latTxt}</span>
+                    {c.status === "LIVE" && <span className="font-medium">{latTxt}</span>}
+                  </span>
+                </Tip>
+              );
+            })}
+          </div>
+        </>
+      )}
     </FlowSection>
   );
 }

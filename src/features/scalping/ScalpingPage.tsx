@@ -16,7 +16,6 @@ import { SystemHealthBar } from "./components/terminal/SystemHealthBar";
 import { Section, Collapse } from "./components/terminal/TradingPrimitives";
 import { FlowPanel } from "./components/FlowPanel";
 import type { FlowSnapshot } from "./flow/types";
-import { Dot } from "./components/terminal/TradingPrimitives";
 
 /**
  * Fast React boundary for the real-time flow tape.
@@ -26,20 +25,11 @@ import { Dot } from "./components/terminal/TradingPrimitives";
  * wrapper polls that ref on a fast cadence (~80-100ms) into a small local state
  * so ONLY the flow panel re-renders per update — the heavy scalping terminal
  * keeps its 1s cadence and no render fires per individual trade.
- *
- * The panel is collapsible: a minimize toggle collapses the full flow content
- * down to a compact status bar (live header only), persisted in localStorage so
- * the preference survives navigation.
  */
 const FLOW_TAPE_INTERVAL_MS = 64;
-const FLOW_MINIMIZED_KEY = "ramsees.flow.minimized";
 
 function LiveFlowView({ latest }: { latest?: { readonly current: FlowSnapshot | null } | null }) {
   const [flow, setFlow] = useState<FlowSnapshot | null>(() => latest?.current ?? null);
-  const [minimized, setMinimized] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return window.localStorage.getItem(FLOW_MINIMIZED_KEY) === "1";
-  });
   const lastPublishRef = useRef(0);
 
   useEffect(() => {
@@ -57,51 +47,7 @@ function LiveFlowView({ latest }: { latest?: { readonly current: FlowSnapshot | 
     return () => clearInterval(timer);
   }, [latest]);
 
-  const liveCount = flow?.connections.filter((c) => c.status === "LIVE").length ?? 0;
-
-  if (minimized) {
-    return (
-      <button
-        type="button"
-        onClick={() => {
-          setMinimized(false);
-          window.localStorage.setItem(FLOW_MINIMIZED_KEY, "0");
-        }}
-        className="flex w-full items-center justify-between gap-2 rounded-panel border border-line/80 bg-surface-1/40 px-3 py-2 text-left hover:bg-surface-2/30"
-        aria-expanded={false}
-        aria-label="توسيع لوحة التدفق المباشر"
-      >
-        <span className="flex items-center gap-2">
-          <Dot tone={liveCount > 0 ? "good" : "warn"} pulse={liveCount > 0} />
-          <span className="text-2xs font-semibold uppercase tracking-[0.18em] text-muted">التدفق المباشر</span>
-        </span>
-        <span className="flex items-center gap-2">
-          <span className="text-2xs text-muted/80" dir="ltr">
-            {liveCount}/{flow?.connections.length ?? 0}
-          </span>
-          <span className="text-2xs text-muted">+ توسيع</span>
-        </span>
-      </button>
-    );
-  }
-
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => {
-          setMinimized(true);
-          window.localStorage.setItem(FLOW_MINIMIZED_KEY, "1");
-        }}
-        className="absolute right-2 top-2 z-10 rounded-chip border border-line/70 bg-surface-2/50 px-1.5 py-0.5 text-2xs text-muted hover:text-zinc-100"
-        aria-expanded={true}
-        aria-label="تصغير لوحة التدفق المباشر"
-      >
-        − تصغير
-      </button>
-      <FlowPanel snap={flow} />
-    </div>
-  );
+  return <FlowPanel snap={flow} />;
 }
 
 /**
