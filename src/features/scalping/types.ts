@@ -239,6 +239,12 @@ export type ScalpingSnapshot = {
   /** Unified real-time futures state + feed liveness for the UI panels. */
   futuresState?: FuturesState | null;
   futuresFeed?: { live: boolean; stale: boolean; latency: number | null };
+  /**
+   * Real-Time AGGR Flow snapshot — multi-exchange trade flow state computed by
+   * engine.ts. Added as-is, populated by the hook. Undefined while the flow
+   * engine has not produced its first snapshot.
+   */
+  flow?: import("./flow/types").FlowSnapshot | null;
 };
 
 /** Composed statistical decision exposed to the UI (see decision/ module). */
@@ -353,6 +359,12 @@ export type ScalpingContext = {
   analysis30m: SupportResistanceResult | null;
   liquidity: LiquidityAnalysis | null;
   structure: MarketStructureAnalysis | null;
+  /**
+   * Real-time AGGR flow snapshot ref (multi-exchange trade flow). Null until the
+   * flow engine produces its first throttled snapshot. Flow features read the
+   * `.value` directly — no React render coupling.
+   */
+  flow: import("./flow/types").FlowSnapshot | null;
 };
 
 // ---------------------------------------------------------------------------

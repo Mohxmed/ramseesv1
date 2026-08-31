@@ -77,6 +77,7 @@ export function buildReplayContext(
     analysis30m: null,
     liquidity: null,
     structure: null,
+    flow: null,
   };
 }
 

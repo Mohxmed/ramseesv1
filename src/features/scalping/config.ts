@@ -54,6 +54,12 @@ export const SCALPING_CONFIG = {
     "funding-futures": { weight: 0.55, family: "positioning" as FeatureFamily },
     "sr-distance": { weight: 0.7, family: "structure" as FeatureFamily },
     "market-regime": { weight: 0.8, family: "structure" as FeatureFamily },
+    "flow-net-flow": { weight: 0.8, family: "flow" as FeatureFamily },
+    "flow-velocity": { weight: 0.7, family: "flow" as FeatureFamily },
+    "flow-cvd": { weight: 0.7, family: "flow" as FeatureFamily },
+    "flow-large-trades": { weight: 0.6, family: "flow" as FeatureFamily },
+    "flow-liquidation": { weight: 0.5, family: "positioning" as FeatureFamily },
+    "flow-price": { weight: 0.9, family: "flow" as FeatureFamily },
   } as Record<string, { weight: number; family: FeatureFamily }>,
 
   /** Per-family aggregate weights (also configurable). */

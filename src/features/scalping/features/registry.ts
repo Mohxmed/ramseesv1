@@ -4,6 +4,14 @@ import type {
   ScalpingContext,
   ScalpingFeature,
 } from "../types";
+import {
+  flowNetFlow,
+  flowVelocity,
+  flowCvd,
+  flowLargeTrades,
+  flowLiquidation,
+  flowPriceResolution,
+} from "./flow";
 
 /**
  * Feature Engine — the 10 micro-scalping variables.
@@ -404,6 +412,49 @@ export const FEATURE_REGISTRY: FeatureRegistryItem[] = [
       f.stale = f.freshnessMs != null && f.freshnessMs > 90_000;
       return f;
     },
+  },
+  // ── Real-Time AGGR Flow features (multi-exchange trade flow) ───────
+  {
+    key: "flow-net-flow",
+    label: "صافي التدفق",
+    description: "صافي تدفق الأوامر متعدد البورصات عبر نوافذ منزلقة.",
+    unit: "Δ",
+    compute: flowNetFlow,
+  },
+  {
+    key: "flow-velocity",
+    label: "سرعة التدفق",
+    description: "معدل صافي التدفق لكل ثانية وتسارعه.",
+    unit: "Δ/s",
+    compute: flowVelocity,
+  },
+  {
+    key: "flow-cvd",
+    label: "دلتا الحجم التراكمي",
+    description: "CVD واختلافاته على نوافذ قصيرة.",
+    unit: "Δ",
+    compute: flowCvd,
+  },
+  {
+    key: "flow-large-trades",
+    label: "الصفقات الكبيرة",
+    description: "توازن تدفق السيولة الكبيرة (buy vs sell).",
+    unit: "",
+    compute: flowLargeTrades,
+  },
+  {
+    key: "flow-liquidation",
+    label: "تدفق التصفية متعدد البورصات",
+    description: "ضغط التصفية الحقيقي من مصادر متعددة.",
+    unit: "",
+    compute: flowLiquidation,
+  },
+  {
+    key: "flow-price",
+    label: "التدفق مقابل السعر",
+    description: "استجابة السعر لتدفق الأوامر (تأكيد/امتصاص/تباعد/انجراف).",
+    unit: "",
+    compute: flowPriceResolution,
   },
 ];
 

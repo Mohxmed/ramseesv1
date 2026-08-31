@@ -15,6 +15,7 @@ import { computeForecast } from "../forecast/engine";
 import { recordSignal } from "../signal/log";
 import { composeDecision } from "../decision";
 import { EventRecorder } from "../recording";
+import { useFlowEngine } from "../flow/useFlowEngine";
 import type { ScalpingDecision, DecisionDirection } from "../decision";
 import type { RecordedDirection } from "../recording";
 import type {
@@ -67,6 +68,14 @@ export function useScalping(): ScalpingSnapshot {
   }));
 
   const prevSignalRef = useRef<ScalpingSignal | null>(null);
+
+  // Real-time AGGR flow engine (multi-exchange trade flow). `flowLatest` is a
+  // ref that always holds the newest flow snapshot without triggering renders;
+  // `flowView` is the throttled copy for the left panel UI.
+  const { flow: flowView, latest: flowLatest } = useFlowEngine({
+    symbol: "BTCUSDT",
+    snapshotIntervalMs: 300,
+  });
 
   // --- ingest price ticks into the ring buffer without re-render ----------
   // Uses the near-live WebSocket price from the shared SSOT (`livePrice`) so
@@ -133,6 +142,7 @@ export function useScalping(): ScalpingSnapshot {
         analysis30m: cmd.analysis30m as SupportResistanceResult | null,
         liquidity: cmd.liquidity,
         structure: cmd.structure as MarketStructureAnalysis | null,
+        flow: flowLatest.current,
       };
 
       const { features, familyVotes, composite } = computeFeatures(ctx);
@@ -270,6 +280,7 @@ export function useScalping(): ScalpingSnapshot {
           stale: cmd.futuresWsStale,
           latency: cmd.futuresWsLatency,
         },
+        flow: flowView,
       });
     };
 
