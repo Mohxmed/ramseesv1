@@ -5,7 +5,7 @@ import { useMarketData } from "../../bitcoin/store/market-context";
 import type { MarketStructureAnalysis } from "../../bitcoin/analysis";
 import type { SupportResistanceResult } from "../../bitcoin/analysis/types";
 import { SCALPING_CONFIG } from "../config";
-import { ingestPrice, lastPriceAgeMs, priceAt } from "../data/priceSeries";
+import { ingestPrice, lastPriceAgeMs, priceAt, getPriceChange, coveragePct } from "../data/priceSeries";
 import { drainMicroTicks } from "../data/microTicks";
 import { computeAtr } from "../data/atr";
 import { buildMarketRegimeMonitor } from "../data/marketRegime";
@@ -166,7 +166,7 @@ export function useScalping(): ScalpingSnapshot {
       const drained = cmd.microTicksRef
         ? drainMicroTicks(cmd.microTicksRef, (p, t) => ingestPrice(p, t))
         : { pulse: [], newCount: 0, ticksPerSec: null, microVolBps: null };
-      const series = buildPriceSeries(ctx.samplePrice, price, cmd.candles, drained);
+      const series = buildPriceSeries(cmd.candles, drained);
       const regimeMonitor = buildMarketRegimeMonitor(cmd.multiTF);
 
       // Recorder: capture every decision + resolve forward outcomes.
@@ -256,31 +256,23 @@ function cmdFresh(cmd: { data: { status: string } }): boolean {
 /**
  * Presentation-only price-series readings for the terminal panels.
  *
- * change/velocity come from the REAL rolling windows the engine already saved
- * into the market-state snapshot, or are computed on the fly from the REAL
- * live sampler (`samplePrice`) / latest `price`. The instantaneous 1s reading
- * is computed from the live price, not invented. ATR comes from the REAL 1m
- * candle series in the pipeline. Nothing is invented: a missing/too-young
- * value stays null and the UI renders "غير متاح". Periods the buffer cannot
- * honestly reach (e.g. a true 5-minute return on the 150s scalping buffer) are
- * simply not requested/rendered rather than approximated.
+ * change/velocity come from the REAL rolling windows computed over the micro
+ * price ring buffer (getPriceChange). Every window compares the newest tick's
+ * price to a REAL historical tick, using the buffer's own clock so the units
+ * always match. ATR comes from the REAL 1m candle series in the pipeline.
+ * Nothing is invented: while the buffer is still younger than a window, the
+ * reference gracefully falls back to the earliest stored tick so the widget
+ * shows a real PARTIAL change (plus a building-data coverage indicator)
+ * instead of "غير متاح".
  */
 function buildPriceSeries(
-  samplePrice: (secondsAgo: number) => number | null,
-  price: number | null,
   candles: { open: number; high: number; low: number; close: number }[],
   drained?: { pulse: { t: number; p: number }[]; newCount: number; ticksPerSec: number | null; microVolBps?: number | null }
 ): ScalpPriceSeries {
-  // A window return = the REAL current price vs the price from the circular
-  // buffer at that exact historical timestamp (T from the WS ticks). This is
-  // the single, honest source; a "prefer-market-state" shortcut previously
-  // collapsed every window to the same value.
-  const returns = (seconds: number): number | null => {
-    if (price == null) return null;
-    const past = samplePrice(seconds);
-    if (past == null || past === 0) return null;
-    return (price - past) / past;
-  };
+  // A window return = newest tick price vs the real tick at/newer-than the
+  // window boundary in the circular buffer (WS `T` timestamps, ms). Falls back
+  // to the earliest stored tick during cold-start (partial, not "غير متاح").
+  const returns = (seconds: number): number | null => getPriceChange(seconds * 1000);
 
   // Requested set — the scalping buffer is 150s so a true 5m return is not
   // honest here; we present the real reachable periods (including 1s live).
@@ -330,6 +322,7 @@ function buildPriceSeries(
     pulse,
     ticksPerSec: drained?.ticksPerSec ?? null,
     microRegime,
+    coveragePct: coveragePct(),
   };
 }
 

@@ -60,6 +60,8 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
   const pulse = series?.pulse ?? [];
   const ticksPerSec = series?.ticksPerSec ?? null;
   const regime = series?.microRegime;
+  const coveragePct = series?.coveragePct ?? 100;
+  const building = coveragePct < 100;
 
   // Live indicator — from the shared WS health, never a duplicate socket.
   const live = snap.health.status === "ready";
@@ -134,6 +136,28 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
           );
         })}
       </div>
+
+      {/* building-data micro indicator — real buffer coverage until 120s fills */}
+      {building && (
+        <Tip title="نافذة التاريخ الكاملة (120 ثانية) لم تُملأ بعد؛ القيم أعلى تُعرض كتغيّر جزئي على أقدم تيك متاح وتكتمل تدريجياً.">
+          <div className="mt-2 flex items-center gap-2 rounded-panel border border-info/30 bg-info/5 px-2 py-1">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-info opacity-60" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-info" />
+            </span>
+            <span className="text-2xs text-muted">جمع البيانات…</span>
+            <div className="ml-auto h-1 w-16 overflow-hidden rounded-full bg-surface-2">
+              <div
+                className="h-full rounded-full bg-info transition-[width] duration-500"
+                style={{ width: `${Math.max(4, Math.round(coveragePct))}%` }}
+              />
+            </div>
+            <span className={`${num} text-2xs text-zinc-400`} dir="ltr">
+              {Math.round(coveragePct)}%
+            </span>
+          </div>
+        </Tip>
+      )}
 
       {/* pulse sparkline — real per-trade ticks */}
       <div className="mt-2 rounded-panel border border-line/70 bg-black/20 p-1.5">

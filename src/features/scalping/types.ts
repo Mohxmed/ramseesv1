@@ -157,6 +157,12 @@ export type ScalpPriceSeries = {
     /** ثابتة / صاعد قوي / هابط قوي / تذبذب عالي */
     label: "ثابتة" | "صاعد قوي" | "هابط قوي" | "تذبذب عالي" | null;
   };
+  /**
+   * How much of the target history window (120s) is currently populated, 0..100.
+   * Drives the micro "building data…" loading indicator while the buffer ramps
+   * up. 100 when the full window is available.
+   */
+  coveragePct: number;
 };
 
 /** The full snapshot handed to the UI. */

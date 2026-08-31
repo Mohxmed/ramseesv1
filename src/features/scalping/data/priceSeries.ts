@@ -66,6 +66,56 @@ export function priceAt(secondsAgo: number, now = Date.now()): number | null {
   return buffer[0].price;
 }
 
+/**
+ * Signed % change of the price over a trailing `windowMs` rolling window — the
+ * Price Action widget's lookup.
+ *
+ * Follows the requested contract:
+ *   now        = the newest tick's timestamp (the buffer's own clock, in ms).
+ *                WebSocket trade time `T` and `Date.now()` are BOTH epoch-ms,
+ *                so units always match no matter which source a tick came from.
+ *   targetTime = now - windowMs
+ *   reference  = the first tick at-or-after targetTime, else the earliest tick
+ *   current    = the newest tick's price
+ *
+ * Because `now` is the newest tick, targetTime is always reachable within the
+ * buffer. During cold-start the reference gracefully falls back to the
+ * earliest stored tick — so the widget shows a real PARTIAL change instead of
+ * "غير متاح" while the full 120s window fills up. Prices are number-parsed and
+ * finite-checked before the percentage is computed.
+ */
+export function getPriceChange(windowMs: number): number | null {
+  if (buffer.length < 2) return null;
+  const last = buffer[buffer.length - 1];
+  const current = Number(last.price);
+  if (!isFinite(current) || current === 0) return null;
+  const now = last.t; // newest tick timestamp (ms)
+  const target = now - windowMs;
+  // First tick at-or-after the window start; falls back to the earliest tick
+  // (which is itself the first ">= target" match while the buffer is younger
+  // than the window).
+  let ref = buffer[0];
+  for (let i = 0; i < buffer.length; i++) {
+    if (buffer[i].t >= target) {
+      ref = buffer[i];
+      break;
+    }
+  }
+  const refPrice = Number(ref.price);
+  if (!isFinite(refPrice) || refPrice === 0) return null;
+  return ((current - refPrice) / refPrice) * 100;
+}
+
+/**
+ * How much of the target history window (`maxSeconds`) is currently populated,
+ * 0..100. Used as a micro "building data…" indicator while the buffer ramps up.
+ */
+export function coveragePct(now = Date.now()): number {
+  if (!buffer.length) return 0;
+  const age = Math.max(0, now - buffer[0].t);
+  return Math.min(100, (age / (maxSeconds * 1000)) * 100);
+}
+
 /** All ticks (ascending) — for the backtest recorder / debugging. */
 export function snapshot(now = Date.now()): Tick[] {
   prune(now);
