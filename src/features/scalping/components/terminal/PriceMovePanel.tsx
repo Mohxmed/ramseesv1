@@ -33,24 +33,6 @@ function fmtVel(p: number): string {
 /** Which timeframes get the "fast" accent (1s + 5s) in the change row. */
 const FAST_SECONDS = new Set([1, 5]);
 
-/**
- * Clear direction-coloured borders for the regime badge: green = صاعد, red =
- * هابط, yellow = ثابتة, cyan = تذبذب عالي. Distinct saturated classes so the
- * panel's state reads at a glance.
- */
-const REGBORDER: Record<string, string> = {
-  "صاعد قوي": "border-up bg-up/10",
-  "هابط قوي": "border-down bg-down/10",
-  "ثابتة": "border-warn bg-warn/10",
-  "تذبذب عالي": "border-info bg-info/10",
-};
-const REGTEXT: Record<string, string> = {
-  "صاعد قوي": "text-up-fg",
-  "هابط قوي": "text-down-fg",
-  "ثابتة": "text-warn-fg",
-  "تذبذب عالي": "text-info",
-};
-
 /** Format an absolute price velocity (USD/s) with sign, e.g. "+5.00". */
 function fmtUsd(v: number | null): string {
   if (v == null || !isFinite(v)) return "—";
@@ -108,13 +90,23 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
             {regime?.label ? (
               <span
                 key={snap.updatedAt}
-                className={`inline-flex items-center gap-1.5 rounded-chip border-2 px-2 py-0.5 animate-[reg-flash_0.8s_ease-out] ${REGBORDER[regime.label] ?? "border-line bg-surface-2/40"}`}
+                className={`inline-flex items-center gap-1.5 rounded-chip border-2 px-2 py-0.5 animate-[reg-flash_0.8s_ease-out] ${
+                  regime.tone === "long"
+                    ? "border-up bg-up/10"
+                    : regime.tone === "short"
+                    ? "border-down bg-down/10"
+                    : "border-line bg-surface-2/40"
+                }`}
               >
                 <span
-                  className={`inline-block h-1.5 w-1.5 rounded-full ${regime.tone === "long" ? "bg-up-fg" : regime.tone === "short" ? "bg-down-fg" : "bg-warn-fg"} animate-[dot-blink_1s_ease-in-out_infinite]`}
+                  className={`inline-block h-1.5 w-1.5 rounded-full ${
+                    regime.tone === "long" ? "bg-up-fg" : regime.tone === "short" ? "bg-down-fg" : "bg-zinc-400"
+                  } animate-[dot-blink_1s_ease-in-out_infinite]`}
                 />
                 <span
-                  className={`text-2xs font-bold ${REGTEXT[regime.label] ?? "text-zinc-300"}`}
+                  className={`text-2xs font-bold ${
+                    regime.tone === "long" ? "text-up-fg" : regime.tone === "short" ? "text-down-fg" : "text-zinc-300"
+                  }`}
                 >
                   {regime.arrow} {regime.label}
                 </span>
@@ -134,7 +126,7 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
           const tone = d === "up" ? "up" : d === "down" ? "down" : "neutral";
           const fast = FAST_SECONDS.has(c.seconds);
           const border =
-            d === "up" ? "border-up/60 bg-up/5" : d === "down" ? "border-down/60 bg-down/5" : "border-warn/50 bg-warn/5";
+            d === "up" ? "border-up/60 bg-up/5" : d === "down" ? "border-down/60 bg-down/5" : "border-line bg-surface-2/30";
           return (
             <div
               key={c.label}
@@ -143,7 +135,7 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
             >
               <div
                 className={`text-3xs ${
-                  fast ? "font-bold text-up-fg" : d === "down" ? "text-down-fg" : d === "up" ? "text-up-fg" : "text-warn-fg"
+                  fast ? "font-bold text-up-fg" : d === "down" ? "text-down-fg" : d === "up" ? "text-up-fg" : "text-muted"
                 }`}
               >
                 {BADGE_LABEL[c.seconds] ?? c.label}
@@ -214,14 +206,12 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
           <Tip title="Ticks/sec = عدد الصفقات المنفذة في الثانية من البث اللحظي الحقيقي (مقياس كثافة النشاط).">
             <span
               key={ticksPerSec ?? "na"}
-              className={`inline-flex items-center gap-1.5 rounded-chip border px-2 py-0.5 text-2xs font-semibold ${
-                ticksPerSec != null && ticksPerSec >= 40
-                  ? "border-warn/50 bg-warn/10 text-warn-fg"
-                  : "border-line bg-surface-2/40 text-zinc-300"
-              } ${ticksPerSec != null ? "animate-[price-flash_0.6s_ease-out]" : ""}`}
+              className={`inline-flex items-center gap-1.5 rounded-chip border border-line bg-surface-2/40 px-2 py-0.5 text-2xs font-semibold text-zinc-300 ${
+                ticksPerSec != null ? "animate-[price-flash_0.6s_ease-out]" : ""
+              }`}
               dir="ltr"
             >
-              <span className={ticksPerSec != null && ticksPerSec >= 40 ? "text-warn-fg" : "text-muted"}>⚡</span>
+              <span className="text-muted">⚡</span>
               <span>{ticksPerSec != null ? `${ticksPerSec} تيك/ث` : "—"}</span>
             </span>
           </Tip>
@@ -231,7 +221,7 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
           {velocity.map((v) => {
             const d = v.pctPerSec != null ? dirOf(v.pctPerSec) : "flat";
             const border =
-              d === "up" ? "border-up/50 bg-up/5" : d === "down" ? "border-down/50 bg-down/5" : "border-warn/40 bg-warn/5";
+              d === "up" ? "border-up/50 bg-up/5" : d === "down" ? "border-down/50 bg-down/5" : "border-line bg-surface-2/30";
             return (
               <div key={v.label} className={`rounded-panel border px-1 py-1 text-center ${border}`}>
                 <div className="text-2xs font-bold" dir="ltr">
@@ -240,7 +230,7 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
                 <Tip title="السرعة الفعلية بالدولار في الثانية — النسبة المئوية مطبّقة على السعر اللحظي الحقيقي.">
                   <div
                     className={`mt-0.5 truncate text-[10px] font-semibold leading-none ${
-                      d === "up" ? "text-up-fg" : d === "down" ? "text-down-fg" : "text-warn-fg"
+                      d === "up" ? "text-up-fg" : d === "down" ? "text-down-fg" : "text-muted"
                     }`}
                     dir="ltr"
                   >
