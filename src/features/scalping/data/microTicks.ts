@@ -3,14 +3,21 @@
  *
  * Consumes the SHARED SSOT per-trade tick ref (`microTicksRef` from the live
  * feed) on the scalping hook's own cadence — it never opens a socket and never
- * holds a secondary data source. Each newly-arrived trade is fed into the
- * non-React micro price buffer (`ingestPrice`) for the pulse series and the
- * instantaneous money leg, and the density of new trades yields a real
- * "Ticks/sec" reading.
+ * holds a secondary *data source*. Each newly-arrived trade is fed into the
+ * non-React micro price buffer (`ingestPrice`), and the density of new trades
+ * yields a real "Ticks/sec" reading.
  *
- * Memory contract: the tick ref self-bounds (slice ~3000 in the live feed);
- * this module only advances a last-consumed watermark so a tick is ingested
- * exactly once.
+ * Flush contract (fixes the "millions of ticks" anomaly):
+ *   Every drain STRICTLY clears every processed tick off the ref, so a tick is
+ *   ingested exactly once and never recounted on a later cycle. The drained
+ *   ticks are mirrored into a small module ring (`recent`) that keeps only the
+ *   time-bounded pulse window for the sparkline — it is a *derived* presentation
+ *   buffer, not a second feed, and ages out on its own window.
+ *
+ * Tick-rate contract (fixes the 1,126,000 Ticks/s bug):
+ *   ticksPerSec counts ONLY ticks timestamped within the trailing 1000ms window
+ *   (t >= now - 1000). It is counted, never extrapolated — never derived from
+ *   the total ring length or an uncleared array.
  */
 import type { MutableRefObject } from "react";
 import type { MicroTick } from "../../bitcoin/hooks/useLiveFeed";
@@ -24,18 +31,22 @@ export const TICK_RATE_WINDOW_MS = 1_000;
 /** Sliding window (ms) for the sub-second volatility (peak-to-peak) reading. */
 export const SUB_SECOND_WINDOW_MS = 1_200;
 
-/** Watermark of the last fully-consumed trade time (module scope). */
-let lastConsumedT = 0;
+/**
+ * Module pulse ring: the drained ticks mirrored here for the sparkline, bounded
+ * to MICRO_WINDOW_MS. Purely derived from the flushed SSOT ticks (not a socket,
+ * not a second feed). Lives at module scope so pulse history survives across
+ * compute cycles (the ref itself is flushed every cycle).
+ */
+const recent: MicroTick[] = [];
 
 export type MicroDrain = {
-  /** Recent ticks (within MICRO_WINDOW_MS) — feed the pulse sparkline. */
+  /** Recent raw ticks (within MICRO_WINDOW_MS) — feed the pulse sparkline. */
   pulse: MicroTick[];
-  /** Trades ingested since the previous drain (all new ticks). */
+  /** Trades ingested this drain cycle (total new ticks flushed from the ref). */
   newCount: number;
   /**
    * Ticks observed within the trailing TICK_RATE_WINDOW_MS (a strict 1s notch).
-   * Counted, never extrapolated — guarding against the 1,126,000 Ticks/s bug
-   * caused by dividing a small span into a large count.
+   * Counted, never extrapolated.
    */
   ticksPerSec: number | null;
   /**
@@ -46,9 +57,9 @@ export type MicroDrain = {
 };
 
 /**
- * Drain any new trades from the SSOT ref into `ingest(price, t)` once each,
- * and return the recent window for the pulse chart + a per-second tick count +
- * a sub-second volatility reading.
+ * Drain all new trades from the SSOT ref into `ingest(price, t)` exactly once
+ * each, flushing them from the ref, and return the recent pulse window + a
+ * strict per-second tick count + a sub-second volatility reading.
  */
 export function drainMicroTicks(
   ref: MutableRefObject<MicroTick[]>,
@@ -56,37 +67,35 @@ export function drainMicroTicks(
 ): MicroDrain {
   const now = Date.now();
   const cutoff = now - MICRO_WINDOW_MS;
-  const all = ref.current;
 
-  // Advance the watermark only over ticks still within the feed window; trades
-  // older than the watermark were already ingested.
-  let firstNew = 0;
-  while (firstNew < all.length && all[firstNew].t <= lastConsumedT) firstNew++;
+  // Grab ALL currently buffered alters, then STRICTLY flush them from the ref so
+  // they can never be re-counted on a later cycle.
+  const drained = ref.current;
+  ref.current = [];
 
   let newCount = 0;
-  for (let i = firstNew; i < all.length; i++) {
-    const tick = all[i];
-    if (tick.t > lastConsumedT) lastConsumedT = tick.t;
-    if (tick.t < cutoff) continue; // too old for the pulse buffer
+  for (const tick of drained) {
+    if (tick.t < cutoff) continue; // too old for any window
+    // Mirror into the module pulse ring (bounded to the pulse window) BEFORE
+    // ingest so the sparkline has this tick available this cycle.
+    recent.push(tick);
     ingest(tick.p, tick.t);
     newCount++;
   }
+  // Age out ticks older than the pulse window (keep the ring bounded).
+  while (recent.length && recent[0].t < cutoff) recent.shift();
 
-  // Recent window (newest-first then reversed) for the pulse chart.
-  const pulse: MicroTick[] = [];
-  for (let i = all.length - 1; i >= 0; i--) {
-    if (all[i].t < cutoff) break;
-    pulse.push(all[i]);
-  }
-  pulse.reverse();
+  // Raw recent window for the sparkline (ascending, bounded to the window).
+  const pulse = recent.slice();
 
-  // 1) Ticks/sec — strict sliding 1000ms window, no extrapolation.
+  // 1) Ticks/sec — strict sliding 1000ms window, counted, no extrapolation.
   let ticksPerSec: number | null = null;
   {
-    let count = 0;
     const rateCutoff = now - TICK_RATE_WINDOW_MS;
-    for (let i = 0; i < pulse.length; i++) {
-      if (pulse[i].t >= rateCutoff) count++;
+    let count = 0;
+    for (let i = pulse.length - 1; i >= 0; i--) {
+      if (pulse[i].t < rateCutoff) break;
+      count++;
     }
     ticksPerSec = count > 0 ? count : null;
   }
@@ -98,8 +107,8 @@ export function drainMicroTicks(
     let min = Infinity;
     let max = -Infinity;
     let n = 0;
-    for (let i = 0; i < pulse.length; i++) {
-      if (pulse[i].t < subCutoff) continue;
+    for (let i = pulse.length - 1; i >= 0; i--) {
+      if (pulse[i].t < subCutoff) break;
       if (pulse[i].p < min) min = pulse[i].p;
       if (pulse[i].p > max) max = pulse[i].p;
       n++;

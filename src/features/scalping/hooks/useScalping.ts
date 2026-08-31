@@ -270,9 +270,15 @@ function buildPriceSeries(
   drained?: { pulse: { t: number; p: number }[]; newCount: number; ticksPerSec: number | null; microVolBps?: number | null }
 ): ScalpPriceSeries {
   // A window return = newest tick price vs the real tick at/newer-than the
-  // window boundary in the circular buffer (WS `T` timestamps, ms). Falls back
-  // to the earliest stored tick during cold-start (partial, not "غير متاح").
-  const returns = (seconds: number): number | null => getPriceChange(seconds * 1000);
+  // window boundary in the circular buffer (WS `T` timestamps, ms). The result
+  // is "collecting" until the ring genuinely spans the full window, so the UI
+  // shows "جمع البيانات…" rather than a misleading partial/static value.
+  const windowed = (seconds: number) => getPriceChange(seconds * 1000);
+  // Numeric read for velocity/acceleration: null while the window is building.
+  const readyValue = (seconds: number): number | null => {
+    const r = getPriceChange(seconds * 1000);
+    return r.status === "ready" ? r.value : null;
+  };
 
   // Requested set — the scalping buffer is 150s so a true 5m return is not
   // honest here; we present the real reachable periods (including 1s live).
@@ -284,19 +290,18 @@ function buildPriceSeries(
     { label: "2 دقيقة", seconds: 120 },
   ];
 
-  const change = requests.map((r) => ({
-    label: r.label,
-    seconds: r.seconds,
-    pct: returns(r.seconds),
-  }));
+  const change = requests.map((r) => {
+    const w = windowed(r.seconds);
+    return { label: r.label, seconds: r.seconds, value: w.value, status: w.status };
+  });
 
   // Actual per-second velocity in price units (USD) — the % velocity applied to
   // the live price, so the UI can show e.g. "سرعة +5 usd/ث". Real & derived
-  // from the same buffer; null only when the change window is unavailable.
+  // from the same buffer; null only while the window is still building.
   const currentPrice = lastPrice();
 
   const shorts = [1, 5, 15, 30]
-    .map((s) => ({ s, pct: returns(s) }))
+    .map((s) => ({ s, pct: readyValue(s) }))
     .filter((v): v is { s: number; pct: number } => v.pct != null);
   const velocity = shorts.map((v) => ({
     label: `${v.s}ث`,
@@ -306,7 +311,7 @@ function buildPriceSeries(
 
   // Acceleration: compare per-second velocity of the shortest vs longest window.
   const vShort = shorts.find((v) => v.s === 1);
-  const vLong = returns(60);
+  const vLong = readyValue(60);
   let acceleration: ScalpPriceSeries["acceleration"] = null;
   if (vShort != null && vLong != null) {
     const drift = vShort.pct / vShort.s - vLong / 60;
@@ -342,23 +347,18 @@ const STRONG_MOVE_PCT = 0.02; // 1s change % beyond which the print is "strong"
 const VOL_HIGH_BPS = 8; // recent peak-to-peak (bps) beyond which we flag volatility
 
 function buildPulse(ticks: { t: number; p: number }[]): { t: number; price: number }[] {
-  if (!ticks.length) return [];
-  const bySec = new Map<number, number>();
-  for (const tk of ticks) {
-    const sec = Math.floor(tk.t / 1000);
-    bySec.set(sec, tk.p); // last price within the second wins
-  }
-  return Array.from(bySec.entries())
-    .sort((a, b) => a[0] - b[0])
-    .map(([sec, p]) => ({ t: sec * 1000, price: p }));
+  // Pass the drained raw micro ticks straight through (no per-second
+  // downsampling) so the Recharts AreaChart renders every executed trade.
+  // isAnimationActive={false} in the chart avoids re-render lag on rapid ticks.
+  return ticks.map((tk) => ({ t: tk.t, price: tk.p }));
 }
 
 function buildMicroRegime(
-  change: { label: string; seconds: number; pct: number | null }[],
+  change: { label: string; seconds: number; value: number | null; status: "collecting" | "ready" }[],
   microVolBps: number | null
 ): ScalpPriceSeries["microRegime"] {
-  const one = change.find((c) => c.seconds === 1)?.pct ?? null;
-  const five = change.find((c) => c.seconds === 5)?.pct ?? null;
+  const one = change.find((c) => c.seconds === 1 && c.status === "ready")?.value ?? null;
+  const five = change.find((c) => c.seconds === 5 && c.status === "ready")?.value ?? null;
   const ref = one ?? five;
 
   const arrow: "↗" | "↘" | "→" = ref == null ? "→" : ref > 0.0001 ? "↗" : ref < -0.0001 ? "↘" : "→";

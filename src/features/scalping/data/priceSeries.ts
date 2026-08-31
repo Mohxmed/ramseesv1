@@ -66,44 +66,47 @@ export function priceAt(secondsAgo: number, now = Date.now()): number | null {
   return buffer[0].price;
 }
 
+/** Result of a rolling-window price lookup in the micro price ring. */
+export type PriceChangeResult = {
+  /** Signed % change, or null while the window's data is still being built. */
+  value: number | null;
+  /**
+   * "collecting" — the ring has not yet covered the full window (or fewer than
+   * two ticks exist), so the value is NOT yet meaningful and the UI should show
+   * "جمع البيانات…". "ready" — the window is fully covered and `value` is real.
+   */
+  status: "collecting" | "ready";
+};
+
 /**
  * Signed % change of the price over a trailing `windowMs` rolling window — the
  * Price Action widget's lookup.
  *
  * Follows the requested contract:
  *   now        = the newest tick's timestamp (the buffer's own clock, in ms).
- *                WebSocket trade time `T` and `Date.now()` are BOTH epoch-ms,
- *                so units always match no matter which source a tick came from.
  *   targetTime = now - windowMs
  *   reference  = the first tick at-or-after targetTime, else the earliest tick
  *   current    = the newest tick's price
  *
- * Because `now` is the newest tick, targetTime is always reachable within the
- * buffer. During cold-start the reference gracefully falls back to the
- * earliest stored tick — so the widget shows a real PARTIAL change instead of
- * "غير متاح" while the full 120s window fills up. Prices are number-parsed and
- * finite-checked before the percentage is computed.
+ * Honest coverage: the window is only "ready" once the ring actually spans at
+ * least `windowMs` (latest.t - startTime >= windowMs). Before that — or with
+ * fewer than two ticks — the result is `status: "collecting"` so the UI renders
+ * "جمع البيانات…" instead of a misleading partial/static value. Prices are
+ * number-parsed and finite-checked before the percentage is computed.
  */
-export function getPriceChange(windowMs: number): number | null {
-  if (buffer.length < 2) return null;
-  const last = buffer[buffer.length - 1];
-  const current = Number(last.price);
-  if (!isFinite(current) || current === 0) return null;
-  const now = last.t; // newest tick timestamp (ms)
-  const target = now - windowMs;
-  // First tick at-or-after the window start; falls back to the earliest tick
-  // (which is itself the first ">= target" match while the buffer is younger
-  // than the window).
-  let ref = buffer[0];
-  for (let i = 0; i < buffer.length; i++) {
-    if (buffer[i].t >= target) {
-      ref = buffer[i];
-      break;
-    }
-  }
-  const refPrice = Number(ref.price);
-  if (!isFinite(refPrice) || refPrice === 0) return null;
-  return ((current - refPrice) / refPrice) * 100;
+export function getPriceChange(windowMs: number): PriceChangeResult {
+  if (buffer.length < 2) return { value: 0, status: "collecting" };
+  const latest = buffer[buffer.length - 1];
+  const startTime = buffer[0].t;
+  const current = Number(latest.price);
+  if (!isFinite(current) || current === 0) return { value: 0, status: "collecting" };
+  // Real coverage check — the ring must span at least this window.
+  if (latest.t - startTime < windowMs) return { value: null, status: "collecting" };
+  const targetTime = latest.t - windowMs;
+  const pastEntry = buffer.find((e) => e.t >= targetTime) ?? buffer[0];
+  const pastPrice = Number(pastEntry.price);
+  if (!isFinite(pastPrice) || pastPrice === 0) return { value: null, status: "collecting" };
+  return { value: ((current - pastPrice) / pastPrice) * 100, status: "ready" };
 }
 
 /**

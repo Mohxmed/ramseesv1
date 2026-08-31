@@ -22,14 +22,12 @@ const TEXT: Record<"up" | "down" | "neutral", string> = {
 };
 
 /**
- * Adaptive micro-precision speed: show %/s to 4 decimal places when the print is
- * meaningfully sized, otherwise scale up to basis points per second so tiny
- * shifts stay readable instead of collapsing to "+0/%".
+ * Micro-precision speed, unified to a single metric (%/ث = percent per
+ * second). 4 decimal places keep tiny per-second shifts readable instead of
+ * collapsing to "+0%".
  */
 function fmtVel(p: number): string {
-  const sign = p >= 0 ? "+" : "";
-  if (Math.abs(p) >= 0.001) return `${sign}${p.toFixed(4)}%/ث`;
-  return `${sign}${(p * 10000).toFixed(2)} bps/ث`;
+  return `${p >= 0 ? "+" : ""}${p.toFixed(4)}%/ث`;
 }
 
 /** Which timeframes get the "fast" accent (1s + 5s) in the change row. */
@@ -89,7 +87,7 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
 
   // Live indicator — from the shared WS health, never a duplicate socket.
   const live = snap.health.status === "ready";
-  const dir = dirOf(change[0]?.pct ?? null);
+  const dir = dirOf(change[0]?.status === "ready" ? (change[0]?.value ?? null) : null);
   const stroke = dir === "up" ? colors.up : dir === "down" ? colors.down : colors.muted;
 
   return (
@@ -131,7 +129,8 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
       {/* per-period change cells — borders colour by direction (green up / red down / yellow flat) */}
       <div className="mt-2 grid grid-cols-5 gap-1">
         {change.map((c) => {
-          const d = dirOf(c.pct);
+          const ready = c.status === "ready";
+          const d = ready ? dirOf(c.value) : "flat";
           const tone = d === "up" ? "up" : d === "down" ? "down" : "neutral";
           const fast = FAST_SECONDS.has(c.seconds);
           const border =
@@ -139,7 +138,7 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
           return (
             <div
               key={c.label}
-              title={`التغيّر خلال ${c.label} — من نوافذ السوق الحقيقية (${c.seconds} ث).`}
+              title={`التغيّر خلال ${c.label} — ${ready ? `نافذة حقيقية (%${c.seconds} ث).` : "لا تكفي البيانات بعد لتغطية هذه النافذة — يُستكمل بجمع التيكات."}`}
               className={`rounded-panel border px-1 py-1 text-center ${border}`}
             >
               <div
@@ -149,15 +148,19 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
               >
                 {BADGE_LABEL[c.seconds] ?? c.label}
               </div>
-              <div
-                key={c.pct ?? "na"}
-                className={`${num} mt-0.5 truncate text-[11px] font-bold leading-none ${TEXT[tone]} ${
-                  c.pct != null ? "animate-[price-flash_0.6s_ease-out]" : ""
-                }`}
-                dir="ltr"
-              >
-                {c.pct != null ? `${ARROW[d]} ${c.pct >= 0 ? "+" : ""}${c.pct.toFixed(3)}%` : "غير متاح"}
-              </div>
+              {ready ? (
+                <div
+                  key={c.value ?? "na"}
+                  className={`${num} mt-0.5 truncate text-[11px] font-bold leading-none ${TEXT[tone]} animate-[price-flash_0.6s_ease-out]`}
+                  dir="ltr"
+                >
+                  {`${ARROW[d]} ${c.value! >= 0 ? "+" : ""}${c.value!.toFixed(3)}%`}
+                </div>
+              ) : (
+                <div className="mt-0.5 truncate text-[10px] font-semibold leading-none text-muted">
+                  جمع…
+                </div>
+              )}
             </div>
           );
         })}

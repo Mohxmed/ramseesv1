@@ -122,8 +122,12 @@ export type ScalpDataHealth =
  * is missing or too young.
  */
 export type ScalpPriceSeries = {
-  /** Signed change % over each requested window (real or null). */
-  change: { label: string; seconds: number; pct: number | null }[];
+  /**
+   * Signed change % over each requested window. `value` is a real % when the
+   * window is fully covered, else null while the ring is still building that
+   * window ("collecting" — the UI renders "جمع البيانات…").
+   */
+  change: { label: string; seconds: number; value: number | null; status: "collecting" | "ready" }[];
   /**
    * Signed per-second velocity for the shortest reliable windows.
    * pctPerSec = %/s (percentage velocity). usdPerSec = the same move expressed
