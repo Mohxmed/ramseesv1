@@ -124,6 +124,13 @@ function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
     DISCONNECTED: "quiet",
     ERROR: "warn",
   };
+  const statusShort: Record<string, string> = {
+    LIVE: "LIVE",
+    STALE: "STAL",
+    CONNECTING: "CONN",
+    DISCONNECTED: "DISC",
+    ERROR: "ERR",
+  };
 
   return (
     <FlowSection
@@ -210,9 +217,11 @@ function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
                   >
                     <Dot tone={tone} />
                     <span className="font-semibold">{ADAPTER_LABELS[c.exchange] ?? c.exchange}</span>
-                    <span className="opacity-70">{prefix}</span>
-                    <span className="opacity-80">{c.status === "LIVE" ? c.status : latTxt}</span>
-                    {c.status === "LIVE" && <span className="font-medium">{latTxt}</span>}
+                    <span className="w-3 text-center opacity-70">{prefix}</span>
+                    <span className={`inline-block w-7 text-center font-semibold tabular-nums`}>
+                      {statusShort[c.status] ?? c.status}
+                    </span>
+                    <span className={`inline-block w-10 text-right font-medium tabular-nums`}>{latTxt}</span>
                   </span>
                 </Tip>
               );
