@@ -168,6 +168,27 @@ export type ScalpPriceSeries = {
     label: "ثابتة" | "صاعد قوي" | "هابط قوي" | "تذبذب عالي" | null;
   };
   /**
+   * Strict sub-second price variance over the trailing 1000ms window:
+   * ((maxPriceIn1s - minPriceIn1s) / currentPrice) * 10000 (basis points).
+   * Null when the 1s window holds fewer than 2 honest ticks.
+   */
+  microRangeBps: number | null;
+  /**
+   * Direction flips within the trailing 1000ms window — sign changes between
+   * successive non-zero price deltas. A fast up/down whipsaw is a liquidation
+   * danger signature.
+   */
+  directionFlips: number;
+  /**
+   * Strict 4-level volatility / liquidation-danger regime
+   * (L1_STAGNANT / L2_OPTIMAL / L3_HIGH_VOLATILITY / L4_LIQUIDATION_RISK),
+   * derived from ticksPerSec, microRangeBps and directionFlips over the same
+   * 1s window. Never null.
+   */
+  volatilityRegime: import("./data/microTicks").VolatilityRegime;
+  /** Raw numeric readouts behind the current regime (for tooltips). */
+  volatilityMetrics: { ticksPerSec: number | null; rangeBps: number | null; flips: number };
+  /**
    * How much of the target history window (120s) is currently populated, 0..100.
    * Drives the micro "building data…" loading indicator while the buffer ramps
    * up. 100 when the full window is available.

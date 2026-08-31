@@ -165,7 +165,16 @@ export function useScalping(): ScalpingSnapshot {
       // compute: feed each new trade into the price buffer for the pulse chart.
       const drained = cmd.microTicksRef
         ? drainMicroTicks(cmd.microTicksRef, (p, t) => ingestPrice(p, t))
-        : { pulse: [], newCount: 0, ticksPerSec: null, microVolBps: null };
+        : {
+            pulse: [],
+            newCount: 0,
+            ticksPerSec: null,
+            microVolBps: null,
+            microRangeBps: null,
+            directionFlips: 0,
+            volatilityRegime: "L1_STAGNANT" as const,
+            volatilityMetrics: { ticksPerSec: null, rangeBps: null, flips: 0 },
+          };
       const series = buildPriceSeries(cmd.candles, drained);
       const regimeMonitor = buildMarketRegimeMonitor(cmd.multiTF);
 
@@ -267,7 +276,16 @@ function cmdFresh(cmd: { data: { status: string } }): boolean {
  */
 function buildPriceSeries(
   candles: { open: number; high: number; low: number; close: number }[],
-  drained?: { pulse: { t: number; p: number }[]; newCount: number; ticksPerSec: number | null; microVolBps?: number | null }
+  drained?: {
+    pulse: { t: number; p: number }[];
+    newCount: number;
+    ticksPerSec: number | null;
+    microVolBps?: number | null;
+    microRangeBps?: number | null;
+    directionFlips?: number;
+    volatilityRegime?: import("../../scalping/data/microTicks").VolatilityRegime;
+    volatilityMetrics?: { ticksPerSec: number | null; rangeBps: number | null; flips: number };
+  }
 ): ScalpPriceSeries {
   // A window return = newest tick price vs the real tick at/newer-than the
   // window boundary in the circular buffer (WS `T` timestamps, ms). The result
@@ -333,6 +351,11 @@ function buildPriceSeries(
     pulse,
     ticksPerSec: drained?.ticksPerSec ?? null,
     microRegime,
+    microRangeBps: drained?.microRangeBps ?? null,
+    directionFlips: drained?.directionFlips ?? 0,
+    volatilityRegime: drained?.volatilityRegime ?? "L1_STAGNANT",
+    volatilityMetrics:
+      drained?.volatilityMetrics ?? { ticksPerSec: null, rangeBps: null, flips: 0 },
     coveragePct: coveragePct(),
   };
 }
