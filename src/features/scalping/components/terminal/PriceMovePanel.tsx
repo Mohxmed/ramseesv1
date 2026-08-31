@@ -1,8 +1,10 @@
 "use client";
 
-import type { ScalpPriceSeries } from "../../types";
-import { Tag } from "./TradingPrimitives";
-import { num } from "@/components/ui/design-tokens";
+import { memo } from "react";
+import { ResponsiveContainer, AreaChart, Area, YAxis } from "recharts";
+import type { ScalpingSnapshot } from "../../types";
+import { Tag, Dot } from "./TradingPrimitives";
+import { colors, num } from "@/components/ui/design-tokens";
 import { Tip } from "./TerminalTip";
 
 function dirOf(pct: number | null): "up" | "down" | "flat" {
@@ -19,41 +21,102 @@ const TEXT: Record<"up" | "down" | "neutral", string> = {
   neutral: "text-zinc-300",
 };
 
-const ACC_META: Record<"accelerating" | "decelerating" | "flat" | "none", { label: string; tone: "long" | "short" | "neutral" }> = {
-  accelerating: { label: "تتزايد الحركة", tone: "long" },
-  decelerating: { label: "تضعف الحركة", tone: "short" },
-  flat: { label: "ثابتة", tone: "neutral" },
-  none: { label: "غير محسوبة", tone: "neutral" },
+/** Which timeframes get the "fast" accent (1s + 5s) in the change row. */
+const FAST_SECONDS = new Set([1, 5]);
+
+/** Compact change-row badges keyed by window-seconds. */
+const BADGE_LABEL: Record<number, string> = {
+  1: "1ث",
+  5: "5ث",
+  30: "30ث",
+  60: "1م",
+  120: "2م",
 };
 
-export function PriceMovePanel({ series }: { series?: ScalpPriceSeries | null }) {
+/**
+ * High-frequency micro-scalping panel — tick-level Price Action.
+ *
+ * Change/velocity come from the REAL rolling windows + a real per-trade micro
+ * buffer (the shared SSOT). The pulse sparkline renders every executed trade,
+ * downsampled per-second. The badge (ثابتة / صاعد قوي / هابط قوي / تذبذب عالي)
+ * is a presentational band on top of real directional data and is explained in
+ * its tooltip. Nothing is invented; missing values render "غير متاح".
+ */
+function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
+  const series = snap.series;
   const change = series?.change ?? [];
   const velocity = series?.velocity ?? [];
-  const acc = series?.acceleration ?? null;
-  const accKey = acc === null ? "none" : acc;
-  const accMeta = ACC_META[accKey];
+  const pulse = series?.pulse ?? [];
+  const ticksPerSec = series?.ticksPerSec ?? null;
+  const regime = series?.microRegime;
+
+  // Live indicator — from the shared WS health, never a duplicate socket.
+  const live = snap.health.status === "ready";
+  const dir = dirOf(change[0]?.pct ?? null);
+  const stroke = dir === "up" ? colors.up : dir === "down" ? colors.down : colors.muted;
 
   return (
     <div className="flex h-full flex-col rounded-panel border border-line/80 bg-surface-1/40 p-3">
-      {/* header */}
+      {/* header + status badge (regime band, explained in tooltip) */}
       <div className="flex items-center justify-between gap-2">
         <span className="text-3xs font-semibold uppercase tracking-[0.18em] text-muted">
-          حركة السعر
+          حركة السعر <span className="normal-case text-muted/70">(Price Action)</span>
         </span>
-        <Tip title="تتزايد الحركة / تضعف / ثابتة — مقارنة سرعة اللحظة بأطول نافذة متاحة.">
-          <Tag tone={accMeta.tone}>{accMeta.label}</Tag>
+        <Tip
+          title={
+            regime?.label
+              ? "حالة الدفع اللحظية: صاعد قوي / هابط قوي من حركة الثواني الحقيقية؛ «تذبذب عالي» نطاق عرضي يُشتق من ATR وعدد الصفقات/ثانية — نطاق تقديمي وليس اتجاهاً مضموناً."
+              : "حالة الدفع اللحظية للميكرو سكالبينغ."
+          }
+        >
+          <span className="inline-flex items-center gap-1.5">
+            {regime?.label ? (
+              <span
+                key={snap.updatedAt}
+                className={`inline-flex items-center gap-1.5 rounded-chip border border-line bg-surface-2/40 px-2 py-0.5 animate-[reg-flash_0.8s_ease-out] ${regime.tone === "long" ? "border-up/30" : regime.tone === "short" ? "border-down/30" : ""}`}
+              >
+                <span
+                  className={`inline-block h-1.5 w-1.5 rounded-full ${regime.tone === "long" ? "bg-up-fg" : regime.tone === "short" ? "bg-down-fg" : "bg-zinc-400"} animate-[dot-blink_1s_ease-in-out_infinite]`}
+                />
+                <span
+                  className={`text-2xs font-bold ${regime.tone === "long" ? "text-up-fg" : regime.tone === "short" ? "text-down-fg" : "text-zinc-300"}`}
+                >
+                  {regime.arrow} {regime.label}
+                </span>
+              </span>
+            ) : (
+              <Tag tone="neutral">غير متاح</Tag>
+            )}
+          </span>
         </Tip>
       </div>
 
-      {/* per-period change cells (same real data contract) */}
+      {/* per-period change cells — 1s/5s fast group accented, flash on update */}
       <div className="mt-2 grid grid-cols-5 gap-1">
         {change.map((c) => {
           const d = dirOf(c.pct);
           const tone = d === "up" ? "up" : d === "down" ? "down" : "neutral";
+          const fast = FAST_SECONDS.has(c.seconds);
           return (
-            <div key={c.label} className="rounded-panel border border-line bg-surface-2/30 px-1 py-1 text-center">
-              <div className="text-3xs text-muted">{c.label}</div>
-              <div className={`${num} mt-0.5 truncate text-[11px] font-bold leading-none ${TEXT[tone]}`} dir="ltr">
+            <div
+              key={c.label}
+              title={`التغيّر خلال ${c.label} — من نوافذ السوق الحقيقية (${c.seconds} ث).`}
+              className={`rounded-panel border px-1 py-1 text-center ${
+                fast ? "border-up/40 bg-up/5" : "border-line bg-surface-2/30"
+              }`}
+            >
+              <div
+                className={`text-3xs ${fast ? "font-bold text-up-fg" : "text-muted"}`}
+              >
+                {BADGE_LABEL[c.seconds] ?? c.label}
+              </div>
+              <div
+                key={c.pct ?? "na"}
+                className={`${num} mt-0.5 truncate text-[11px] font-bold leading-none ${TEXT[tone]} ${
+                  c.pct != null ? "animate-[price-flash_0.6s_ease-out]" : ""
+                }`}
+                dir="ltr"
+              >
                 {c.pct != null ? `${ARROW[d]} ${c.pct >= 0 ? "+" : ""}${c.pct.toFixed(3)}%` : "غير متاح"}
               </div>
             </div>
@@ -61,29 +124,89 @@ export function PriceMovePanel({ series }: { series?: ScalpPriceSeries | null })
         })}
       </div>
 
-      {/* velocity — compact chips */}
-      {velocity.length > 0 ? (
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t border-line/70 pt-2">
-          <Tip title="السرعة = معدل تغيّر السعر في الثانية (%/ث) — منفصلة عن نسبة التغيّر المطلقة.">
-            <span className="text-3xs font-semibold uppercase tracking-[0.14em] text-muted">السرعة</span>
-          </Tip>
-          <div className="flex flex-wrap items-center gap-1">
-            {velocity.map((v) => (
-              <span
-                key={v.label}
-                className="rounded-chip border border-line bg-surface-2/40 px-1.5 py-0.5 text-2xs text-zinc-300"
-                dir="ltr"
-              >
-                {v.label} {v.pctPerSec != null ? `${v.pctPerSec >= 0 ? "+" : ""}${v.pctPerSec.toFixed(3)}%/ث` : "—"}
-              </span>
-            ))}
-          </div>
+      {/* pulse sparkline — real per-trade ticks */}
+      <div className="mt-2 rounded-panel border border-line/70 bg-black/20 p-1.5">
+        <div style={{ width: "100%", height: 44 }}>
+          {pulse.length > 1 ? (
+            <Sparkline data={pulse} stroke={stroke} />
+          ) : (
+            <div className="flex h-full items-center justify-center text-2xs text-muted">
+              لا بيانات تيك كافية بعد…
+            </div>
+          )}
         </div>
-      ) : (
-        <p className="mt-2 border-t border-line/70 pt-2 text-2xs text-muted">
-          لا بيانات كافية لحساب السرعة بعد.
-        </p>
-      )}
+      </div>
+
+      {/* velocity + Ticks/s */}
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t border-line/70 pt-2">
+        <Tip title="السرعة = معدل تغيّر السعر في الثانية (%/ث) — منفصلة عن نسبة التغيّر المطلقة.">
+          <span className="text-3xs font-semibold uppercase tracking-[0.14em] text-muted">السرعة</span>
+        </Tip>
+        <div className="flex flex-wrap items-center gap-1">
+          {velocity.map((v) => (
+            <span
+              key={v.label}
+              className="rounded-chip border border-line bg-surface-2/40 px-1.5 py-0.5 text-2xs text-zinc-300"
+              dir="ltr"
+            >
+              {v.label} {v.pctPerSec != null ? `${v.pctPerSec >= 0 ? "+" : ""}${v.pctPerSec.toFixed(3)}%/ث` : "—"}
+            </span>
+          ))}
+          <Tip title="Ticks/sec = عدد الصفقات المنفذة في الثانية من البث اللحظي الحقيقي (مقياس كثافة النشاط).">
+            <span
+              key={ticksPerSec ?? "na"}
+              className={`inline-flex items-center gap-1 rounded-chip border border-line bg-surface-2/40 px-2 py-0.5 text-2xs ${
+                ticksPerSec != null ? "animate-[price-flash_0.6s_ease-out]" : ""
+              } ${ticksPerSec != null && ticksPerSec >= 40 ? "text-warn-fg" : "text-zinc-300"}`}
+              dir="ltr"
+            >
+              <span className="text-muted">⚡</span>
+              {ticksPerSec != null ? `${ticksPerSec} تيك/ث` : "—"}
+            </span>
+          </Tip>
+        </div>
+      </div>
+
+      {/* live indicator footer */}
+      <div className="mt-2 flex items-center gap-1.5 border-t border-line/70 pt-1.5">
+        <Dot tone={live ? "good" : snap.health.status === "stale" ? "warn" : "quiet"} pulse={live} />
+        <span className="text-2xs text-muted">
+          {live
+            ? "بث لحظي مباشر"
+            : snap.health.status === "stale"
+            ? "التدفق قديم مؤقتاً"
+            : "بانتظار البث اللحظي…"}
+        </span>
+      </div>
     </div>
   );
 }
+
+/** Memoised Recharts sparkline — no animation (sub-second cadence unchanged). */
+function Sparkline({ data, stroke }: { data: { t: number; price: number }[]; stroke: string }) {
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <AreaChart data={data} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
+        <defs>
+          <linearGradient id="pulseFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={stroke} stopOpacity={0.35} />
+            <stop offset="100%" stopColor={stroke} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <YAxis hide domain={["dataMin", "dataMax"]} />
+        <Area
+          type="monotone"
+          dataKey="price"
+          stroke={stroke}
+          strokeWidth={1.6}
+          fill="url(#pulseFill)"
+          isAnimationActive={false}
+          dot={false}
+          activeDot={false}
+        />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+}
+
+export const PriceMovePanel = memo(PriceMovePanelInner);

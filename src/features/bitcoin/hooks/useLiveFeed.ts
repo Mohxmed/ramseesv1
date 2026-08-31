@@ -45,6 +45,18 @@ type BookTickerEvt = {
   T: number;
 };
 
+/** One raw aggTrade captured for the scalping micro-tick buffer. */
+export type MicroTick = {
+  /** Trade time in ms (Binance `T`). */
+  t: number;
+  /** Price. */
+  p: number;
+  /** Quantity in base asset (BTC). */
+  q: number;
+  /** true when the buyer is the maker (taker sold). */
+  m: boolean;
+};
+
 /** Live 24h stats from Binance `miniTicker` (reloaded ~once per second per symbol). */
 export type MiniTicker = {
   last: number;
@@ -99,6 +111,10 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
   });
 
   const tradesRef = useRef<AggTradeEvt[]>([]);
+  // Raw per-trade micro ticks for the scalping pulse buffer. Kept in a ref
+  // because aggTrade fires many times/sec — re-rendering per tick is wasteful.
+  // Consumers (useScalping) drain it on their own cadence. Bounded to ~120s.
+  const microTicksRef = useRef<MicroTick[]>([]);
   const lastPriceRef = useRef<number | null>(null);
   const lastUpdatedRef = useRef<number>(0);
   const publishRef = useRef<number>(0);
@@ -244,7 +260,16 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
                 tradesRef.current = tradesRef.current.slice(-800);
               }
               if (tradesRef.current.length % 5 === 0) computeFlow();
-              lastPriceRef.current = toNum(t.p) || lastPriceRef.current;
+              // Feed the micro-tick buffer with every trade (no dedup — a pulse
+              // chart wants each executed trade; bounded to a 120s window).
+              const pt = toNum(t.p);
+              if (pt > 0) {
+                microTicksRef.current.push({ t: t.T, p: pt, q: toNum(t.q), m: t.m });
+                if (microTicksRef.current.length > 4000) {
+                  microTicksRef.current = microTicksRef.current.slice(-3000);
+                }
+              }
+              lastPriceRef.current = pt || lastPriceRef.current;
               lastUpdatedRef.current = isFiniteNumber(data.E) ? data.E : Date.now();
               publish();
             } else if (e === "bookTicker") {
@@ -467,6 +492,8 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
     // Futures raw ingestion (refs, read on cadence by useBitcoin).
     markPriceRef,
     liqEventsRef,
+    // Per-trade micro ticks (ref, drained on cadence by useScalping).
+    microTicksRef,
     futuresLive,
     futuresStale,
     futuresLatency,

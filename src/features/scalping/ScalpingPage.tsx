@@ -50,7 +50,7 @@ export function ScalpingPage() {
       {/* 02-04 · Decision + Price Move + Volatility — compact decision row */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
         <DecisionCall decision={snap.decision ?? null} signal={snap.signal} />
-        <PriceMovePanel series={snap.series ?? null} />
+        <PriceMovePanel snap={snap} />
         <VolatilityPanel atr={snap.series?.atr ?? null} />
       </div>
 

@@ -135,6 +135,28 @@ export type ScalpPriceSeries = {
    * Null when candles are insufficient/unavailable.
    */
   atr: { value: number | null; pct: number | null; period: number; frameLabel: string } | null;
+  /**
+   * High-frequency pulse series for the tick-level sparkline. Each point is a
+   * real executed trade (price + trade time in ms), downsampled per-second for
+   * the chart. Empty when the micro-tick feed produced nothing yet.
+   */
+  pulse: { t: number; price: number }[];
+  /**
+   * Real trade throughput — how many executed trades per second, smoothed over
+   * a short window. Null when the feed is too sparse to compute honestly.
+   */
+  ticksPerSec: number | null;
+  /**
+   * Micro regime band — a compact reading of the last-second movement vs the
+   * wider window. Directional fields (arrow + label) are REAL; the HIGH
+   * volatility flag is a presentational band derived from ATR (see tooltip).
+   */
+  microRegime: {
+    arrow: "↗" | "↘" | "→";
+    tone: "long" | "short" | "neutral";
+    /** ثابتة / صاعد قوي / هابط قوي / تذبذب عالي */
+    label: "ثابتة" | "صاعد قوي" | "هابط قوي" | "تذبذب عالي" | null;
+  };
 };
 
 /** The full snapshot handed to the UI. */

@@ -563,6 +563,7 @@ export function useBitcoinPipeline() {
     futuresWsLive: liveFeed.futuresLive,
     futuresWsStale: liveFeed.futuresStale,
     futuresWsLatency: liveFeed.futuresLatency,
+    microTicksRef: liveFeed.microTicksRef,
     marketState,
     liquidity,
     structure,

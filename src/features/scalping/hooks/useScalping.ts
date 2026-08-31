@@ -6,6 +6,7 @@ import type { MarketStructureAnalysis } from "../../bitcoin/analysis";
 import type { SupportResistanceResult } from "../../bitcoin/analysis/types";
 import { SCALPING_CONFIG } from "../config";
 import { ingestPrice, lastPriceAgeMs, priceAt } from "../data/priceSeries";
+import { drainMicroTicks } from "../data/microTicks";
 import { computeAtr } from "../data/atr";
 import { buildMarketRegimeMonitor } from "../data/marketRegime";
 import { computeFeatures } from "../features";
@@ -161,7 +162,12 @@ export function useScalping(): ScalpingSnapshot {
       });
 
       const decisionView = toDecisionView(decision, features);
-      const series = buildPriceSeries(decisionView.marketState, ctx.samplePrice, price, cmd.candles);
+      // Drain the shared per-trade tick ref (real micro data) exactly once per
+      // compute: feed each new trade into the price buffer for the pulse chart.
+      const drained = cmd.microTicksRef
+        ? drainMicroTicks(cmd.microTicksRef, (p, t) => ingestPrice(p, t))
+        : { pulse: [], newCount: 0, ticksPerSec: null };
+      const series = buildPriceSeries(decisionView.marketState, ctx.samplePrice, price, cmd.candles, drained);
       const regimeMonitor = buildMarketRegimeMonitor(cmd.multiTF);
 
       // Recorder: capture every decision + resolve forward outcomes.
@@ -264,7 +270,8 @@ function buildPriceSeries(
   marketState: MarketStateSnapshot,
   samplePrice: (secondsAgo: number) => number | null,
   price: number | null,
-  candles: { open: number; high: number; low: number; close: number }[]
+  candles: { open: number; high: number; low: number; close: number }[],
+  drained?: { pulse: { t: number; p: number }[]; newCount: number; ticksPerSec: number | null }
 ): ScalpPriceSeries {
   const bySec = new Map<number, WindowStats>();
   for (const w of marketState.windows ?? []) bySec.set(w.windowS, w);
@@ -317,8 +324,72 @@ function buildPriceSeries(
 
   const atr = computeAtr(candles, 14, "1م");
 
-  return { change, velocity, acceleration, atr };
+  // Downsample the recent real trades into a per-second pulse for the chart.
+  const pulse = buildPulse(drained?.pulse ?? []);
+  const microRegime = buildMicroRegime(change, atr?.pct, drained?.ticksPerSec ?? null);
+
+  return {
+    change,
+    velocity,
+    acceleration,
+    atr,
+    pulse,
+    ticksPerSec: drained?.ticksPerSec ?? null,
+    microRegime,
+  };
 }
+
+/**
+ * Presentational micro-regime bands (like ATR banding) — explained in tooltips;
+ * every directional datum is real. STRONG_MOVE_PCT is a 1s move that we call a
+ * "strong" print; VOL_HIGH_ATR_PCT is an ATR% level at which we flag high
+ * volatility when there's no dominant short-window direction.
+ */
+const STRONG_MOVE_PCT = 0.02; // 1s change % beyond which the print is "strong"
+const VOL_HIGH_ATR_PCT = 0.15; // ATR as % of price beyond which we flag volatility
+const HIGH_TICKS_S = 50; // Ticks/sec beyond which we treat the print as high-churn
+
+function buildPulse(ticks: { t: number; p: number }[]): { t: number; price: number }[] {
+  if (!ticks.length) return [];
+  const bySec = new Map<number, number>();
+  for (const tk of ticks) {
+    const sec = Math.floor(tk.t / 1000);
+    bySec.set(sec, tk.p); // last price within the second wins
+  }
+  return Array.from(bySec.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([sec, p]) => ({ t: sec * 1000, price: p }));
+}
+
+function buildMicroRegime(
+  change: { label: string; seconds: number; pct: number | null }[],
+  atrPct: number | null,
+  ticksPerSec: number | null
+): ScalpPriceSeries["microRegime"] {
+  const one = change.find((c) => c.seconds === 1)?.pct ?? null;
+  const five = change.find((c) => c.seconds === 5)?.pct ?? null;
+  const ref = one ?? five;
+
+  const arrow: "↗" | "↘" | "→" = ref == null ? "→" : ref > 0.0001 ? "↗" : ref < -0.0001 ? "↘" : "→";
+  const tone: "long" | "short" | "neutral" = arrow === "↗" ? "long" : arrow === "↘" ? "short" : "neutral";
+
+  let label: ScalpPriceSeries["microRegime"]["label"] = null;
+  if (ref != null) {
+    if (ref >= STRONG_MOVE_PCT) label = "صاعد قوي";
+    else if (ref <= -STRONG_MOVE_PCT) label = "هابط قوي";
+    else if (atrPct != null && atrPct >= VOL_HIGH_ATR_PCT) label = "تذبذب عالي";
+    else if (ticksPerSec != null && ticksPerSec >= HIGH_TICKS_S) label = "تذبذب عالي";
+    else label = "ثابتة";
+  } else if (
+    (atrPct != null && atrPct >= VOL_HIGH_ATR_PCT) ||
+    (ticksPerSec != null && ticksPerSec >= HIGH_TICKS_S)
+  ) {
+    label = "تذبذب عالي";
+  }
+
+  return { arrow, tone, label };
+}
+
 
 /** Map the composed decision into the UI-safe view shape. */
 function toDecisionView(d: ScalpingDecision, features: ScalpingFeature[]): ScalpDecisionView {

@@ -75,6 +75,38 @@ body {
   }
 }
 
+/* Micro terminal flash/glow on a live update (regime badge + price cells). */
+@keyframes price-flash {
+  0% {
+    filter: brightness(2.3);
+    transform: scale(1.05);
+  }
+  100% {
+    filter: brightness(1);
+    transform: scale(1);
+  }
+}
+
+@keyframes reg-flash {
+  0% {
+    box-shadow: 0 0 0 0 var(--color-up);
+  }
+  100% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+
+/* Pulsing status dot for the live-feed indicator (matches Dot's animate-pulse). */
+@keyframes dot-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
 .animate-fade-in-up {
   animation: fade-in-up 0.35s ease-out both;
 }
