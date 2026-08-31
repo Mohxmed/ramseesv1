@@ -70,11 +70,13 @@ export function useScalping(): ScalpingSnapshot {
   const prevSignalRef = useRef<ScalpingSignal | null>(null);
 
   // Real-time AGGR flow engine (multi-exchange trade flow). `flowLatest` is a
-  // ref that always holds the newest flow snapshot without triggering renders;
-  // `flowView` is the throttled copy for the left panel UI.
+  // ref that always holds the newest flow snapshot without triggering renders.
+  // `flowView` is the throttled copy produced at the engine cadence; the left
+  // panel reads `flowLatest` through its own fast React boundary so the trade
+  // tape updates at ~80-100ms instead of being gated by the 1s scalping compute.
   const { flow: flowView, latest: flowLatest } = useFlowEngine({
     symbol: "BTCUSDT",
-    snapshotIntervalMs: 300,
+    snapshotIntervalMs: 100,
   });
 
   // --- ingest price ticks into the ring buffer without re-render ----------
@@ -281,6 +283,7 @@ export function useScalping(): ScalpingSnapshot {
           latency: cmd.futuresWsLatency,
         },
         flow: flowView,
+        flowLatest,
       });
     };
 

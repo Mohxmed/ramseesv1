@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { useScalping } from "./hooks/useScalping";
 import { TerminalHeader } from "./components/terminal/TerminalHeader";
 import { DecisionCall } from "./components/terminal/DecisionCall";
@@ -14,6 +15,40 @@ import { DiagnosticsContent } from "./components/terminal/DiagnosticsPanel";
 import { SystemHealthBar } from "./components/terminal/SystemHealthBar";
 import { Section, Collapse } from "./components/terminal/TradingPrimitives";
 import { FlowPanel } from "./components/FlowPanel";
+import type { FlowSnapshot } from "./flow/types";
+
+/**
+ * Fast React boundary for the real-time flow tape.
+ *
+ * The flow engine publishes the newest snapshot into a module-level ref
+ * (`snap.flowLatest`) as soon as it is produced (no render coupling). This
+ * wrapper polls that ref on a fast cadence (~80-100ms) into a small local state
+ * so ONLY the flow panel re-renders per update — the heavy scalping terminal
+ * keeps its 1s cadence and no render fires per individual trade.
+ */
+const FLOW_TAPE_INTERVAL_MS = 64;
+
+function LiveFlowView({ latest }: { latest?: { readonly current: FlowSnapshot | null } | null }) {
+  const [flow, setFlow] = useState<FlowSnapshot | null>(() => latest?.current ?? null);
+  const lastPublishRef = useRef(0);
+
+  useEffect(() => {
+    if (!latest) return;
+    const tick = () => {
+      const next = latest.current;
+      const ts = next?.state?.timestamp ?? 0;
+      if (ts !== lastPublishRef.current) {
+        lastPublishRef.current = ts;
+        setFlow(next);
+      }
+    };
+    tick();
+    const timer = setInterval(tick, FLOW_TAPE_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [latest]);
+
+  return <FlowPanel snap={flow} />;
+}
 
 /**
  * Premium Trading Terminal — the scalping page.
@@ -51,7 +86,7 @@ export function ScalpingPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_1fr]">
         {/* left vertical flow panel */}
         <aside className="lg:sticky lg:top-4 lg:self-start">
-          <FlowPanel snap={snap.flow} />
+          <LiveFlowView latest={snap.flowLatest} />
         </aside>
 
         {/* main terminal content */}

@@ -100,8 +100,8 @@ const DEFAULT_CONFIG: FlowEngineConfig = {
   largeTradeThreshold: 50_000,
   maxRawTrades: 5000,
   maxLargeTrades: 200,
-  snapshotIntervalMs: 200,
-  computeIntervalMs: 200,
+  snapshotIntervalMs: 80,
+  computeIntervalMs: 80,
 };
 
 // ─── Engine State ───────────────────────────────────────────────────

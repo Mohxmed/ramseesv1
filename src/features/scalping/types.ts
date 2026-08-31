@@ -245,6 +245,12 @@ export type ScalpingSnapshot = {
    * engine has not produced its first snapshot.
    */
   flow?: import("./flow/types").FlowSnapshot | null;
+  /**
+   * Always-newest flow snapshot ref (module-singleton engine). Components that
+   * need the real-time trade tape at a fast cadence can poll this ref without
+   * triggering a full terminal re-render (see the FlowPanel fast boundary).
+   */
+  flowLatest?: { readonly current: import("./flow/types").FlowSnapshot | null } | null;
 };
 
 /** Composed statistical decision exposed to the UI (see decision/ module). */
