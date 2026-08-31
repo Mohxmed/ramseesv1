@@ -157,11 +157,10 @@ export function computeMarketState(input: {
   // (direction handled by trend; momentum here reflects strength)
   const momentumStrength = Math.abs(momentumScore);
 
-  // Volatility: ATR% / realized-vol on 30m + 1h.
+  // Volatility: ATR% / realized-vol on 30m + 1h (fall back to 30m when 1h is absent).
   const atr30 = atrPct(input.candles["30m"] ?? [], 14);
   const atr1h = atrPct(input.candles["1h"] ?? [], 14);
-  const volRef = atr1h > 0 ? atr1h : atr30;
-  const volPercentile = atr1h;
+  const volPercentile = atr1h > 0 ? atr1h : atr30;
   const volatility: MarketState["volatility"] =
     volPercentile > 1.6 ? "high" : volPercentile > 0.8 ? "medium" : "low";
 

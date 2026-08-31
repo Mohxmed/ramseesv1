@@ -515,7 +515,9 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
         .map((p) => {
           const bull = p.type === "HH" || p.type === "HL";
           return {
-            time: Math.floor(p.time / 1000) as UTCTimestamp,
+            // Structure point times already match the candle series unit
+            // (UTC seconds) — the old `p.time / 1000` threw markers back to ~1970.
+            time: Math.floor(p.time) as UTCTimestamp,
             position: bull ? ("belowBar" as const) : ("aboveBar" as const),
             color: bull ? "#34d399" : "#f87171",
             shape: ("arrowUp" as const),
