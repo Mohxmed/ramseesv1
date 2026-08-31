@@ -6,7 +6,7 @@ import type { MarketStructureAnalysis } from "../../bitcoin/analysis";
 import type { SupportResistanceResult } from "../../bitcoin/analysis/types";
 import { SCALPING_CONFIG } from "../config";
 import { ingestPrice, lastPrice, lastPriceAgeMs, priceAt, getPriceChange, coveragePct } from "../data/priceSeries";
-import { drainMicroTicks } from "../data/microTicks";
+import { consumeMicroTicks, readMicroMetrics } from "../data/microTicks";
 import { computeAtr } from "../data/atr";
 import { buildMarketRegimeMonitor } from "../data/marketRegime";
 import { computeFeatures } from "../features";
@@ -75,6 +75,20 @@ export function useScalping(): ScalpingSnapshot {
     const price = cmd.livePrice ?? cmd.orderBook?.bestAsk ?? cmd.overview?.price ?? null;
     if (price != null) ingestPrice(price, cmd.livePriceTs || Date.now());
   }, [cmd.livePrice, cmd.livePriceTs, cmd.orderBook?.bestAsk, cmd.overview?.price]);
+
+  // --- per-trade micro feed (REAL-TIME range fix) -------------------------
+  // A fast, dedicated timer consumes the SSOT tick ref on EVERY trade (as it
+  // arrives, ~100ms cadence) into the rolling ring + price buffer — decoupled
+  // from the heavy 1s recompute. The range readouts (1s/5s/30s) thus always
+  // reflect the LATEST aggTrade instead of waiting for a fixed interval notch.
+  useEffect(() => {
+    const ref = cmd.microTicksRef;
+    if (!ref) return;
+    const feed = () => consumeMicroTicks(ref, (p, t) => ingestPrice(p, t));
+    feed();
+    const timer = setInterval(feed, SCALPING_CONFIG.microFeedMs);
+    return () => clearInterval(timer);
+  }, [cmd.microTicksRef]);
 
   // --- compute a full snapshot on the throttled cadence --------------------
   useEffect(() => {
@@ -161,19 +175,29 @@ export function useScalping(): ScalpingSnapshot {
       });
 
       const decisionView = toDecisionView(decision, features);
-      // Drain the shared per-trade tick ref (real micro data) exactly once per
-      // compute: feed each new trade into the price buffer for the pulse chart.
+      // Read the per-trade micro metrics from the rolling ring (kept fresh by
+      // the dedicated fast feeder). No ref flush / no ingestion here — every
+      // trade has already been consumed near-instant on its arrival.
       const drained = cmd.microTicksRef
-        ? drainMicroTicks(cmd.microTicksRef, (p, t) => ingestPrice(p, t), coveragePct())
+        ? readMicroMetrics(coveragePct())
         : {
             pulse: [],
             newCount: 0,
             ticksPerSec: null,
             microVolBps: null,
-            microRangeBps: null,
+            range1sBps: null,
+            range5sBps: null,
+            range30sBps: null,
             directionFlips: 0,
             volatilityRegime: "L1_STAGNANT" as const,
-            volatilityMetrics: { ticksPerSec: null, rangeBps: null, flips: 0, prevRangeBps: null },
+            volatilityMetrics: {
+              ticksPerSec: null,
+              range1sBps: null,
+              range5sBps: null,
+              range30sBps: null,
+              flips: 0,
+              prevRangeBps: null,
+            },
           };
       const series = buildPriceSeries(cmd.candles, drained);
       const regimeMonitor = buildMarketRegimeMonitor(cmd.multiTF);
@@ -281,12 +305,16 @@ function buildPriceSeries(
     newCount: number;
     ticksPerSec: number | null;
     microVolBps?: number | null;
-    microRangeBps?: number | null;
+    range1sBps?: number | null;
+    range5sBps?: number | null;
+    range30sBps?: number | null;
     directionFlips?: number;
     volatilityRegime?: import("../../scalping/data/microTicks").VolatilityRegime;
     volatilityMetrics?: {
       ticksPerSec: number | null;
-      rangeBps: number | null;
+      range1sBps: number | null;
+      range5sBps: number | null;
+      range30sBps: number | null;
       flips: number;
       prevRangeBps?: number | null;
     };
@@ -356,12 +384,16 @@ function buildPriceSeries(
     pulse,
     ticksPerSec: drained?.ticksPerSec ?? null,
     microRegime,
-    microRangeBps: drained?.microRangeBps ?? null,
+    range1sBps: drained?.range1sBps ?? null,
+    range5sBps: drained?.range5sBps ?? null,
+    range30sBps: drained?.range30sBps ?? null,
     directionFlips: drained?.directionFlips ?? 0,
     volatilityRegime: drained?.volatilityRegime ?? "L1_STAGNANT",
     volatilityMetrics: {
       ticksPerSec: drained?.volatilityMetrics?.ticksPerSec ?? null,
-      rangeBps: drained?.volatilityMetrics?.rangeBps ?? null,
+      range1sBps: drained?.volatilityMetrics?.range1sBps ?? null,
+      range5sBps: drained?.volatilityMetrics?.range5sBps ?? null,
+      range30sBps: drained?.volatilityMetrics?.range30sBps ?? null,
       flips: drained?.volatilityMetrics?.flips ?? 0,
       prevRangeBps: drained?.volatilityMetrics?.prevRangeBps ?? null,
     },

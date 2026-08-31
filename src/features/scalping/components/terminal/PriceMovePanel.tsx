@@ -46,6 +46,11 @@ function formatMetric(v: number | null | undefined): string {
   return Number.isInteger(v) ? String(v) : v.toFixed(1);
 }
 
+/** Format a bps reading as "X.XX نقطة" (2 decimals, "—" while unavailable). */
+function fmtPoint(v: number | null | undefined): string {
+  return v == null || !isFinite(v) ? "—" : `${v.toFixed(2)} نقطة`;
+}
+
 /** Compact change-row badges keyed by window-seconds. */
 const BADGE_LABEL: Record<number, string> = {
   1: "1ث",
@@ -89,7 +94,7 @@ const VOL_DESC: Record<VolatilityRegime, string> = {
   L3_HIGH_VOLATILITY:
     "تذبذب مرتفع — حذر: تقلب متصاعد يستدعي الحذر. الشرط: تيك/ث بين 46 و85 أو مدى السعر بين 7 و15 نقطة أساس.",
   L4_LIQUIDATION_RISK:
-    "خطر تصفية — امتناع عن الدخول: حالة حادة جداً. الشرط: تيك/ث أكبر من 90 أو مدى السعر أكبر من 16 نقطة أساس أو 2 انعكاسات اتجاه فأكثر خلال ثانية واحدة.",
+    "خطر تصفية — امتناع عن الدخول: حالة حادة جداً. الشرط: تيك/ث أكبر من 90 أو مدى السعر خلال ثانية أكبر من 16 نقطة أساس، أو خلال 5 ثوانٍ أكبر من 25 نقطة أساس، أو 2 انعكاسات اتجاه فأكثر خلال ثانية واحدة.",
 };
 
 const REG_BADGE: Record<VolTone, string> = {
@@ -167,11 +172,12 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
   const coveragePct = series?.coveragePct ?? 100;
   const building = coveragePct < 100;
 
-  // Micro-range (sub-second volatility in basis points) with a previous-value
-  // comparator for the widening/shrinking/stable trend arrow. previousRangeBps
-  // is computed in the data layer (microTicks) and passed through the series as
-  // plain props, so this stays fully render-derived (no state/refs/effects).
-  const bps = series?.microRangeBps ?? null;
+  // Micro-range 1s (basis points) with a previous-value comparator for the
+  // widening/shrinking/stable trend arrow. prevRangeBps is computed in the data
+  // layer (microTicks) and passed through the series as plain props, so this
+  // stays fully render-derived (no state/refs/effects). The tooltip expands to
+  // the wider rolling windows (5s / 30s) computed from the SAME per-trade ring.
+  const bps = series?.range1sBps ?? null;
   const prevBps = series?.volatilityMetrics?.prevRangeBps ?? null;
   let bpsTrend: "up" | "down" | "flat" = "flat";
   if (bps != null && prevBps != null) {
@@ -179,14 +185,18 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
     else if (bps < prevBps - 0.5) bpsTrend = "down";
     else bpsTrend = "flat";
   }
-  const bpsTooltip =
-    bps == null
-      ? "مدى الحركة اللحظي (نقطة أساس) — يظهر عند توفر بيانات التيكات."
-      : bpsTrend === "up"
-      ? "↑ (اتساع): اتساع نطاق الحركة اللحظية - تذبذب مرتفع."
-      : bpsTrend === "down"
-      ? "↓ (انكماش): انكماش نطاق الحركة - تهدئة في التذبذب."
-      : "→ (مستقر): استقرار نطاق الحركة اللحظية.";
+  const rangeTooltip = (
+    <span className="flex flex-col gap-0.5 font-mono text-[11px]">
+      <span dir="ltr">مدى 1ث: {fmtPoint(series?.range1sBps)}</span>
+      <span dir="ltr">مدى 5ث: {fmtPoint(series?.range5sBps)}</span>
+      <span dir="ltr">مدى 30ث: {fmtPoint(series?.range30sBps)}</span>
+      {bps != null && bpsTrend !== "flat" && (
+        <span className="mt-0.5">
+          {bpsTrend === "up" ? "↗ اتساع" : "↘ انكماش"} مقارنة بالقراءة السابقة.
+        </span>
+      )}
+    </span>
+  );
 
   // Volatility regime presentation (level order 1..4 drives the risk meter).
   const vtone = VOL_TONE[vreg];
@@ -226,7 +236,9 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
         <Tip
           title={`مقياس شدة الخطر (لحظي): المستوى ${vLevel} = ${vLevel * 25}%. تيك/ث ${formatMetric(
             vmet?.ticksPerSec
-          )} · مدى 1ث ${formatMetric(vmet?.rangeBps)} نقطة أساس · انعكاسات ${vmet?.flips ?? 0}.`}
+          )} · مدى 1ث ${formatMetric(vmet?.range1sBps)} · مدى 5ث ${formatMetric(
+            vmet?.range5sBps
+          )} نقطة أساس · انعكاسات ${vmet?.flips ?? 0}.`}
         >
           <div className="flex items-center gap-1">
             {([1, 2, 3, 4] as const).map((seg) => {
@@ -352,7 +364,7 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
             </span>
           </Tip>
 
-          <Tip title={bpsTooltip}>
+          <Tip title={rangeTooltip}>
             <span
               className={`inline-flex items-center gap-1.5 rounded-chip border bg-surface-2/40 px-2 py-0.5 font-mono text-xs font-semibold whitespace-nowrap ${
                 bpsTrend === "up"
@@ -363,7 +375,7 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
               }`}
               dir="ltr"
             >
-              <span className="text-muted">المدى:</span>
+              <span className="text-muted">المدى 1ث:</span>
               <span>{bps != null ? `${bps.toFixed(2)} نقطة` : "— نقطة"}</span>
               {bps != null && <span>{bpsTrend === "up" ? "↑" : bpsTrend === "down" ? "↓" : "→"}</span>}
             </span>

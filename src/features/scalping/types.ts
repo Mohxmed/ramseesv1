@@ -168,11 +168,19 @@ export type ScalpPriceSeries = {
     label: "ثابتة" | "صاعد قوي" | "هابط قوي" | "تذبذب عالي" | null;
   };
   /**
-   * Strict sub-second price variance over the trailing 1000ms window:
+   * Strict 1s peak-to-peak price variance over the trailing 1000ms window:
    * ((maxPriceIn1s - minPriceIn1s) / currentPrice) * 10000 (basis points).
-   * Null when the 1s window holds fewer than 2 honest ticks.
+   * Null when the 1s window holds fewer than 2 honest ticks. The rolling ring
+   * is fed per-trade, so this is as fresh as the latest aggTrade.
    */
-  microRangeBps: number | null;
+  range1sBps: number | null;
+  /**
+   * Same rolling max/min over the trailing 5000ms — a wider safety lens.
+   * Triggers L4_LIQUIDATION_RISK when > 25 bps.
+   */
+  range5sBps: number | null;
+  /** Same rolling max/min over the trailing 30000ms — the widest lens. */
+  range30sBps: number | null;
   /**
    * Direction flips within the trailing 1000ms window — sign changes between
    * successive non-zero price deltas. A fast up/down whipsaw is a liquidation
@@ -182,16 +190,18 @@ export type ScalpPriceSeries = {
   /**
    * Strict 4-level volatility / liquidation-danger regime
    * (L1_STAGNANT / L2_OPTIMAL / L3_HIGH_VOLATILITY / L4_LIQUIDATION_RISK),
-   * derived from ticksPerSec, microRangeBps and directionFlips over the same
-   * 1s window. Never null.
+   * derived from ticksPerSec, range1sBps/range5sBps and directionFlips over the
+   * same window. Never null.
    */
   volatilityRegime: import("./data/microTicks").VolatilityRegime;
   /** Raw numeric readouts behind the current regime (for tooltips). */
   volatilityMetrics: {
     ticksPerSec: number | null;
-    rangeBps: number | null;
+    range1sBps: number | null;
+    range5sBps: number | null;
+    range30sBps: number | null;
     flips: number;
-    /** Previous drain's rangeBps — drives the widening/shrinking trend arrow. */
+    /** Previous reading's range1sBps — drives the widening/shrinking trend arrow. */
     prevRangeBps: number | null;
   };
   /**

@@ -21,6 +21,13 @@ export const SCALPING_CONFIG = {
   /** UI recompute cadence (throttles the heavy feature/signal math). */
   recomputeMs: 1_000,
 
+  /**
+   * Per-trade micro-feed cadence: how often the SSOT tick ref is consumed into
+   * the rolling ring. Decoupled from recomputeMs so every aggTrade lands in the
+   * range buffers near-instant (100ms << 1s snapshot) — fix for static ranges.
+   */
+  microFeedMs: 100,
+
   /** No fresh price within this window => treat the feed as stale. */
   priceStaleMs: 15_000,
 
