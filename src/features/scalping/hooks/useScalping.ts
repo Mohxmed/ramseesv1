@@ -173,7 +173,7 @@ export function useScalping(): ScalpingSnapshot {
             microRangeBps: null,
             directionFlips: 0,
             volatilityRegime: "L1_STAGNANT" as const,
-            volatilityMetrics: { ticksPerSec: null, rangeBps: null, flips: 0 },
+            volatilityMetrics: { ticksPerSec: null, rangeBps: null, flips: 0, prevRangeBps: null },
           };
       const series = buildPriceSeries(cmd.candles, drained);
       const regimeMonitor = buildMarketRegimeMonitor(cmd.multiTF);
@@ -284,7 +284,12 @@ function buildPriceSeries(
     microRangeBps?: number | null;
     directionFlips?: number;
     volatilityRegime?: import("../../scalping/data/microTicks").VolatilityRegime;
-    volatilityMetrics?: { ticksPerSec: number | null; rangeBps: number | null; flips: number };
+    volatilityMetrics?: {
+      ticksPerSec: number | null;
+      rangeBps: number | null;
+      flips: number;
+      prevRangeBps?: number | null;
+    };
   }
 ): ScalpPriceSeries {
   // A window return = newest tick price vs the real tick at/newer-than the
@@ -354,8 +359,12 @@ function buildPriceSeries(
     microRangeBps: drained?.microRangeBps ?? null,
     directionFlips: drained?.directionFlips ?? 0,
     volatilityRegime: drained?.volatilityRegime ?? "L1_STAGNANT",
-    volatilityMetrics:
-      drained?.volatilityMetrics ?? { ticksPerSec: null, rangeBps: null, flips: 0 },
+    volatilityMetrics: {
+      ticksPerSec: drained?.volatilityMetrics?.ticksPerSec ?? null,
+      rangeBps: drained?.volatilityMetrics?.rangeBps ?? null,
+      flips: drained?.volatilityMetrics?.flips ?? 0,
+      prevRangeBps: drained?.volatilityMetrics?.prevRangeBps ?? null,
+    },
     coveragePct: coveragePct(),
   };
 }

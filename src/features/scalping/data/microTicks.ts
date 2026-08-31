@@ -49,6 +49,14 @@ export const SUB_SECOND_WINDOW_MS = 1_200;
 const recent: MicroTick[] = [];
 
 /**
+ * Previous drain's microRangeBps (module scope). The Price Action panel compares
+ * the current range to this to draw a widening/shrinking/stable trend arrow —
+ * kept here (not in React state/refs) so the comparator stays props-driven and
+ * rule-clean. Updated each drain; persists across compute cycles.
+ */
+let prevRangeBps: number | null = null;
+
+/**
  * Four strict volatility / liquidation-danger regimes, derived on the shared
  * server-time-anchored 1s window. Deterministic (never null): when the window
  * is empty the market is by definition stagnant -> L1.
@@ -109,7 +117,13 @@ export type MicroDrain = {
    */
   volatilityRegime: VolatilityRegime;
   /** Raw numeric readouts behind the current regime (for tooltips). */
-  volatilityMetrics: { ticksPerSec: number | null; rangeBps: number | null; flips: number };
+  volatilityMetrics: {
+    ticksPerSec: number | null;
+    rangeBps: number | null;
+    flips: number;
+    /** The previous drain's rangeBps, for the widening/shrinking trend arrow. */
+    prevRangeBps: number | null;
+  };
 };
 
 /**
@@ -161,6 +175,9 @@ export function drainMicroTicks(
   // Ascending ticks strictly inside [windowStart, windowEnd].
   const ticksInWindow = feedQuiet ? [] : pulse.filter((tick) => tick.t >= windowStart);
 
+  // Remember the previous drain's range so the panel can arrow widening/shrinking.
+  const prevMicroRangeBps = prevRangeBps;
+
   // 1) Ticks/sec — strict 1s count that RESETS every drain (ref is flushed and
   // the count is a windowed count, never a lifetime total) so it stays a real
   // live rate (e.g. 15-85 Ticks/s) and cannot grow endlessly.
@@ -185,6 +202,8 @@ export function drainMicroTicks(
       }
     }
   }
+  // Keep the previous reading for the trend arrow (only advance on a real value).
+  if (microRangeBps != null) prevRangeBps = microRangeBps;
 
   // 3) Direction flips in the SAME 1s window — sign changes between successive
   //    non-zero price deltas. A market whipsawing up/down quickly is a classic
@@ -249,6 +268,11 @@ export function drainMicroTicks(
     microRangeBps,
     directionFlips,
     volatilityRegime,
-    volatilityMetrics: { ticksPerSec, rangeBps: microRangeBps, flips: directionFlips },
+    volatilityMetrics: {
+      ticksPerSec,
+      rangeBps: microRangeBps,
+      flips: directionFlips,
+      prevRangeBps: prevMicroRangeBps,
+    },
   };
 }

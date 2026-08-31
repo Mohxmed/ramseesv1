@@ -187,7 +187,13 @@ export type ScalpPriceSeries = {
    */
   volatilityRegime: import("./data/microTicks").VolatilityRegime;
   /** Raw numeric readouts behind the current regime (for tooltips). */
-  volatilityMetrics: { ticksPerSec: number | null; rangeBps: number | null; flips: number };
+  volatilityMetrics: {
+    ticksPerSec: number | null;
+    rangeBps: number | null;
+    flips: number;
+    /** Previous drain's rangeBps — drives the widening/shrinking trend arrow. */
+    prevRangeBps: number | null;
+  };
   /**
    * How much of the target history window (120s) is currently populated, 0..100.
    * Drives the micro "building data…" loading indicator while the buffer ramps
