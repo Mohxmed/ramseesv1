@@ -166,27 +166,27 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
         })}
       </div>
 
-      {/* building-data micro indicator — real buffer coverage until 120s fills */}
+      {/* building-data micro indicator — sleek progress bar tied to coveragePct */}
       {building && (
-        <Tip title="نافذة التاريخ الكاملة (120 ثانية) لم تُملأ بعد؛ القيم أعلى تُعرض كتغيّر جزئي على أقدم تيك متاح وتكتمل تدريجياً مع تراكم التيكات.">
-          <div className="mt-2 flex items-center gap-2 rounded-panel border border-info/40 bg-info/5 px-2.5 py-1.5">
-            <span className="relative flex h-2 w-2 shrink-0">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-info opacity-60" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-info" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between">
-                <span className="text-2xs font-semibold text-muted">جمع البيانات…</span>
-                <span className={`${num} text-2xs font-bold text-info`} dir="ltr">
-                  {Math.round(coveragePct)}%
+        <Tip title="نافذة التاريخ الكاملة (120 ثانية) لم تكتمل بعد؛ تُجمع التيكات تدريجياً وتستقر النسب كلما اكتملت نافذتها. (تعتمد على coveragePct الحقيقي)">
+          <div className="mt-2 rounded-panel border border-info/40 bg-info/5 px-2.5 py-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5 text-2xs font-semibold text-muted">
+                <span className="relative flex h-1.5 w-1.5 shrink-0">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-info opacity-60" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-info" />
                 </span>
-              </div>
-              <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-surface-2">
-                <div
-                  className="h-full rounded-full bg-info transition-[width] duration-500"
-                  style={{ width: `${Math.max(4, Math.round(coveragePct))}%` }}
-                />
-              </div>
+                جارٍ التجميع
+              </span>
+              <span className={`${num} text-2xs font-bold text-info`} dir="ltr">
+                …{Math.round(coveragePct)}%
+              </span>
+            </div>
+            <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-surface-2">
+              <div
+                className="h-full rounded-full bg-info transition-[width] duration-500"
+                style={{ width: `${Math.max(4, Math.round(coveragePct))}%` }}
+              />
             </div>
           </div>
         </Tip>
@@ -205,25 +205,28 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
         </div>
       </div>
 
-      {/* velocity — % per card on top, real USD/sec value below */}
+      {/* velocity — Ticks/sec on its own distinct row, then % + USD cards */}
       <div className="mt-2 border-t border-line/70 pt-2">
-        <div className="flex items-center justify-between gap-2">
-          <Tip title="السرعة = معدل تغيّر السعر في الثانية. أعلى كل كارد النسبة المئوية (%/ث)، وأسفله القيمة الفعلية بالدولار (سرعة +X usd/ث).">
-            <span className="text-3xs font-semibold uppercase tracking-[0.14em] text-muted">السرعة</span>
-          </Tip>
+        <span className="text-3xs font-semibold uppercase tracking-[0.14em] text-muted">السرعة</span>
+
+        {/* Ticks/sec in its own dedicated badge row (flex gap keeps it clean) */}
+        <div className="mt-2 flex items-center gap-2">
           <Tip title="Ticks/sec = عدد الصفقات المنفذة في الثانية من البث اللحظي الحقيقي (مقياس كثافة النشاط).">
             <span
               key={ticksPerSec ?? "na"}
-              className={`inline-flex items-center gap-1 rounded-chip border border-line bg-surface-2/40 px-2 py-0.5 text-2xs ${
-                ticksPerSec != null ? "animate-[price-flash_0.6s_ease-out]" : ""
-              } ${ticksPerSec != null && ticksPerSec >= 40 ? "text-warn-fg" : "text-zinc-300"}`}
+              className={`inline-flex items-center gap-1.5 rounded-chip border px-2 py-0.5 text-2xs font-semibold ${
+                ticksPerSec != null && ticksPerSec >= 40
+                  ? "border-warn/50 bg-warn/10 text-warn-fg"
+                  : "border-line bg-surface-2/40 text-zinc-300"
+              } ${ticksPerSec != null ? "animate-[price-flash_0.6s_ease-out]" : ""}`}
               dir="ltr"
             >
-              <span className="text-muted">⚡</span>
-              {ticksPerSec != null ? `${ticksPerSec} تيك/ث` : "—"}
+              <span className={ticksPerSec != null && ticksPerSec >= 40 ? "text-warn-fg" : "text-muted"}>⚡</span>
+              <span>{ticksPerSec != null ? `${ticksPerSec} تيك/ث` : "—"}</span>
             </span>
           </Tip>
         </div>
+
         <div className="mt-2 grid grid-cols-4 gap-1">
           {velocity.map((v) => {
             const d = v.pctPerSec != null ? dirOf(v.pctPerSec) : "flat";

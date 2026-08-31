@@ -89,6 +89,9 @@ export function drainMicroTicks(
   const pulse = recent.slice();
 
   // 1) Ticks/sec — strict sliding 1000ms window, counted, no extrapolation.
+  // Iterate from the NEWEST tick backwards and STOP at the first tick older
+  // than `now - 1000`. This never counts the whole drained array, so ticks
+  // accumulated over >1s cannot inflate the reading (no thousands/millions).
   let ticksPerSec: number | null = null;
   {
     const rateCutoff = now - TICK_RATE_WINDOW_MS;
