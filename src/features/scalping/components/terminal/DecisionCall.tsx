@@ -1,7 +1,7 @@
 "use client";
 
 import type { ScalpDecisionView, ScalpingSignal } from "../../types";
-import { TONE_BORDER, TONE_BG, TONE_TEXT, TONE_BAR, Dot, Tag } from "./TradingPrimitives";
+import { TONE_BORDER, TONE_TEXT, TONE_BAR, Dot, Tag } from "./TradingPrimitives";
 import { num } from "@/components/ui/design-tokens";
 import { Tip } from "./TerminalTip";
 
@@ -42,8 +42,8 @@ export function DecisionCall({
 }) {
   if (!decision) {
     return (
-      <div className="rounded-card border border-line bg-surface-1/40 p-6 text-center text-xs text-muted">
-        لا قرار بعد — بانتظار بيانات السوق.
+      <div className="flex h-full flex-col items-center justify-center rounded-panel border border-line/80 bg-surface-1/40 p-3 text-center text-2xs text-muted">
+        بانتظار بيانات السوق لتكوين القرار…
       </div>
     );
   }
@@ -52,74 +52,76 @@ export function DecisionCall({
   const score = signal?.score ?? null;
   const sig = strength(score, decision.direction);
   const prob = decision.primaryProbability ?? null;
-  const why = (signal?.reasons ?? []).slice(0, 3);
+  const reasons = (signal?.reasons ?? []).slice(0, 3);
+  const note = reasons[0] ?? decision.reasonNote;
+  const noteTone = reasons.length > 0 ? "text-zinc-300" : "text-warn-fg";
 
   return (
-    <div className={`rounded-card border p-4 ${TONE_BORDER[dirTone]} ${TONE_BG[dirTone]}`}>
-      <div className="flex flex-wrap items-center gap-4">
-        {/* The call */}
-        <div className="min-w-[150px]">
-          <div className="text-3xs font-semibold uppercase tracking-[0.2em] text-muted">قرار المضاربة</div>
-          <div className={`mt-1 text-4xl font-extrabold leading-none tracking-tight ${TONE_TEXT[dirTone]}`}>
-            {CALL_TEXT[decision.direction]}
-          </div>
-          <div className="mt-2">
-            <Tag tone={sig.tone}>
-              <Dot tone={sig.tone} />
-              قوة الإشارة: {sig.label}
-            </Tag>
-          </div>
-        </div>
-
-        {/* Score */}
-        <div className="min-w-[120px]">
-          <Tip title="درجة توافق العوامل على هذا الاتجاه من 100 — ليست نسبة نجاح صفقة.">
-            <div className="text-3xs font-semibold uppercase tracking-[0.18em] text-muted">درجة القرار</div>
-          </Tip>
-          <div className={`mt-1 text-5xl font-extrabold leading-none ${TONE_TEXT[dirTone]} ${num}`} dir="ltr">
-            {score != null ? score.toFixed(0) : "—"}
-          </div>
-          <div className="text-2xs text-muted">من 100</div>
-        </div>
-
-        {/* Probability (only as agreement — never labelled as hit-rate) */}
-        {prob != null && decision.direction !== "NO_TRADE" && decision.direction !== "NEUTRAL" ? (
-          <div className="min-w-[110px]">
-            <Tip title="نسبة توافق العوامل الحالية — قراءة ضغط، وليست احتمال نجاح مضمون.">
-              <div className="text-3xs font-semibold uppercase tracking-[0.18em] text-muted">التوافق</div>
-            </Tip>
-            <div className={`mt-1 text-3xl font-extrabold leading-none ${TONE_TEXT[dirTone]} ${num}`} dir="ltr">
-              {(prob * 100).toFixed(0)}%
-            </div>
-          </div>
-        ) : null}
+    <div
+      className={`flex h-full flex-col rounded-panel border p-3 ${TONE_BORDER[dirTone]} bg-surface-1/40`}
+    >
+      {/* header */}
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-3xs font-semibold uppercase tracking-[0.18em] text-muted">
+          قرار المضاربة
+        </span>
+        <Tag tone={sig.tone}>
+          <Dot tone={sig.tone} />
+          قوة الإشارة: {sig.label}
+        </Tag>
       </div>
 
-      {/* degree bar */}
-      <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-line" dir="ltr">
+      {/* call + compact metrics */}
+      <div className="mt-2.5 flex items-end justify-between gap-3">
+        <span className={`text-2xl font-extrabold leading-none tracking-tight ${TONE_TEXT[dirTone]}`}>
+          {CALL_TEXT[decision.direction]}
+        </span>
+        <div className="flex items-end gap-4 text-left">
+          <Tip title="درجة توافق العوامل على هذا الاتجاه من 100 — ليست نسبة نجاح صفقة.">
+            <div className="flex flex-col items-end">
+              <span className="text-3xs text-muted">درجة القرار</span>
+              <span
+                className={`${num} mt-0.5 text-lg font-extrabold leading-none ${TONE_TEXT[dirTone]}`}
+                dir="ltr"
+              >
+                {score != null ? score.toFixed(0) : "—"}
+                <span className="text-2xs font-normal text-muted">/100</span>
+              </span>
+            </div>
+          </Tip>
+          {prob != null && decision.direction !== "NO_TRADE" && decision.direction !== "NEUTRAL" ? (
+            <Tip title="نسبة توافق العوامل الحالية — قراءة ضغط، وليست احتمال نجاح مضمون.">
+              <div className="flex flex-col items-end">
+                <span className="text-3xs text-muted">التوافق</span>
+                <span
+                  className={`${num} mt-0.5 text-lg font-extrabold leading-none ${TONE_TEXT[dirTone]}`}
+                  dir="ltr"
+                >
+                  {(prob * 100).toFixed(0)}
+                  <span className="text-2xs font-normal text-muted">%</span>
+                </span>
+              </div>
+            </Tip>
+          ) : null}
+        </div>
+      </div>
+
+      {/* width of the vote */}
+      <div className="mt-2.5 h-1 w-full overflow-hidden rounded-full bg-line" dir="ltr">
         <div
           className={`h-full rounded-full transition-all duration-500 ${TONE_BAR[dirTone]}`}
           style={{ width: `${score ?? 0}%` }}
         />
       </div>
 
-      {/* short reason */}
-      {why.length > 0 ? (
-        <div className="mt-3 border-t border-line/70 pt-3">
-          <div className="text-3xs font-semibold uppercase tracking-[0.18em] text-muted">السبب المختصر</div>
-          <ul className="mt-1.5 space-y-1">
-            {why.map((r, i) => (
-              <li key={i} className="flex items-start gap-2 text-2xs leading-relaxed text-zinc-300">
-                <span className={`mt-1.5 h-1 w-1 shrink-0 rounded-full ${TONE_BAR[dirTone]}`} />
-                <span>{r}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      {decision.reasonNote ? (
-        <p className="mt-3 text-2xs leading-relaxed text-warn-fg">{decision.reasonNote}</p>
+      {/* short reason — one line, truncate */}
+      {note ? (
+        <p
+          className={`mt-2 truncate text-2xs leading-relaxed ${noteTone}`}
+          title={typeof note === "string" ? note : undefined}
+        >
+          {note}
+        </p>
       ) : null}
     </div>
   );

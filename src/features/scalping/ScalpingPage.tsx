@@ -19,10 +19,10 @@ import { Section, Collapse } from "./components/terminal/TradingPrimitives";
  * Premium Trading Terminal — the scalping page.
  *
  * Information hierarchy (single source of truth per metric):
- *   ║ 01 Header (status)  02 Decision (the call)  — the "3-second" zone
- *   ║ 03 Price Move / 04 Volatility               — the evidence
- *   ║ 05 Strength / 06 Execution                  — context + feasibility
- *   ║ 07 Forecast / Reasons / Risk                — the supporting detail
+ *   ║ 01 Header (market state monitor)          — the "3-second" zone
+ *   ║ 02-04 Decision · Price Move · Volatility  — one compact row
+ *   ║ 05 Strength / 06 Execution                — context + feasibility
+ *   ║ 07 Forecast / Reasons / Risk              — the supporting detail
  *   ║ 10 System (compact)
  *
  * Decision-first on mobile: sections stack in DOM order, so the primary call
@@ -47,17 +47,11 @@ export function ScalpingPage() {
     <div className="space-y-4">
       <TerminalHeader snap={snap} />
 
-      {/* 02 · The decision — the single most important visual element */}
-      <DecisionCall decision={snap.decision ?? null} signal={snap.signal} />
-
-      {/* Evidence: price move (wide) + volatility (ATR) */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <PriceMovePanel series={snap.series ?? null} />
-        </div>
-        <div className="lg:col-span-1">
-          <VolatilityPanel atr={snap.series?.atr ?? null} />
-        </div>
+      {/* 02-04 · Decision + Price Move + Volatility — compact decision row */}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <DecisionCall decision={snap.decision ?? null} signal={snap.signal} />
+        <PriceMovePanel series={snap.series ?? null} />
+        <VolatilityPanel atr={snap.series?.atr ?? null} />
       </div>
 
       {/* Context: strength + execution */}

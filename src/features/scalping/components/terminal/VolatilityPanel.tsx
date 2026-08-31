@@ -1,7 +1,7 @@
 "use client";
 
 import type { ScalpPriceSeries } from "../../types";
-import { Section, Tag } from "./TradingPrimitives";
+import { Tag } from "./TradingPrimitives";
 import { num } from "@/components/ui/design-tokens";
 import { Tip } from "./TerminalTip";
 
@@ -40,40 +40,39 @@ export function VolatilityPanel({ atr }: { atr: ScalpPriceSeries["atr"] }) {
   const meta = LEVEL_META[level];
 
   return (
-    <Section
-      title="التذبذب (ATR)"
-      eyebrow="03 · Volatility"
-      actions={
-        <Tip title="مدى الحركة النموذجي لشمعة الدقيقة (متوسط المدى الحقيقي) — يقيس مدى تحرك السعر عادةً.">
+    <div className="flex h-full flex-col rounded-panel border border-line/80 bg-surface-1/40 p-3">
+      {/* header */}
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-3xs font-semibold uppercase tracking-[0.18em] text-muted">
+          التذبذب (ATR)
+        </span>
+        <Tip title="مدى الحركة النموذجي لشمعة الدقيقة (متوسط المدى الحقيقي) — المستوى تصنيف نسبي لمضاربة الدقائق.">
           <Tag tone={meta.tone}>{meta.label}</Tag>
         </Tip>
-      }
-    >
-      <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-panel border border-line bg-surface-2/40 p-3">
-          <div className="text-2xs text-muted">ATR الحالي</div>
-          <div className={`mt-1 text-2xl font-extrabold text-zinc-50 ${num}`} dir="ltr">
+      </div>
+
+      {/* ATR absolute + as % of price */}
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <div className="rounded-panel border border-line bg-surface-2/30 px-2 py-1.5">
+          <div className="text-3xs text-muted">ATR الحالي</div>
+          <div className={`${num} mt-0.5 text-lg font-extrabold leading-none text-zinc-50`} dir="ltr">
             {atr?.value != null ? `$${atr.value.toFixed(2)}` : "غير متاح"}
           </div>
-          <div className="mt-1 text-2xs text-muted">
-            لكل شمعة {atr?.frameLabel ?? "—"} (على {atr?.period ?? 0} شمعة)
-          </div>
+          <div className="mt-1 text-3xs text-muted">لكل شمعة {atr?.frameLabel ?? "—"}</div>
         </div>
-
-        <div className="rounded-panel border border-line bg-surface-2/40 p-3">
-          <div className="text-2xs text-muted">ATR كنسبة من السعر</div>
-          <div className={`mt-1 text-2xl font-extrabold ${VALUE_TONE[level]} ${num}`} dir="ltr">
+        <div className="rounded-panel border border-line bg-surface-2/30 px-2 py-1.5">
+          <div className="text-3xs text-muted">نسبة من السعر</div>
+          <div className={`${num} mt-0.5 text-lg font-extrabold leading-none ${VALUE_TONE[level]}`} dir="ltr">
             {atr?.pct != null ? `${atr.pct.toFixed(3)}%` : "غير متاح"}
           </div>
-          <div className="mt-1 text-2xs text-muted">ما يعنيه: حسب العرض المتاح</div>
+          <div className="mt-1 text-3xs text-muted">على {atr?.period ?? 0} شمعة</div>
         </div>
       </div>
 
-      <p className="mt-3 text-2xs leading-relaxed text-muted">
-        <span className="font-semibold text-zinc-300">ماذا يعني لك؟ </span>
-        كلما زاد ATR زادت المسافة النموذجية لحركة السعر في الدقيقة — أي زحمة أكبر حول السعر ومسافات
-        وقف/هدف أوسع. المستوى «{meta.label}» تقدير نسبي لمضاربة الدقائق.
+      {/* one-line reading */}
+      <p className="mt-2 text-2xs leading-relaxed text-muted">
+        متوسط المدى الحقيقي لشمعة الدقيقة — كلما زاد، زادت مسافات الحركة النموذجية ووقف/هدف أوسع.
       </p>
-    </Section>
+    </div>
   );
 }
