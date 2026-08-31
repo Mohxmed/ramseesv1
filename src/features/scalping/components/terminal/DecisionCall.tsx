@@ -1,7 +1,7 @@
 "use client";
 
-import type { ScalpDecisionView, ScalpingSignal } from "../../types";
-import { TONE_BORDER, TONE_TEXT, TONE_BAR, Dot, Tag } from "./TradingPrimitives";
+import type { ScalpDecisionView, ScalpPriceSeries, ScalpingSignal } from "../../types";
+import { TONE_BORDER, TONE_TEXT, TONE_BAR, Dot, Tag, Tone } from "./TradingPrimitives";
 import { num } from "@/components/ui/design-tokens";
 import { Tip } from "./TerminalTip";
 
@@ -21,6 +21,36 @@ const CALL_TEXT: Record<string, string> = {
   NO_TRADE: "انتظار",
 };
 
+type VolLevel = "low" | "normal" | "high" | "severe";
+
+const LEVEL_META: Record<VolLevel, { label: string; tone: Tone }> = {
+  low: { label: "منخفض", tone: "good" },
+  normal: { label: "طبيعي", tone: "neutral" },
+  high: { label: "مرتفع", tone: "warn" },
+  severe: { label: "شديد", tone: "short" },
+};
+
+const VALUE_TONE: Record<VolLevel, string> = {
+  low: "text-up-fg",
+  normal: "text-zinc-300",
+  high: "text-warn-fg",
+  severe: "text-down-fg",
+};
+
+/**
+ * Presentational banding of ATR (as % of price) into a relative scalp-volatility
+ * label. The ATR number itself is real (from the 1m candle series); only this
+ * human label is a relative classification, explained in the tooltip.
+ */
+function classifyAtr(atrPct: number | null): VolLevel {
+  if (atrPct == null) return "normal";
+  const p = Math.abs(atrPct);
+  if (p >= 0.35) return "severe";
+  if (p >= 0.18) return "high";
+  if (p <= 0.05) return "low";
+  return "normal";
+}
+
 function strength(score: number | null, dir: ScalpDecisionView["direction"]): {
   label: string;
   tone: CallTone;
@@ -33,12 +63,52 @@ function strength(score: number | null, dir: ScalpDecisionView["direction"]): {
   return { label: "ضعيفة", tone: "neutral" };
 }
 
+/** Compact ATR sub-panel — embedded below the decision instead of a standalone card. */
+function AtrStrip({ atr }: { atr: ScalpPriceSeries["atr"] }) {
+  const level = classifyAtr(atr?.pct ?? null);
+  const meta = LEVEL_META[level];
+
+  return (
+    <div className="mt-2.5 rounded-md border border-line/80 bg-surface-2/30 px-2.5 py-2">
+      {/* header: label + status */}
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-3xs font-semibold uppercase tracking-[0.18em] text-muted">
+          التذبذب (ATR 1م)
+        </span>
+        <Tip title="مدى الحركة النموذجي لشمعة الدقيقة (متوسط المدى الحقيقي) — المستوى تصنيف نسبي لمضاربة الدقائق.">
+          <Tag tone={meta.tone}>{meta.label}</Tag>
+        </Tip>
+      </div>
+
+      {/* ATR absolute + as % of price */}
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <div className="rounded-panel border border-line bg-surface-1/30 px-2 py-1.5">
+          <div className="text-3xs text-muted">ATR الحالي</div>
+          <div className={`${num} mt-0.5 text-base font-extrabold leading-none text-zinc-50`} dir="ltr">
+            {atr?.value != null ? `$${atr.value.toFixed(2)}` : "غير متاح"}
+          </div>
+          <div className="mt-1 text-3xs text-muted">لكل شمعة {atr?.frameLabel ?? "—"}</div>
+        </div>
+        <div className="rounded-panel border border-line bg-surface-1/30 px-2 py-1.5">
+          <div className="text-3xs text-muted">نسبة من السعر</div>
+          <div className={`${num} mt-0.5 text-base font-extrabold leading-none ${VALUE_TONE[level]}`} dir="ltr">
+            {atr?.pct != null ? `${atr.pct.toFixed(3)}%` : "غير متاح"}
+          </div>
+          <div className="mt-1 text-3xs text-muted">على {atr?.period ?? 0} شمعة</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function DecisionCall({
   decision,
   signal,
+  atr,
 }: {
   decision: ScalpDecisionView | null;
   signal: ScalpingSignal | null;
+  atr: ScalpPriceSeries["atr"];
 }) {
   if (!decision) {
     return (
@@ -123,6 +193,11 @@ export function DecisionCall({
           {note}
         </p>
       ) : null}
+
+      {/* ATR sub-panel — current 1m volatility under the decision */}
+      <div className="mt-auto pt-2.5">
+        <AtrStrip atr={atr} />
+      </div>
     </div>
   );
 }

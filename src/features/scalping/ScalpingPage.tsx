@@ -4,7 +4,6 @@ import { useScalping } from "./hooks/useScalping";
 import { TerminalHeader } from "./components/terminal/TerminalHeader";
 import { DecisionCall } from "./components/terminal/DecisionCall";
 import { PriceMovePanel } from "./components/terminal/PriceMovePanel";
-import { VolatilityPanel } from "./components/terminal/VolatilityPanel";
 import { MarketStrengthPanel } from "./components/terminal/MarketStrengthPanel";
 import { ExecutionPanel } from "./components/terminal/ExecutionPanel";
 import { ForecastPanel } from "./components/terminal/ForecastPanel";
@@ -20,8 +19,8 @@ import { Section, Collapse } from "./components/terminal/TradingPrimitives";
  *
  * Information hierarchy (single source of truth per metric):
  *   ║ 01 Header (market state monitor)          — the "3-second" zone
- *   ║ 02-04 Decision · Price Move · Volatility  — one compact row
- *   ║ 05 Strength / 06 Execution                — context + feasibility
+ *   ║ 02-03 Decision + Price Move               — one compact row (ATR sub-panel inside Decision)
+ *   ║ 04-05 Strength / Execution                — context + feasibility
  *   ║ 07 Forecast / Reasons / Risk              — the supporting detail
  *   ║ 10 System (compact)
  *
@@ -47,11 +46,10 @@ export function ScalpingPage() {
     <div className="space-y-4">
       <TerminalHeader snap={snap} />
 
-      {/* 02-04 · Decision + Price Move + Volatility — compact decision row */}
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-        <DecisionCall decision={snap.decision ?? null} signal={snap.signal} />
+      {/* 02-03 · Decision + Price Move — compact decision row (ATR sub-panel inside Decision) */}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <DecisionCall decision={snap.decision ?? null} signal={snap.signal} atr={snap.series?.atr ?? null} />
         <PriceMovePanel snap={snap} />
-        <VolatilityPanel atr={snap.series?.atr ?? null} />
       </div>
 
       {/* Context: strength + execution */}
