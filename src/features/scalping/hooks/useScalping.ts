@@ -6,6 +6,7 @@ import type { MarketStructureAnalysis } from "../../bitcoin/analysis";
 import type { SupportResistanceResult } from "../../bitcoin/analysis/types";
 import { SCALPING_CONFIG } from "../config";
 import { ingestPrice, lastPriceAgeMs, priceAt } from "../data/priceSeries";
+import { computeAtr } from "../data/atr";
 import { computeFeatures } from "../features";
 import { computeSignal } from "../signal/engine";
 import { computeForecast } from "../forecast/engine";
@@ -14,12 +15,14 @@ import { composeDecision } from "../decision";
 import { EventRecorder } from "../recording";
 import type { ScalpingDecision, DecisionDirection } from "../decision";
 import type { RecordedDirection } from "../recording";
+import type { MarketStateSnapshot, WindowStats } from "../market-state";
 import type {
   ScalpingExecution,
   ScalpingFeature,
   ScalpingSignal,
   ScalpingSnapshot,
   ScalpDecisionView,
+  ScalpPriceSeries,
   ScalpRecorderView,
 } from "../types";
 
@@ -157,6 +160,7 @@ export function useScalping(): ScalpingSnapshot {
       });
 
       const decisionView = toDecisionView(decision, features);
+      const series = buildPriceSeries(decisionView.marketState, ctx.samplePrice, price, cmd.candles);
 
       // Recorder: capture every decision + resolve forward outcomes.
       recorder.resolveLatest(price ?? now, SCALPING_CONFIG.forecastHorizonsS[0]);
@@ -217,6 +221,7 @@ export function useScalping(): ScalpingSnapshot {
         forecast,
         execution,
         decision: decisionView,
+        series,
         recorder: recorderView,
         futuresState: cmd.futuresState,
         futuresFeed: {
@@ -238,6 +243,78 @@ export function useScalping(): ScalpingSnapshot {
 
 function cmdFresh(cmd: { data: { status: string } }): boolean {
   return cmd.data.status === "ready";
+}
+
+/**
+ * Presentation-only price-series readings for the terminal panels.
+ *
+ * change/velocity come from the REAL rolling windows the engine already saved
+ * into the market-state snapshot, or are computed on the fly from the REAL
+ * live sampler (`samplePrice`) / latest `price`. The instantaneous 1s reading
+ * is computed from the live price, not invented. ATR comes from the REAL 1m
+ * candle series in the pipeline. Nothing is invented: a missing/too-young
+ * value stays null and the UI renders "غير متاح". Periods the buffer cannot
+ * honestly reach (e.g. a true 5-minute return on the 150s scalping buffer) are
+ * simply not requested/rendered rather than approximated.
+ */
+function buildPriceSeries(
+  marketState: MarketStateSnapshot,
+  samplePrice: (secondsAgo: number) => number | null,
+  price: number | null,
+  candles: { open: number; high: number; low: number; close: number }[]
+): ScalpPriceSeries {
+  const bySec = new Map<number, WindowStats>();
+  for (const w of marketState.windows ?? []) bySec.set(w.windowS, w);
+
+  // A helper: prefer the engine's real window return; otherwise fall back to
+  // the live sampler (current price vs the sampled price N seconds ago) when
+  // both are real and the buffer can genuinely reach N seconds.
+  const returns = (seconds: number): number | null => {
+    const w = bySec.get(seconds);
+    if (w?.returnPct != null) return w.returnPct;
+    if (price == null) return null;
+    const past = samplePrice(seconds);
+    if (past == null || past === 0) return null;
+    return (price - past) / past;
+  };
+
+  // Requested set — the scalping buffer is 150s so a true 5m return is not
+  // honest here; we present the real reachable periods (including 1s live).
+  const requests: { label: string; seconds: number }[] = [
+    { label: "1 ثانية", seconds: 1 },
+    { label: "5 ثوانٍ", seconds: 5 },
+    { label: "30 ثانية", seconds: 30 },
+    { label: "1 دقيقة", seconds: 60 },
+    { label: "2 دقيقة", seconds: 120 },
+  ];
+
+  const change = requests.map((r) => ({
+    label: r.label,
+    seconds: r.seconds,
+    pct: returns(r.seconds),
+  }));
+
+  const shorts = [1, 5, 15, 30]
+    .map((s) => ({ s, pct: returns(s) }))
+    .filter((v): v is { s: number; pct: number } => v.pct != null);
+  const velocity = shorts.map((v) => ({
+    label: `${v.s}ث`,
+    pctPerSec: v.pct / v.s,
+  }));
+
+  // Acceleration: compare per-second velocity of the shortest vs longest window.
+  const vShort = shorts.find((v) => v.s === 1);
+  const vLong = returns(60);
+  let acceleration: ScalpPriceSeries["acceleration"] = null;
+  if (vShort != null && vLong != null) {
+    const drift = vShort.pct / vShort.s - vLong / 60;
+    const tol = Math.max(0.00001, Math.abs(vLong / 60) * 0.25);
+    acceleration = drift > tol ? "accelerating" : drift < -tol ? "decelerating" : "flat";
+  }
+
+  const atr = computeAtr(candles, 14, "1م");
+
+  return { change, velocity, acceleration, atr };
 }
 
 /** Map the composed decision into the UI-safe view shape. */

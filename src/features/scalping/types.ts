@@ -113,6 +113,30 @@ export type ScalpDataHealth =
   | { status: "disconnected" }
   | { status: "error"; message: string };
 
+/**
+ * Real time-series readings for the price-move / volatility panels.
+ *
+ * Everything here is DERIVED from the existing engine's saved market-state
+ * windows + the 1m candle series already in the pipeline — never fabricated,
+ * never a fixed constant. "غير متاح" (null) is shown when the underlying data
+ * is missing or too young.
+ */
+export type ScalpPriceSeries = {
+  /** Signed change % over each requested window (real or null). */
+  change: { label: string; seconds: number; pct: number | null }[];
+  /** Signed per-second velocity for the shortest reliable window (%/s). */
+  velocity: { label: string; pctPerSec: number | null }[];
+  /** Whether movement is strengthening or fading (across windows). */
+  acceleration: "accelerating" | "decelerating" | "flat" | null;
+  /**
+   * ATR — Average True Range computed from the REAL 1m candle series.
+   * value = absolute ATR (in price units), pct = ATR as % of current price,
+   * period = number of candles used, frameLabel = which timeframe (e.g. "1m").
+   * Null when candles are insufficient/unavailable.
+   */
+  atr: { value: number | null; pct: number | null; period: number; frameLabel: string } | null;
+};
+
 /** The full snapshot handed to the UI. */
 export type ScalpingSnapshot = {
   health: ScalpDataHealth;
@@ -126,6 +150,8 @@ export type ScalpingSnapshot = {
   signal: ScalpingSignal | null;
   forecast: ScalpingForecast | null;
   execution: ScalpingExecution | null;
+  /** Real price-series readings (change/velocity/ATR) — populated by the hook. */
+  series?: ScalpPriceSeries | null;
   /** Statistical decision engine outputs (added as-is, populated by the hook). */
   decision?: ScalpDecisionView | null;
   recorder?: ScalpRecorderView | null;
