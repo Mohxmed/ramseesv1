@@ -27,6 +27,33 @@ export const MULTI_ASSET_CONFIG = {
   /** Binance raw WebSocket base (spot combined-stream format). */
   WS_BASE: "wss://stream.binance.com:9443/ws",
 
+  /**
+   * High-precision time-bucket engine.
+   *
+   * Incoming aggTrade `T` (exchange event time, ms) is parsed DIRECTLY — never
+   * the local `Date.now()` — and both BTC + every altcoin are aligned onto the
+   * same 50ms grid via `Math.floor(T / bucketMs)`. Identical grid => identical
+   * index alignment, so the correlation/beta windows are fast fixed-length
+   * matrix ops (incremental O(1) running sums), not time-matching searches.
+   */
+  bucketMs: 50,
+
+  /**
+   * Correlation window in 50ms buckets (e.g. 60 buckets = 3.0s of aligned data)
+   * over which the rolling Pearson R / incremental covariance is maintained.
+   */
+  bucketWindowCount: 60,
+
+  /**
+   * Cold-start / unfreeze thresholds (in synchronized time-buckets).
+   *  * count >= bucketUnfreezeCount (10 = 500ms) => panel unfreezes and starts
+   *    emitting ROLLING estimates immediately.
+   *  * count >= bucketFullCount (20 = 1.0s)      => progress bar reaches 100%
+   *    (UI "full capacity"); estimates keep refining until the window is full.
+   */
+  bucketUnfreezeCount: 10,
+  bucketFullCount: 20,
+
   /** Rollback buffer: how far each symbol's tick history is kept (ms). */
   bufferMs: 30_000,
 
@@ -60,6 +87,12 @@ export const MULTI_ASSET_CONFIG = {
 
   /** UI recompute cadence for the snapshot publication. */
   recomputeMs: 1_000,
+
+  /**
+   * Web Worker post cadence: the worker posts a snapshot back to the main
+   * thread at 20Hz (every 50ms), decoupled from React render cost.
+   */
+  workerPostMs: 50,
 } as const;
 
 export type MultiAssetConfig = typeof MULTI_ASSET_CONFIG;

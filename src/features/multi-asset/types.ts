@@ -42,6 +42,13 @@ export type AssetCorrelation = {
   suppressed: boolean;
   /** True until enough REAL ticks exist to compute a trustworthy correlation. */
   collecting: boolean;
+  /**
+   * Number of synchronized 50ms time-buckets currently available for this
+   * asset vs BTC. Drives the real-time cold-start progress bar
+   * (`bucketCount / bucketFullCount * 100%`) and the unfreeze gate
+   * (`bucketCount >= bucketUnfreezeCount`).
+   */
+  bucketCount: number;
   /** Sample size actually used for the correlation window. */
   sampleSize: number;
 };

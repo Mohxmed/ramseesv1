@@ -165,13 +165,28 @@ function PrimaryCard({
               value={pct(asset.expectedMovePct)}
               tone={asset.expectedMovePct != null ? (asset.expectedMovePct > 0 ? "up" : "down") : "neutral"}
             />
-            <DataRow label="نقاط الارتباط" value={asset.sampleSize > 0 ? String(asset.sampleSize) : "—"} ltr />
+            <DataRow
+              label="مقاطع متزامنة (50ms)"
+              value={asset.bucketCount > 0 ? String(asset.bucketCount) : "—"}
+              ltr
+            />
           </div>
 
-          {asset.collecting && (
+          {asset.bucketCount < MULTI_ASSET_CONFIG.bucketWindowCount && (
             <div className="text-2xs text-muted">
-              <Progress pct={asset.sampleSize ? Math.min(100, (asset.sampleSize / Math.max(20, MULTI_ASSET_CONFIG.corrWindow)) * 100) : 0} tone="warn" showLabel />
-              <div className="mt-1">جمع بيانات حقيقية للارتباط…</div>
+              <Progress
+                pct={Math.min(
+                  100,
+                  (asset.bucketCount / MULTI_ASSET_CONFIG.bucketFullCount) * 100
+                )}
+                tone={asset.collecting ? "warn" : "good"}
+                showLabel
+              />
+              <div className="mt-1">
+                {asset.collecting
+                  ? `جمع أول 500ms من البيانات (${asset.bucketCount}/${MULTI_ASSET_CONFIG.bucketUnfreezeCount} مقطع)…`
+                  : `تقديرات حية قيد التحسين حتى امتلاء النافذة (${asset.bucketCount}/${MULTI_ASSET_CONFIG.bucketFullCount} مقطع)…`}
+              </div>
             </div>
           )}
         </div>
@@ -216,7 +231,7 @@ function AssetRow({
             {pct(asset.spreadPct)}
           </span>
         ) : (
-          <span className="text-2xs text-muted">{asset.collecting ? "جمع…" : "—"}</span>
+          <span className="text-2xs text-muted">{asset.collecting ? `جمع ${asset.bucketCount}…` : "—"}</span>
         )}
       </div>
     </button>
