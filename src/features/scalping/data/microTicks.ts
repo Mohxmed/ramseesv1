@@ -69,20 +69,27 @@ export type VolatilityRegime =
 
 /** Per-second trade-density bands (offset+width keep [lo, hi] inclusive as specced). */
 const TPS_L2_LO = 10;
-const TPS_L2_HI = 45;
-const TPS_L3_LO = 46;
-const TPS_L3_HI = 85;
+const TPS_L2_HI = 55;
+const TPS_L3_LO = 56;
+const TPS_L3_HI = 90;
 const TPS_L4_MIN = 90; // > 90
 
 /** Sub-second peak-to-peak bands (basis points). */
 const RANGE_L2_LO = 2;
-const RANGE_L2_HI = 6;
-const RANGE_L3_LO = 7;
-const RANGE_L3_HI = 15;
+const RANGE_L2_HI = 9;
+const RANGE_L3_LO = 9.1;
+const RANGE_L3_HI = 16;
 const RANGE_L4_MIN = 16; // > 16
 
 /** >= this many direction flips in the 1s window signals liquidation risk. */
 const FLIPS_L4_MIN = 2;
+
+/**
+ * Cold-start / guard threshold: while the price ring covers less than this % of
+ * its target history, the regime is FORCED to L1_STAGNANT. Prevents uninitialized
+ * windows from flashing L3/L4 on partially-collected data.
+ */
+export const COLD_START_COVERAGE_PCT = 5;
 
 export type MicroDrain = {
   /** Recent raw ticks (within MICRO_WINDOW_MS) — feed the pulse sparkline. */
@@ -130,10 +137,15 @@ export type MicroDrain = {
  * Drain all new trades from the SSOT ref into `ingest(price, t)` exactly once
  * each, flushing them from the ref, and return the recent pulse window + a
  * strict per-second tick count + a sub-second volatility reading.
+ *
+ * `guardCoveragePct` (0..100, from the price-ring coverage monitor) lets the
+ * caller force the regime to L1_STAGNANT during cold start (< COLD_START_COVERAGE_PCT),
+ * so partially-collected windows can never flash L3/L4.
  */
 export function drainMicroTicks(
   ref: MutableRefObject<MicroTick[]>,
-  ingest: (price: number, t: number) => void
+  ingest: (price: number, t: number) => void,
+  guardCoveragePct?: number
 ): MicroDrain {
   const now = Date.now();
   const cutoff = now - MICRO_WINDOW_MS;
@@ -226,15 +238,35 @@ export function drainMicroTicks(
   //    a higher level never gets masked because we test L4 -> L1 in priority
   //    order and pick the first match. Gaps / out-of-band values fall through to
   //    the lower (safer) band deterministically.
+  //
+  //    Calibrated thresholds:
+  //      L1_STAGNANT            : tps < 10  OR  range <= 2
+  //      L2_OPTIMAL             : tps [10..55] AND range [2..9] AND flips < 2
+  //      L3_HIGH_VOLATILITY     : tps [56..90] OR range (9.1..16]
+  //      L4_LIQUIDATION_RISK    : tps > 90 OR range > 16 OR flips >= 2
+  //
+  //    GUARD (never let uninitialized/zero values trip L3/L4):
+  //      - cold start: guardCoveragePct < COLD_START_COVERAGE_PCT
+  //      - no trades:  tps null or 0;   no range: rng null or 0
+  //      - NaN safety: any non-finite metric is treated as absent
+  //    Any of these FORCES the regime to L1_STAGNANT.
   const tps = ticksPerSec ?? 0; // empty window => stagnant (0 trades)
   const rng = microRangeBps ?? 0; // empty window => no range
+  const uninitialized =
+    guardCoveragePct != null && guardCoveragePct < COLD_START_COVERAGE_PCT;
+  const noTrades = ticksPerSec == null || ticksPerSec === 0;
+  const noRange = microRangeBps == null || microRangeBps === 0;
+  const nonFinite = !isFinite(tps) || !isFinite(rng) || !isFinite(directionFlips);
   let volatilityRegime: VolatilityRegime = "L1_STAGNANT";
-  {
+  if (uninitialized || noTrades || noRange || nonFinite) {
+    volatilityRegime = "L1_STAGNANT";
+  } else {
     const isL4 =
       tps > TPS_L4_MIN || rng > RANGE_L4_MIN || (directionFlips >= FLIPS_L4_MIN && ticksInWindow.length >= 2);
     const isL3 =
       (tps >= TPS_L3_LO && tps <= TPS_L3_HI) || (rng >= RANGE_L3_LO && rng <= RANGE_L3_HI);
-    const isL2 = tps >= TPS_L2_LO && tps <= TPS_L2_HI && rng >= RANGE_L2_LO && rng <= RANGE_L2_HI;
+    const isL2 =
+      tps >= TPS_L2_LO && tps <= TPS_L2_HI && rng >= RANGE_L2_LO && rng <= RANGE_L2_HI && directionFlips < FLIPS_L4_MIN;
     if (isL4) volatilityRegime = "L4_LIQUIDATION_RISK";
     else if (isL3) volatilityRegime = "L3_HIGH_VOLATILITY";
     else if (isL2) volatilityRegime = "L2_OPTIMAL";

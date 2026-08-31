@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useEffect, useState } from "react";
 import { ResponsiveContainer, AreaChart, Area, YAxis } from "recharts";
 import type { ScalpingSnapshot } from "../../types";
 import type { VolatilityRegime } from "../../data/microTicks";
@@ -126,6 +126,25 @@ const RISK_SEGMENT: Record<1 | 2 | 3 | 4, string> = {
 };
 
 /**
+ * Tracks document visibility (Page Visibility API). The Recharts sparkline is
+ * expensive (SVG layout recomputation per tick burst), so while the tab is
+ * hidden we unmount it to avoid browser lag — trades keep being buffered in the
+ * data layer (microTicksRef / module pulse ring) and render on refocus with the
+ * latest window. Safe during SSR (guards for a missing `document`).
+ */
+function useDocumentVisible(): boolean {
+  const [visible, setVisible] = useState(
+    () => typeof document === "undefined" || !document.hidden
+  );
+  useEffect(() => {
+    const onVisibility = () => setVisible(!document.hidden);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, []);
+  return visible;
+}
+
+/**
  * High-frequency micro-scalping panel — tick-level Price Action.
  *
  * Change/velocity come from the REAL rolling windows + a real per-trade micro
@@ -137,6 +156,7 @@ const RISK_SEGMENT: Record<1 | 2 | 3 | 4, string> = {
  * invented; missing values render "غير متاح".
  */
 function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
+  const docVisible = useDocumentVisible();
   const series = snap.series;
   const change = series?.change ?? [];
   const velocity = series?.velocity ?? [];
@@ -296,10 +316,14 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
         </Tip>
       )}
 
-      {/* pulse sparkline — real per-trade ticks */}
+      {/* pulse sparkline — real per-trade ticks (paused while the tab is hidden) */}
       <div className="mt-2 rounded-panel border border-line/70 bg-black/20 p-1.5">
         <div style={{ width: "100%", height: 44 }}>
-          {pulse.length > 1 ? (
+          {!docVisible ? (
+            <div className="flex h-full items-center justify-center text-2xs text-muted">
+              المخطط متوقف مؤقتاً (التبويب مخفي)…
+            </div>
+          ) : pulse.length > 1 ? (
             <Sparkline data={pulse} stroke={stroke} />
           ) : (
             <div className="flex h-full items-center justify-center text-2xs text-muted">

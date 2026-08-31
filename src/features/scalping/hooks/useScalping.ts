@@ -164,7 +164,7 @@ export function useScalping(): ScalpingSnapshot {
       // Drain the shared per-trade tick ref (real micro data) exactly once per
       // compute: feed each new trade into the price buffer for the pulse chart.
       const drained = cmd.microTicksRef
-        ? drainMicroTicks(cmd.microTicksRef, (p, t) => ingestPrice(p, t))
+        ? drainMicroTicks(cmd.microTicksRef, (p, t) => ingestPrice(p, t), coveragePct())
         : {
             pulse: [],
             newCount: 0,
