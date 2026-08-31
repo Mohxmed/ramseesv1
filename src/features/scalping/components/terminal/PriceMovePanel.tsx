@@ -21,6 +21,17 @@ const TEXT: Record<"up" | "down" | "neutral", string> = {
   neutral: "text-zinc-300",
 };
 
+/**
+ * Adaptive micro-precision speed: show %/s to 4 decimal places when the print is
+ * meaningfully sized, otherwise scale up to basis points per second so tiny
+ * shifts stay readable instead of collapsing to "+0/%".
+ */
+function fmtVel(p: number): string {
+  const sign = p >= 0 ? "+" : "";
+  if (Math.abs(p) >= 0.001) return `${sign}${p.toFixed(4)}%/ث`;
+  return `${sign}${(p * 10000).toFixed(2)} bps/ث`;
+}
+
 /** Which timeframes get the "fast" accent (1s + 5s) in the change row. */
 const FAST_SECONDS = new Set([1, 5]);
 
@@ -65,7 +76,7 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
         <Tip
           title={
             regime?.label
-              ? "حالة الدفع اللحظية: صاعد قوي / هابط قوي من حركة الثواني الحقيقية؛ «تذبذب عالي» نطاق عرضي يُشتق من ATR وعدد الصفقات/ثانية — نطاق تقديمي وليس اتجاهاً مضموناً."
+              ? "حالة الدفع اللحظية: صاعد قوي / هابط قوي من حركة الثواني الحقيقية؛ «تذبذب عالي» يُشتق من التباين دون الثانية (انتشار السعر في آخر ~1.2 ثانية، بوحدة نقاط الأساس) — نطاق تقديمي وليس اتجاهاً مضموناً."
               : "حالة الدفع اللحظية للميكرو سكالبينغ."
           }
         >
@@ -149,7 +160,7 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
               className="rounded-chip border border-line bg-surface-2/40 px-1.5 py-0.5 text-2xs text-zinc-300"
               dir="ltr"
             >
-              {v.label} {v.pctPerSec != null ? `${v.pctPerSec >= 0 ? "+" : ""}${v.pctPerSec.toFixed(3)}%/ث` : "—"}
+              {v.label} {v.pctPerSec != null ? fmtVel(v.pctPerSec) : "—"}
             </span>
           ))}
           <Tip title="Ticks/sec = عدد الصفقات المنفذة في الثانية من البث اللحظي الحقيقي (مقياس كثافة النشاط).">

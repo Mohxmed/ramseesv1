@@ -18,8 +18,11 @@ import type { MicroTick } from "../../bitcoin/hooks/useLiveFeed";
 /** How many seconds of micro ticks we retain/return for the pulse chart. */
 export const MICRO_WINDOW_MS = 60_000;
 
-/** Seconds used to smooth the "Ticks/sec" reading. */
-export const TICK_RATE_WINDOW_S = 5;
+/** Sliding window (ms) for the "Ticks/sec" counter — a strict per-second count. */
+export const TICK_RATE_WINDOW_MS = 1_000;
+
+/** Sliding window (ms) for the sub-second volatility (peak-to-peak) reading. */
+export const SUB_SECOND_WINDOW_MS = 1_200;
 
 /** Watermark of the last fully-consumed trade time (module scope). */
 let lastConsumedT = 0;
@@ -29,13 +32,23 @@ export type MicroDrain = {
   pulse: MicroTick[];
   /** Trades ingested since the previous drain (all new ticks). */
   newCount: number;
-  /** Smooth Ticks/sec over the recent window (real, nullable when sparse). */
+  /**
+   * Ticks observed within the trailing TICK_RATE_WINDOW_MS (a strict 1s notch).
+   * Counted, never extrapolated — guarding against the 1,126,000 Ticks/s bug
+   * caused by dividing a small span into a large count.
+   */
   ticksPerSec: number | null;
+  /**
+   * Sub-second volatility: recent peak-to-peak price move, in basis points.
+   * Null when too few ticks to be honest.
+   */
+  microVolBps: number | null;
 };
 
 /**
  * Drain any new trades from the SSOT ref into `ingest(price, t)` once each,
- * and return the recent window for the pulse chart + a ticks/sec reading.
+ * and return the recent window for the pulse chart + a per-second tick count +
+ * a sub-second volatility reading.
  */
 export function drainMicroTicks(
   ref: MutableRefObject<MicroTick[]>,
@@ -59,7 +72,7 @@ export function drainMicroTicks(
     newCount++;
   }
 
-  // Recent window + smoothed tick rate.
+  // Recent window (newest-first then reversed) for the pulse chart.
   const pulse: MicroTick[] = [];
   for (let i = all.length - 1; i >= 0; i--) {
     if (all[i].t < cutoff) break;
@@ -67,20 +80,35 @@ export function drainMicroTicks(
   }
   pulse.reverse();
 
+  // 1) Ticks/sec — strict sliding 1000ms window, no extrapolation.
   let ticksPerSec: number | null = null;
-  const rateCutoff = now - TICK_RATE_WINDOW_S * 1000;
-  let rateCount = 0;
-  let firstRateT = 0;
-  for (let i = 0; i < pulse.length; i++) {
-    if (pulse[i].t >= rateCutoff) {
-      if (rateCount === 0) firstRateT = pulse[i].t;
-      rateCount++;
+  {
+    let count = 0;
+    const rateCutoff = now - TICK_RATE_WINDOW_MS;
+    for (let i = 0; i < pulse.length; i++) {
+      if (pulse[i].t >= rateCutoff) count++;
     }
-  }
-  if (rateCount > 1 && firstRateT > 0) {
-    const spanMs = Math.max(1, now - firstRateT);
-    ticksPerSec = Math.round((rateCount * 1000) / spanMs);
+    ticksPerSec = count > 0 ? count : null;
   }
 
-  return { pulse, newCount, ticksPerSec };
+  // 2) Sub-second volatility — peak-to-peak in bps over the trailing window.
+  let microVolBps: number | null = null;
+  {
+    const subCutoff = now - SUB_SECOND_WINDOW_MS;
+    let min = Infinity;
+    let max = -Infinity;
+    let n = 0;
+    for (let i = 0; i < pulse.length; i++) {
+      if (pulse[i].t < subCutoff) continue;
+      if (pulse[i].p < min) min = pulse[i].p;
+      if (pulse[i].p > max) max = pulse[i].p;
+      n++;
+    }
+    if (n >= 2 && isFinite(min) && min > 0) {
+      const mid = (min + max) / 2;
+      microVolBps = ((max - min) / mid) * 10000;
+    }
+  }
+
+  return { pulse, newCount, ticksPerSec, microVolBps };
 }

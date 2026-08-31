@@ -17,7 +17,6 @@ import { composeDecision } from "../decision";
 import { EventRecorder } from "../recording";
 import type { ScalpingDecision, DecisionDirection } from "../decision";
 import type { RecordedDirection } from "../recording";
-import type { MarketStateSnapshot, WindowStats } from "../market-state";
 import type {
   ScalpingExecution,
   ScalpingFeature,
@@ -166,8 +165,8 @@ export function useScalping(): ScalpingSnapshot {
       // compute: feed each new trade into the price buffer for the pulse chart.
       const drained = cmd.microTicksRef
         ? drainMicroTicks(cmd.microTicksRef, (p, t) => ingestPrice(p, t))
-        : { pulse: [], newCount: 0, ticksPerSec: null };
-      const series = buildPriceSeries(decisionView.marketState, ctx.samplePrice, price, cmd.candles, drained);
+        : { pulse: [], newCount: 0, ticksPerSec: null, microVolBps: null };
+      const series = buildPriceSeries(ctx.samplePrice, price, cmd.candles, drained);
       const regimeMonitor = buildMarketRegimeMonitor(cmd.multiTF);
 
       // Recorder: capture every decision + resolve forward outcomes.
@@ -267,21 +266,16 @@ function cmdFresh(cmd: { data: { status: string } }): boolean {
  * simply not requested/rendered rather than approximated.
  */
 function buildPriceSeries(
-  marketState: MarketStateSnapshot,
   samplePrice: (secondsAgo: number) => number | null,
   price: number | null,
   candles: { open: number; high: number; low: number; close: number }[],
-  drained?: { pulse: { t: number; p: number }[]; newCount: number; ticksPerSec: number | null }
+  drained?: { pulse: { t: number; p: number }[]; newCount: number; ticksPerSec: number | null; microVolBps?: number | null }
 ): ScalpPriceSeries {
-  const bySec = new Map<number, WindowStats>();
-  for (const w of marketState.windows ?? []) bySec.set(w.windowS, w);
-
-  // A helper: prefer the engine's real window return; otherwise fall back to
-  // the live sampler (current price vs the sampled price N seconds ago) when
-  // both are real and the buffer can genuinely reach N seconds.
+  // A window return = the REAL current price vs the price from the circular
+  // buffer at that exact historical timestamp (T from the WS ticks). This is
+  // the single, honest source; a "prefer-market-state" shortcut previously
+  // collapsed every window to the same value.
   const returns = (seconds: number): number | null => {
-    const w = bySec.get(seconds);
-    if (w?.returnPct != null) return w.returnPct;
     if (price == null) return null;
     const past = samplePrice(seconds);
     if (past == null || past === 0) return null;
@@ -326,7 +320,7 @@ function buildPriceSeries(
 
   // Downsample the recent real trades into a per-second pulse for the chart.
   const pulse = buildPulse(drained?.pulse ?? []);
-  const microRegime = buildMicroRegime(change, atr?.pct, drained?.ticksPerSec ?? null);
+  const microRegime = buildMicroRegime(change, drained?.microVolBps ?? null);
 
   return {
     change,
@@ -342,12 +336,11 @@ function buildPriceSeries(
 /**
  * Presentational micro-regime bands (like ATR banding) — explained in tooltips;
  * every directional datum is real. STRONG_MOVE_PCT is a 1s move that we call a
- * "strong" print; VOL_HIGH_ATR_PCT is an ATR% level at which we flag high
- * volatility when there's no dominant short-window direction.
+ * "strong" print; VOL_HIGH_BPS is the sub-second volatility band (real
+ * peak-to-peak, in basis points) beyond which we flag "تذبذب عالي".
  */
 const STRONG_MOVE_PCT = 0.02; // 1s change % beyond which the print is "strong"
-const VOL_HIGH_ATR_PCT = 0.15; // ATR as % of price beyond which we flag volatility
-const HIGH_TICKS_S = 50; // Ticks/sec beyond which we treat the print as high-churn
+const VOL_HIGH_BPS = 8; // recent peak-to-peak (bps) beyond which we flag volatility
 
 function buildPulse(ticks: { t: number; p: number }[]): { t: number; price: number }[] {
   if (!ticks.length) return [];
@@ -363,8 +356,7 @@ function buildPulse(ticks: { t: number; p: number }[]): { t: number; price: numb
 
 function buildMicroRegime(
   change: { label: string; seconds: number; pct: number | null }[],
-  atrPct: number | null,
-  ticksPerSec: number | null
+  microVolBps: number | null
 ): ScalpPriceSeries["microRegime"] {
   const one = change.find((c) => c.seconds === 1)?.pct ?? null;
   const five = change.find((c) => c.seconds === 5)?.pct ?? null;
@@ -377,13 +369,9 @@ function buildMicroRegime(
   if (ref != null) {
     if (ref >= STRONG_MOVE_PCT) label = "صاعد قوي";
     else if (ref <= -STRONG_MOVE_PCT) label = "هابط قوي";
-    else if (atrPct != null && atrPct >= VOL_HIGH_ATR_PCT) label = "تذبذب عالي";
-    else if (ticksPerSec != null && ticksPerSec >= HIGH_TICKS_S) label = "تذبذب عالي";
+    else if (microVolBps != null && microVolBps >= VOL_HIGH_BPS) label = "تذبذب عالي";
     else label = "ثابتة";
-  } else if (
-    (atrPct != null && atrPct >= VOL_HIGH_ATR_PCT) ||
-    (ticksPerSec != null && ticksPerSec >= HIGH_TICKS_S)
-  ) {
+  } else if (microVolBps != null && microVolBps >= VOL_HIGH_BPS) {
     label = "تذبذب عالي";
   }
 

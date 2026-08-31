@@ -44,12 +44,22 @@ export function lastPriceAgeMs(now = Date.now()): number | null {
   return buffer.length ? now - buffer[buffer.length - 1].t : null;
 }
 
-/** Price at (now - secondsAgo) or the oldest available, else null. */
+/**
+ * Price at (now - secondsAgo), or null when the buffer cannot honestly reach
+ * that far back. Walks the circular buffer by REAL historical tick timestamps.
+ *
+ * The erroneous `return last.price` branch was removed: for a live-updated
+ * buffer the newest tick is within ms of `now`, so `target` is always older
+ * than `last` and that branch returned the CURRENT price for every window —
+ * making 5s/30s/1m/2m all show the identical value. We now always look up the
+ * newest tick whose timestamp is at or before `target`.
+ */
 export function priceAt(secondsAgo: number, now = Date.now()): number | null {
   if (!buffer.length) return null;
   const target = now - secondsAgo * 1000;
-  const last = buffer[buffer.length - 1];
-  if (target <= last.t) return last.price;
+  // If the whole buffer is NEWER than the target (it hasn't lived long enough
+  // to cover `secondsAgo`), we cannot honestly sample that point.
+  if (buffer[0].t > target) return null;
   for (let i = buffer.length - 1; i >= 0; i--) {
     if (buffer[i].t <= target) return buffer[i].price;
   }
