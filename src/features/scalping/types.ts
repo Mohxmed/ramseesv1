@@ -124,8 +124,14 @@ export type ScalpDataHealth =
 export type ScalpPriceSeries = {
   /** Signed change % over each requested window (real or null). */
   change: { label: string; seconds: number; pct: number | null }[];
-  /** Signed per-second velocity for the shortest reliable window (%/s). */
-  velocity: { label: string; pctPerSec: number | null }[];
+  /**
+   * Signed per-second velocity for the shortest reliable windows.
+   * pctPerSec = %/s (percentage velocity). usdPerSec = the same move expressed
+   * in actual price units (USD per second), derived from the live price — e.g.
+   * "سرعة +5 usd في الثانية". Both are null only when the window's change is
+   * unavailable.
+   */
+  velocity: { label: string; pctPerSec: number | null; usdPerSec: number | null }[];
   /** Whether movement is strengthening or fading (across windows). */
   acceleration: "accelerating" | "decelerating" | "flat" | null;
   /**

@@ -5,7 +5,7 @@ import { useMarketData } from "../../bitcoin/store/market-context";
 import type { MarketStructureAnalysis } from "../../bitcoin/analysis";
 import type { SupportResistanceResult } from "../../bitcoin/analysis/types";
 import { SCALPING_CONFIG } from "../config";
-import { ingestPrice, lastPriceAgeMs, priceAt, getPriceChange, coveragePct } from "../data/priceSeries";
+import { ingestPrice, lastPrice, lastPriceAgeMs, priceAt, getPriceChange, coveragePct } from "../data/priceSeries";
 import { drainMicroTicks } from "../data/microTicks";
 import { computeAtr } from "../data/atr";
 import { buildMarketRegimeMonitor } from "../data/marketRegime";
@@ -290,12 +290,18 @@ function buildPriceSeries(
     pct: returns(r.seconds),
   }));
 
+  // Actual per-second velocity in price units (USD) — the % velocity applied to
+  // the live price, so the UI can show e.g. "سرعة +5 usd/ث". Real & derived
+  // from the same buffer; null only when the change window is unavailable.
+  const currentPrice = lastPrice();
+
   const shorts = [1, 5, 15, 30]
     .map((s) => ({ s, pct: returns(s) }))
     .filter((v): v is { s: number; pct: number } => v.pct != null);
   const velocity = shorts.map((v) => ({
     label: `${v.s}ث`,
     pctPerSec: v.pct / v.s,
+    usdPerSec: currentPrice != null ? (v.pct / v.s / 100) * currentPrice : null,
   }));
 
   // Acceleration: compare per-second velocity of the shortest vs longest window.
