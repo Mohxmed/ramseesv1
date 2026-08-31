@@ -89,16 +89,17 @@ export function drainMicroTicks(
   const pulse = recent.slice();
 
   // 1) Ticks/sec — strict sliding 1000ms window that RESETS every drain.
-  // Count ONLY ticks with t >= oneSecondAgo (a plain filter over the recent
-  // ring). Because the ref is flushed each cycle and this is a 1s windowed
-  // count — never a total accumulation across the app lifetime — the reading
-  // stays a realistic live rate (e.g. 15-85 Ticks/s) and cannot grow endlessly.
-  // The filter is order-independent (unlike a backward "break"), so out-of-order
-  // arrivals across cycles can't over/undercount.
+  // Anchored to BINANCE SERVER TIME (the newest tick's timestamp) rather than
+  // the local Date.now() clock, so network latency / local-clock skew cannot
+  // shift the 1s window. Count only ticks with t >= latestServerTime - 1000.
+  // Because the ref is flushed each cycle and this is a 1s windowed count —
+  // never a total accumulation across the app lifetime — the reading stays a
+  // realistic live rate (e.g. 15-85 Ticks/s) and cannot grow endlessly. The
+  // filter is order-independent, so out-of-order arrivals can't over/undercount.
   let ticksPerSec: number | null = null;
   {
-    const oneSecondAgo = now - TICK_RATE_WINDOW_MS;
-    const recentTicks = pulse.filter((tick) => tick.t >= oneSecondAgo);
+    const latestServerTime = pulse.length > 0 ? pulse[pulse.length - 1].t : Date.now();
+    const recentTicks = pulse.filter((tick) => tick.t >= latestServerTime - TICK_RATE_WINDOW_MS);
     ticksPerSec = recentTicks.length > 0 ? recentTicks.length : null;
   }
 
