@@ -15,6 +15,7 @@ import {
   type Tone,
 } from "./terminal/TradingPrimitives";
 import { ThemeGate } from "@/components/ui/mui-theme";
+import { siBinance, siCoinbase, siOkx } from "simple-icons";
 
 /**
  * Real-Time AGGR Flow Window — matches the terminal's shared presentation
@@ -133,18 +134,60 @@ const STATUS_META: Record<string, { label: string; tone: Tone }> = {
   ERROR: { label: "خطأ", tone: "warn" },
 };
 
+const LOGO_META: Record<string, { hex: string; path: string; title: string }> = {
+  binance_futures: siBinance,
+  binance_spot: siBinance,
+  coinbase: siCoinbase,
+  okx: siOkx,
+};
+
+/** Brand logos whose official hex is too dark for the dark theme get an explicit light fill. */
+const LOGO_FILL: Record<string, string> = {
+  okx: "#ffffff",
+};
+
+/** Letter fallback for platforms that have no available brand-logo asset. */
+const LOGO_LETTER: Record<string, string> = {
+  bybit: "BY",
+  bitget: "BG",
+  mexc: "MX",
+  hyperliquid: "HL",
+};
+
 function GatewayRow({ conn }: { conn: ExchangeConnection }) {
   const meta = STATUS_META[conn.status] ?? { label: conn.status, tone: "quiet" as Tone };
   const isLive = conn.status === "LIVE";
-  const name = conn.label || ADAPTER_LABELS[conn.exchange] || conn.exchange;
+  const logo = LOGO_META[conn.exchange];
+  const letter = LOGO_LETTER[conn.exchange];
   return (
     <div
       dir="rtl"
       className="flex items-center justify-between gap-2 rounded-panel border border-line bg-surface-1/30 px-2.5 py-1.5"
     >
-      <span className="flex min-w-0 items-center gap-1.5 text-2xs font-semibold text-zinc-200">
-        <Dot tone={meta.tone} pulse={isLive} />
-        <span className="truncate">{name}</span>
+      {/* Platform mark — logo (or letter fallback) on the right */}
+      <span className="relative flex min-w-0 shrink-0 items-center">
+        {logo ? (
+          <svg
+            viewBox="0 0 24 24"
+            width={18}
+            height={18}
+            fill={LOGO_FILL[conn.exchange] ?? logo.hex}
+            aria-hidden="true"
+            aria-label={logo.title}
+          >
+            <path d={logo.path} />
+          </svg>
+        ) : (
+          <span
+            className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[5px] text-[8px] font-extrabold text-background"
+            style={{ backgroundColor: "#5a6472" }}
+          >
+            {letter}
+          </span>
+        )}
+        <span className="absolute -right-1.5 -top-1.5">
+          <Dot tone={meta.tone} pulse={isLive} />
+        </span>
       </span>
       <span className="shrink-0 text-2xs text-muted" dir="ltr" style={mono}>
         {conn.latency >= 0 ? `${conn.latency}ms` : "—"}
