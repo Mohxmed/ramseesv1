@@ -1,7 +1,7 @@
 "use client";
 
 import type { ScalpDecisionView, ScalpPriceSeries, ScalpingSignal } from "../../types";
-import { TONE_BORDER, TONE_TEXT, TONE_BAR, Dot, Tag, Tone } from "./TradingPrimitives";
+import { TONE_BORDER, TONE_TEXT, TONE_BAR, Dot, Tag, Section, Tone } from "./TradingPrimitives";
 import { num } from "@/components/ui/design-tokens";
 import { Tip } from "./TerminalTip";
 
@@ -127,20 +127,28 @@ export function DecisionCall({
   const noteTone = reasons.length > 0 ? "text-zinc-300" : "text-warn-fg";
 
   return (
-    <div
-      className={`flex h-full flex-col rounded-panel border p-3 ${TONE_BORDER[dirTone]} bg-surface-1/40`}
-    >
-      {/* header */}
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-3xs font-semibold uppercase tracking-[0.18em] text-muted">
-          قرار المضاربة
-        </span>
+    <Section
+      title="قرار المضاربة"
+      eyebrow="02 · Decision"
+      collapsible
+      className={`h-full flex flex-col ${TONE_BORDER[dirTone]}`}
+      snippet={
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-2xs text-muted">القرار</span>
+          <span className={`text-xs font-bold ${TONE_TEXT[dirTone]}`}>
+            {CALL_TEXT[decision.direction]}
+            {score != null ? <span className="font-mono text-zinc-300"> · {score.toFixed(0)}/100</span> : null}
+          </span>
+        </div>
+      }
+      actions={
         <Tag tone={sig.tone}>
           <Dot tone={sig.tone} />
           قوة الإشارة: {sig.label}
         </Tag>
-      </div>
-
+      }
+      bodyClassName="flex-1 flex flex-col"
+    >
       {/* call + compact metrics */}
       <div className="mt-2.5 flex items-end justify-between gap-3">
         <span className={`text-2xl font-extrabold leading-none tracking-tight ${TONE_TEXT[dirTone]}`}>
@@ -198,6 +206,6 @@ export function DecisionCall({
       <div className="mt-auto pt-2.5">
         <AtrStrip atr={atr} />
       </div>
-    </div>
+    </Section>
   );
 }

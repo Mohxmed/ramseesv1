@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Area, AreaChart, ResponsiveContainer } from "recharts";
 
 import type { FlowSnapshot, FlowWindow, NormalizedTrade } from "../flow/types";
@@ -10,7 +10,6 @@ import {
   Tag,
   Dot,
   StatRow,
-  Collapse,
   TONE_TEXT,
   TONE_BG,
   type Tone,
@@ -19,14 +18,16 @@ import { ThemeGate } from "@/components/ui/mui-theme";
 
 /**
  * Real-Time AGGR Flow Window — matches the terminal's shared presentation
- * system (`Section` / `Tag` / `Dot` / `Stat` / `DataRow` / `Collapse` +
- * semantic design tokens), the same language as every other scalping panel.
+ * system (Section / Tag / Dot / StatRow + semantic design tokens).
+ *
+ * Every sub-window below minimizes INDEPENDENTLY: each `Section` carries its
+ * own collapse state, and while collapsed it shows a compact highlight of its
+ * most important metric. Collapsing one window never affects the others.
  *
  * Layout-stability rules (no ugly reflow when values tick):
- *  - Every number renders tabular-nums (`num`) with fixed column widths.
+ *  - Every number renders monospace tabular-nums with fixed column widths.
  *  - The exchange rail is a single non-wrapping, horizontally scrollable row
  *    of fixed-min-width chips, so status text changes never wrap.
- *  - Heavy secondary panels fold into native-`<details>` `Collapse`s.
  */
 
 const flowTone = (n: number | null | undefined): Tone =>
@@ -75,14 +76,29 @@ function netFlowSeries(trades: NormalizedTrade[]): { t: number; v: number }[] {
     .map(([t, v]) => ({ t: t * 1000, v }));
 }
 
-// ─── Shared bits ────────────────────────────────────────────────────
+const mono: CSSProperties = {
+  fontVariantNumeric: "tabular-nums",
+  fontFamily: "var(--font-mono), ui-monospace, monospace",
+};
+
+// ─── Small shared render helpers ────────────────────────────────────
+
+/** Linear label → value line used inside collapsed snippets. */
+function SnippetRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-2xs text-muted">{label}</span>
+      {children}
+    </div>
+  );
+}
 
 /** A labelled value "tile" — the canonical metric block of the terminal. */
 function Tile({ label, value, tone = "neutral", sub }: { label: string; value: string; tone?: Tone; sub?: string }) {
   return (
     <div className="min-w-0">
       <div className="text-3xs font-semibold uppercase tracking-[0.14em] text-muted">{label}</div>
-      <div className={`mt-1 text-lg font-extrabold leading-none ${TONE_TEXT[tone]}`} dir="ltr" style={{ fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-mono), ui-monospace, monospace" }}>
+      <div className={`mt-1 text-lg font-extrabold leading-none ${TONE_TEXT[tone]}`} dir="ltr" style={mono}>
         {value}
       </div>
       {sub ? <div className="mt-1 text-3xs text-muted">{sub}</div> : null}
@@ -128,7 +144,7 @@ function StatusChip({ exchange, status }: { exchange: string; status: string }) 
   );
 }
 
-function LiveFlowHeader({ snap, minimized, onToggle }: { snap: FlowSnapshot; minimized: boolean; onToggle: () => void }) {
+function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
   const { connections, state } = snap;
   const live = connections.filter((c) => c.status === "LIVE");
   const liveLat = live.filter((c) => c.latency >= 0);
@@ -139,13 +155,14 @@ function LiveFlowHeader({ snap, minimized, onToggle }: { snap: FlowSnapshot; min
     <Section
       title="التدفق المباشر"
       eyebrow="01 · Live Aggregation"
-      actions={
-        <button
-          onClick={onToggle}
-          className="rounded-chip border border-line px-1.5 py-0.5 text-2xs font-bold text-muted transition-colors hover:border-zinc-600 hover:text-zinc-200"
-        >
-          {minimized ? "فتح ▾" : "طيّ ▴"}
-        </button>
+      collapsible
+      snippet={
+        <SnippetRow label="الحالة">
+          <Tag tone={overallTone}>
+            <Dot tone={overallTone} pulse={live.length > 0} />
+            {live.length}/{connections.length} متصل · {avgLatency !== null ? `${avgLatency}ms` : "N/A"}
+          </Tag>
+        </SnippetRow>
       }
     >
       {/* Summary — one aligned strip */}
@@ -177,7 +194,19 @@ function PressurePanel({ snap }: { snap: FlowSnapshot }) {
   const total = buy + sell;
   const buyP = total > 0 ? pct(buy, total) : 0;
   return (
-    <Section title="ضغط الشراء / البيع" eyebrow="02 · Order-Flow Imbalance" actions={<Tag tone="neutral">60 ثانية</Tag>}>
+    <Section
+      title="ضغط الشراء / البيع"
+      eyebrow="02 · Order-Flow Imbalance"
+      collapsible
+      actions={<Tag tone="neutral">60 ثانية</Tag>}
+      snippet={
+        <SnippetRow label="الضغط">
+          <span className={`text-xs font-bold ${total > 0 ? (buyP >= 50 ? "text-up-fg" : "text-down-fg") : "text-zinc-300"}`} dir="ltr" style={mono}>
+            بيع {sell > 0 ? ((sell / total) * 100).toFixed(0) : "0"}% / شراء {buyP.toFixed(0)}%
+          </span>
+        </SnippetRow>
+      }
+    >
       <SplitBar buy={buy} sell={sell} />
       <div className="mt-2 grid grid-cols-2 gap-2">
         <div className="rounded-panel border border-line bg-surface-1/30 px-2 py-1.5">
@@ -185,16 +214,16 @@ function PressurePanel({ snap }: { snap: FlowSnapshot }) {
             <span className="text-3xs text-muted">شراء</span>
             <Dot tone="long" />
           </div>
-          <div className="text-base font-extrabold leading-none text-up-fg" dir="ltr" style={{ fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-mono), ui-monospace, monospace" }}>{usd(buy)}</div>
-          <div className="text-3xs text-up-fg" dir="ltr" style={{ fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-mono), ui-monospace, monospace" }}>{buyP.toFixed(0)}%</div>
+          <div className="text-base font-extrabold leading-none text-up-fg" dir="ltr" style={mono}>{usd(buy)}</div>
+          <div className="text-3xs text-up-fg" dir="ltr" style={mono}>{buyP.toFixed(0)}%</div>
         </div>
         <div className="rounded-panel border border-line bg-surface-1/30 px-2 py-1.5">
           <div className="flex items-center justify-between">
             <span className="text-3xs text-muted">بيع</span>
             <Dot tone="short" />
           </div>
-          <div className="text-base font-extrabold leading-none text-down-fg" dir="ltr" style={{ fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-mono), ui-monospace, monospace" }}>{usd(sell)}</div>
-          <div className="text-3xs text-down-fg" dir="ltr" style={{ fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-mono), ui-monospace, monospace" }}>{(100 - buyP).toFixed(0)}%</div>
+          <div className="text-base font-extrabold leading-none text-down-fg" dir="ltr" style={mono}>{usd(sell)}</div>
+          <div className="text-3xs text-down-fg" dir="ltr" style={mono}>{total > 0 ? (100 - buyP).toFixed(0) : "0"}%</div>
         </div>
       </div>
     </Section>
@@ -212,7 +241,18 @@ function NetFlowPanel({ snap }: { snap: FlowSnapshot }) {
   const netTone = flowTone(net);
   const stroke = netTone === "long" ? "#34d399" : netTone === "short" ? "#f87171" : "#a1a1aa";
   return (
-    <Section title="التدفق الصافي" eyebrow="03 · Net / Sec" actions={<Tag tone={netTone}>{signedUsd(net)} / ثانية</Tag>}>
+    <Section
+      title="التدفق الصافي"
+      eyebrow="03 · Net / Sec"
+      collapsible
+      snippet={
+        <SnippetRow label="صافي / ثانية">
+          <span className={`text-xs font-bold ${TONE_TEXT[netTone]}`} dir="ltr" style={mono}>
+            {signedUsd(net)}
+          </span>
+        </SnippetRow>
+      }
+    >
       <div className="grid grid-cols-2 gap-2">
         <Tile label="صافي / ثانية" value={signedUsd(net)} tone={netTone} />
         <Tile label="التسارع" value={signedUsd(accel)} tone={flowTone(accel)} />
@@ -240,11 +280,11 @@ function TapeRow({ trade }: { trade: NormalizedTrade }) {
   const tone: Tone = trade.side === "buy" ? "long" : "short";
   return (
     <div className={`${row} rounded-chip px-1.5 py-1 ${TONE_BG[tone]}`}>
-      <span className="w-[46px] shrink-0 text-2xs text-muted" dir="ltr" style={{ fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-mono), ui-monospace, monospace" }}>{hhmmss(trade.timestamp)}</span>
+      <span className="w-[46px] shrink-0 text-2xs text-muted" dir="ltr" style={mono}>{hhmmss(trade.timestamp)}</span>
       <span className="w-[34px] shrink-0 truncate text-2xs text-zinc-400">{ADAPTER_LABELS[trade.exchange] ?? trade.exchange}</span>
       <span className={`w-[26px] shrink-0 text-2xs font-bold ${TONE_TEXT[tone]}`}>{trade.side === "buy" ? "B" : "S"}</span>
       {trade.liquidation ? <span className="shrink-0 rounded-sm bg-warn/15 px-1 text-2xs font-extrabold text-warn-fg">LIQ</span> : null}
-      <span className={`ml-auto text-xs font-bold ${TONE_TEXT[tone]}`} dir="ltr" style={{ fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-mono), ui-monospace, monospace" }}>{usd(trade.notional)}</span>
+      <span className={`ml-auto text-xs font-bold ${TONE_TEXT[tone]}`} dir="ltr" style={mono}>{usd(trade.notional)}</span>
     </div>
   );
 }
@@ -252,17 +292,32 @@ function TapeRow({ trade }: { trade: NormalizedTrade }) {
 function TapePanel({ snap }: { snap: FlowSnapshot }) {
   const trades = snap.recentTrades;
   const liveCount = snap.connections.filter((c) => c.status === "LIVE").length;
+  const last = trades[trades.length - 1];
   return (
     <Section
       title="شريط الصفقات"
       eyebrow="04 · Aggregated Tape"
+      collapsible
+      bodyClassName="p-2"
+      snippet={
+        last ? (
+          <SnippetRow label="آخر صفقة">
+            <span className={`text-xs font-bold ${TONE_TEXT[last.side === "buy" ? "long" : "short"]}`} dir="ltr" style={mono}>
+              {usd(last.notional)} · {ADAPTER_LABELS[last.exchange] ?? last.exchange}
+            </span>
+          </SnippetRow>
+        ) : (
+          <SnippetRow label="شريط الصفقات">
+            <span className="text-xs text-muted">بانتظار الصفقات</span>
+          </SnippetRow>
+        )
+      }
       actions={
         <Tag tone={liveCount > 0 ? "good" : "warn"}>
           <Dot tone={liveCount > 0 ? "good" : "warn"} pulse={liveCount > 0} />
           {liveCount > 0 ? "مباشر" : "مقطوع"}
         </Tag>
       }
-      bodyClassName="p-2"
     >
       {trades.length === 0 ? (
         <div className="py-6 text-center text-2xs text-muted">بانتظار الصفقات المباشرة…</div>
@@ -277,31 +332,48 @@ function TapePanel({ snap }: { snap: FlowSnapshot }) {
   );
 }
 
-// ─── 05 · Large trades + 06 · Liquidations + 07 · CVD ───────────────
+// ─── 05 · Large trades ──────────────────────────────────────────────
 
 function LargeTrades({ snap }: { snap: FlowSnapshot }) {
   const { state } = snap;
   const buys = state.largeBuys.slice(-5).map((t) => ({ ...t, side: "buy" as const }));
   const sells = state.largeSells.slice(-5).map((t) => ({ ...t, side: "sell" as const }));
   const all = [...buys, ...sells].sort((a, b) => b.timestamp - a.timestamp).slice(0, 7);
+  const buyP = buys.length > 0 ? pct(buys.reduce((s, t) => s + t.notional, 0), buys.reduce((s, t) => s + t.notional, 0) + sells.reduce((s, t) => s + t.notional, 0)) : 0;
   if (all.length === 0) {
     return (
-      <Section title="الصفقات الكبيرة" eyebrow="05 · Large">
+      <Section
+        title="الصفقات الكبيرة"
+        eyebrow="05 · Large"
+        collapsible
+        snippet={<SnippetRow label="العدد"><span className="text-xs text-muted">لا صفقات كبيرة مؤخراً</span></SnippetRow>}
+      >
         <span className="text-2xs text-muted">لا صفقات كبيرة مؤخراً</span>
       </Section>
     );
   }
   return (
-    <Section title="الصفقات الكبيرة" eyebrow="05 · Large">
+    <Section
+      title="الصفقات الكبيرة"
+      eyebrow="05 · Large"
+      collapsible
+      snippet={
+        <SnippetRow label={`${all.length} صفقات`}>
+          <span className={`text-xs font-bold ${buyP >= 50 ? "text-up-fg" : "text-down-fg"}`} dir="ltr" style={mono}>
+            شراء {buyP.toFixed(0)}%
+          </span>
+        </SnippetRow>
+      }
+    >
       <div className="space-y-1">
         {all.map((t, i) => {
           const tone: Tone = t.side === "buy" ? "long" : "short";
           return (
             <div key={`${t.exchange}_${t.timestamp}_${i}`} className={row}>
-              <span className="w-[46px] shrink-0 text-2xs text-muted" dir="ltr" style={{ fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-mono), ui-monospace, monospace" }}>{hhmmss(t.timestamp)}</span>
+              <span className="w-[46px] shrink-0 text-2xs text-muted" dir="ltr" style={mono}>{hhmmss(t.timestamp)}</span>
               <span className="w-[30px] shrink-0 truncate text-2xs text-zinc-400">{ADAPTER_LABELS[t.exchange] ?? t.exchange}</span>
               <span className={`text-2xs font-bold ${TONE_TEXT[tone]}`}>{t.side === "buy" ? "B" : "S"}</span>
-              <span className={`ml-auto text-xs font-bold ${TONE_TEXT[tone]}`} dir="ltr" style={{ fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-mono), ui-monospace, monospace" }}>{usd(t.notional)}</span>
+              <span className={`ml-auto text-xs font-bold ${TONE_TEXT[tone]}`} dir="ltr" style={mono}>{usd(t.notional)}</span>
             </div>
           );
         })}
@@ -309,6 +381,8 @@ function LargeTrades({ snap }: { snap: FlowSnapshot }) {
     </Section>
   );
 }
+
+// ─── 06 · Liquidations ──────────────────────────────────────────────
 
 function Liquidations({ snap }: { snap: FlowSnapshot }) {
   const liq = snap.state.liquidations;
@@ -318,7 +392,15 @@ function Liquidations({ snap }: { snap: FlowSnapshot }) {
     <Section
       title="التصفية"
       eyebrow="06 · Liquidations"
+      collapsible
       actions={liq.burst ? <Tag tone="warn">انفجار</Tag> : <Tag tone={total > 0 ? "neutral" : "quiet"}>{total > 0 ? "نشط" : "لا تصفيات"}</Tag>}
+      snippet={
+        <SnippetRow label="إجمالي المصفي">
+          <span className={`text-xs font-bold ${TONE_TEXT[tone]}`} dir="ltr" style={mono}>
+            {usd(total)}{total > 0 ? ` / ${usd(liq.velocity)}/ث` : ""}
+          </span>
+        </SnippetRow>
+      }
     >
       {total === 0 ? (
         <span className="text-2xs text-muted">لا تصفيات مباشرة</span>
@@ -337,6 +419,8 @@ function Liquidations({ snap }: { snap: FlowSnapshot }) {
   );
 }
 
+// ─── 07 · CVD ───────────────────────────────────────────────────────
+
 function CvdPanel({ snap }: { snap: FlowSnapshot }) {
   const cvd = snap.state.cvd;
   const cells = [
@@ -346,12 +430,23 @@ function CvdPanel({ snap }: { snap: FlowSnapshot }) {
     { label: "1 د", v: cvd.cvdDelta1m },
   ];
   return (
-    <Section title="دلتا الحجم التراكمي" eyebrow="07 · CVD">
+    <Section
+      title="دلتا الحجم التراكمي"
+      eyebrow="07 · CVD"
+      collapsible
+      snippet={
+        <SnippetRow label="CVD 1د">
+          <span className={`text-xs font-bold ${TONE_TEXT[flowTone(cvd.cvdDelta1m)]}`} dir="ltr" style={mono}>
+            {signedUsd(cvd.cvdDelta1m)}
+          </span>
+        </SnippetRow>
+      }
+    >
       <div className="grid grid-cols-4 gap-1">
         {cells.map((c) => (
           <div key={c.label} className="min-w-0 text-center">
             <div className="text-3xs text-muted">{c.label}</div>
-            <div className={`mt-0.5 truncate text-[11px] font-bold leading-none ${TONE_TEXT[flowTone(c.v)]}`} dir="ltr" style={{ fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-mono), ui-monospace, monospace" }}>
+            <div className={`mt-0.5 truncate text-[11px] font-bold leading-none ${TONE_TEXT[flowTone(c.v)]}`} dir="ltr" style={mono}>
               {signedUsd(c.v)}
             </div>
           </div>
@@ -361,18 +456,43 @@ function CvdPanel({ snap }: { snap: FlowSnapshot }) {
   );
 }
 
-// ─── 08 · Windows + 09 · Flow × Price (folded in Collapse) ──────────
+// ─── 08 · Time windows + 09 · Flow × Price ──────────────────────────
 
 function WindowRow({ w }: { w: FlowWindow }) {
   return (
     <div className="space-y-1">
       <div className={row}>
         <span className="text-2xs text-muted">{w.seconds} ثواني</span>
-        <span className={`text-xs font-bold ${TONE_TEXT[flowTone(w.netFlow)]}`} dir="ltr" style={{ fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-mono), ui-monospace, monospace" }}>{signedUsd(w.netFlow)}</span>
-        <span className="text-2xs text-muted" style={{ fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-mono), ui-monospace, monospace" }}>{w.tradeCount} صفقة</span>
+        <span className={`text-xs font-bold ${TONE_TEXT[flowTone(w.netFlow)]}`} dir="ltr" style={mono}>{signedUsd(w.netFlow)}</span>
+        <span className="text-2xs text-muted" style={mono}>{w.tradeCount} صفقة</span>
       </div>
       <SplitBar buy={w.buyNotional} sell={w.sellNotional} heightClass="h-1" />
     </div>
+  );
+}
+
+function WindowsPanel({ snap }: { snap: FlowSnapshot }) {
+  const windows = snap.state.windows.filter((w) => [1, 5, 30, 60].includes(w.seconds));
+  const w1 = snap.state.windows.find((x) => x.seconds === 1);
+  return (
+    <Section
+      title="النوافذ الزمنية"
+      eyebrow="08 · Windows"
+      collapsible
+      snippet={
+        <SnippetRow label="صافي 1ث">
+          <span className={`text-xs font-bold ${TONE_TEXT[flowTone(w1?.netFlow ?? null)]}`} dir="ltr" style={mono}>
+            {signedUsd(w1?.netFlow ?? null)}
+          </span>
+        </SnippetRow>
+      }
+    >
+      <div className="space-y-2">
+        {windows.map((w) => (
+          <WindowRow key={w.seconds} w={w} />
+        ))}
+      </div>
+    </Section>
   );
 }
 
@@ -414,7 +534,16 @@ function FlowPricePanel({ snap }: { snap: FlowSnapshot }) {
     { label: "خطر الانجراف", value: cascadeLabel[a.cascadeRisk] ?? a.cascadeRisk, tone: a.cascadeRisk === "high" ? "short" : a.cascadeRisk === "medium" ? "warn" : "neutral" },
   ];
   return (
-    <Section title="التدفق مقابل السعر" eyebrow="09 · Flow × Price">
+    <Section
+      title="التدفق مقابل السعر"
+      eyebrow="09 · Flow × Price"
+      collapsible
+      snippet={
+        <SnippetRow label="استجابة السعر">
+          <span className={`text-xs font-bold ${TONE_TEXT[responseTone]}`}>{responseLabel[a.priceResponse] ?? a.priceResponse}</span>
+        </SnippetRow>
+      }
+    >
       <div className="space-y-0.5">
         {rows.map((r) => (
           <StatRow key={r.label} label={r.label} value={r.value} tone={r.tone} />
@@ -422,7 +551,7 @@ function FlowPricePanel({ snap }: { snap: FlowSnapshot }) {
       </div>
       <div className={`${row} mt-2 border-t border-line/60 pt-2`}>
         <span className="text-2xs text-muted">تغيّر السعر خلال النافذة</span>
-        <span className={`text-sm font-bold ${TONE_TEXT[responseTone]}`} dir="ltr" style={{ fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-mono), ui-monospace, monospace" }}>
+        <span className={`text-sm font-bold ${TONE_TEXT[responseTone]}`} dir="ltr" style={mono}>
           {a.priceDelta >= 0 ? "+" : ""}
           {a.priceDelta.toFixed(3)}%
         </span>
@@ -434,8 +563,6 @@ function FlowPricePanel({ snap }: { snap: FlowSnapshot }) {
 // ─── Composite ──────────────────────────────────────────────────────
 
 export function FlowPanel({ snap }: { snap: FlowSnapshot | null | undefined }) {
-  const [minimized, setMinimized] = useState(false);
-
   if (!snap) {
     return (
       <ThemeGate>
@@ -450,41 +577,16 @@ export function FlowPanel({ snap }: { snap: FlowSnapshot | null | undefined }) {
   return (
     <ThemeGate>
       <div className="space-y-3">
-        {/* Header is always visible; the rest collapse to a single summary line. */}
-        <LiveFlowHeader snap={snap} minimized={minimized} onToggle={() => setMinimized((v) => !v)} />
-
-        {minimized ? (
-          <Collapse summary="عرض بقية بيانات التدفق" open={false}>
-            <InnerPanels snap={snap} />
-          </Collapse>
-        ) : (
-          <InnerPanels snap={snap} />
-        )}
+        <LiveFlowHeader snap={snap} />
+        <PressurePanel snap={snap} />
+        <NetFlowPanel snap={snap} />
+        <TapePanel snap={snap} />
+        <LargeTrades snap={snap} />
+        <Liquidations snap={snap} />
+        <CvdPanel snap={snap} />
+        <WindowsPanel snap={snap} />
+        <FlowPricePanel snap={snap} />
       </div>
     </ThemeGate>
-  );
-}
-
-function InnerPanels({ snap }: { snap: FlowSnapshot }) {
-  return (
-    <div className="space-y-3">
-      <PressurePanel snap={snap} />
-      <NetFlowPanel snap={snap} />
-      <TapePanel snap={snap} />
-      <LargeTrades snap={snap} />
-      <Liquidations snap={snap} />
-      <CvdPanel snap={snap} />
-      <FlowPricePanel snap={snap} />
-
-      <Collapse summary={`النوافذ الزمنية (${snap.state.windows.length})`} open={false}>
-        <div className="space-y-2">
-          {snap.state.windows
-            .filter((w) => [1, 5, 30, 60].includes(w.seconds))
-            .map((w) => (
-              <WindowRow key={w.seconds} w={w} />
-            ))}
-        </div>
-      </Collapse>
-    </div>
   );
 }

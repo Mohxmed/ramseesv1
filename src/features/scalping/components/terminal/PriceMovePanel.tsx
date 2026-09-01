@@ -4,7 +4,7 @@ import { memo, useEffect, useState } from "react";
 import { ResponsiveContainer, AreaChart, Area, YAxis } from "recharts";
 import type { ScalpingSnapshot } from "../../types";
 import type { VolatilityRegime } from "../../data/microTicks";
-import { Dot } from "./TradingPrimitives";
+import { Dot, Section } from "./TradingPrimitives";
 import { colors, num } from "@/components/ui/design-tokens";
 import { Tip } from "./TerminalTip";
 
@@ -208,12 +208,24 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
   const stroke = dir === "up" ? colors.up : dir === "down" ? colors.down : colors.muted;
 
   return (
-    <div className="flex h-full flex-col rounded-panel border border-line/80 bg-surface-1/40 p-3">
-      {/* header + volatility regime status badge (strict levels, exact triggers in tooltip) */}
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-3xs font-semibold uppercase tracking-[0.18em] text-muted">
+    <Section
+      title={
+        <>
           حركة السعر <span className="normal-case text-muted/70">(Price Action)</span>
-        </span>
+        </>
+      }
+      eyebrow="01 · Ticks"
+      collapsible
+      className="h-full flex flex-col"
+      snippet={
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-2xs text-muted">الحالة</span>
+          <span className={`text-xs font-bold ${REG_TEXT[vtone]}`} dir="rtl">
+            المستوى {vLevel} — {VOL_LABEL[vreg]}
+          </span>
+        </div>
+      }
+      actions={
         <Tip title={VOL_DESC[vreg]}>
           <span
             key={snap.updatedAt}
@@ -229,8 +241,9 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
             </span>
           </span>
         </Tip>
-      </div>
-
+      }
+      bodyClassName="flex-1 flex flex-col"
+    >
       {/* risk meter — 4 escalating segments show real-time level intensity */}
       <div className="mt-2">
         <Tip
@@ -420,7 +433,7 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
             : "بانتظار البث اللحظي…"}
         </span>
       </div>
-    </div>
+    </Section>
   );
 }
 
