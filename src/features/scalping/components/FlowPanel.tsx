@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import type { CSSProperties, ReactNode } from "react";
 import { Area, AreaChart, ResponsiveContainer } from "recharts";
@@ -18,7 +18,7 @@ import { ThemeGate } from "@/components/ui/mui-theme";
 import { siBinance, siCoinbase, siOkx } from "simple-icons";
 
 /**
- * Real-Time AGGR Flow Window â€” matches the terminal's shared presentation
+ * Real-Time AGGR Flow Window — matches the terminal's shared presentation
  * system (Section / Tag / Dot / StatRow + semantic design tokens).
  *
  * Every sub-window below minimizes INDEPENDENTLY: each `Section` carries its
@@ -36,10 +36,10 @@ const flowTone = (n: number | null | undefined): Tone =>
 
 const row = "flex items-center justify-between gap-3";
 
-// â”€â”€â”€ Formatting â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Formatting ─────────────────────────────────────────────────────
 
 function usd(v: number | null | undefined): string {
-  if (v == null) return "â€”";
+  if (v == null) return "—";
   const abs = Math.abs(v);
   const prefix = v < 0 ? "-" : "";
   if (abs >= 1_000_000) return `${prefix}$${(abs / 1_000_000).toFixed(2)}M`;
@@ -48,8 +48,8 @@ function usd(v: number | null | undefined): string {
 }
 
 function signedUsd(v: number | null | undefined): string {
-  if (v == null) return "â€”";
-  const prefix = v > 0 ? "+" : v < 0 ? "âˆ’" : "";
+  if (v == null) return "—";
+  const prefix = v > 0 ? "+" : v < 0 ? "−" : "";
   return prefix + usd(Math.abs(v));
 }
 
@@ -82,9 +82,9 @@ const mono: CSSProperties = {
   fontFamily: "var(--font-mono), ui-monospace, monospace",
 };
 
-// â”€â”€â”€ Small shared render helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Small shared render helpers ────────────────────────────────────
 
-/** Linear label â†’ value line used inside collapsed snippets. */
+/** Linear label → value line used inside collapsed snippets. */
 function SnippetRow({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3">
@@ -94,7 +94,7 @@ function SnippetRow({ label, children }: { label: string; children: ReactNode })
   );
 }
 
-/** A labelled value "tile" â€” the canonical metric block of the terminal. */
+/** A labelled value "tile" — the canonical metric block of the terminal. */
 function Tile({ label, value, tone = "neutral", sub }: { label: string; value: string; tone?: Tone; sub?: string }) {
   return (
     <div className="min-w-0">
@@ -107,7 +107,7 @@ function Tile({ label, value, tone = "neutral", sub }: { label: string; value: s
   );
 }
 
-/** Thin buy/sell split bar â€” buy share left (RTL-aware), real volumes. */
+/** Thin buy/sell split bar — buy share left (RTL-aware), real volumes. */
 function SplitBar({ buy, sell, buyPctFill = "bg-up", sellPctFill = "bg-down", heightClass = "h-1.5", center = true }: { buy: number; sell: number; buyPctFill?: string; sellPctFill?: string; heightClass?: string; center?: boolean }) {
   const total = buy + sell;
   const buyPct = total > 0 ? pct(buy, total) : 50;
@@ -124,14 +124,14 @@ function SplitBar({ buy, sell, buyPctFill = "bg-up", sellPctFill = "bg-down", he
   );
 }
 
-// â”€â”€â”€ 01 آ· Live aggregation header â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 01 · Live aggregation header ───────────────────────────────────
 
 const STATUS_META: Record<string, { label: string; tone: Tone }> = {
-  LIVE: { label: "ظ…ط¨ط§ط´ط±", tone: "good" },
-  STALE: { label: "ظ…طھط£ط®ط±", tone: "warn" },
-  CONNECTING: { label: "ظٹطھطµظ„", tone: "warn" },
-  DISCONNECTED: { label: "ظ…ظ‚ط·ظˆط¹", tone: "quiet" },
-  ERROR: { label: "ط®ط·ط£", tone: "warn" },
+  LIVE: { label: "مباشر", tone: "good" },
+  STALE: { label: "متأخر", tone: "warn" },
+  CONNECTING: { label: "يتصل", tone: "warn" },
+  DISCONNECTED: { label: "مقطوع", tone: "quiet" },
+  ERROR: { label: "خطأ", tone: "warn" },
 };
 
 const LOGO_META: Record<string, { hex: string; path: string; title: string }> = {
@@ -146,7 +146,7 @@ const LOGO_FILL: Record<string, string> = {
   okx: "#ffffff",
 };
 
-/** Letter fallback for platforms with no brand-logo asset â€” coloured with their real brand colour so the identity reads at a glance. */
+/** Letter fallback for platforms with no brand-logo asset — coloured with their real brand colour so the identity reads at a glance. */
 const LOGO_LETTER: Record<string, { text: string; bg: string; fg: string }> = {
   bybit: { text: "BY", bg: "#F5A900", fg: "#1a1200" },
   bitget: { text: "BG", bg: "#00AEEC", fg: "#06222a" },
@@ -162,11 +162,11 @@ function GatewayRow({ conn }: { conn: ExchangeConnection }) {
   const name = conn.label || ADAPTER_LABELS[conn.exchange] || conn.exchange;
   return (
     <div
-      title={`${name} â€” ${meta.label} آ· ${conn.latency >= 0 ? `${conn.latency}ms` : "ظ„ط§ ط¨ظٹط§ظ†ط§طھ"}`}
+      title={`${name} — ${meta.label} · ${conn.latency >= 0 ? `${conn.latency}ms` : "لا بيانات"}`}
       dir="rtl"
       className="flex items-center justify-between gap-2 rounded-panel border border-line bg-surface-1/30 px-2.5 py-2"
     >
-      {/* Platform mark â€” brand logo (or brand-coloured letter) on the right */}
+      {/* Platform mark — brand logo (or brand-coloured letter) on the right */}
       <span className="relative flex shrink-0 items-center">
         {logo ? (
           <svg
@@ -191,7 +191,7 @@ function GatewayRow({ conn }: { conn: ExchangeConnection }) {
         </span>
       </span>
       <span className="shrink-0 text-2xs text-muted" dir="ltr" style={mono}>
-        {conn.latency >= 0 ? `${conn.latency}ms` : "â€”"}
+        {conn.latency >= 0 ? `${conn.latency}ms` : "—"}
       </span>
     </div>
   );
@@ -206,20 +206,20 @@ function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
 
   const tiles: { label: string; tip: string; value: string; tone: Tone }[] = [
     {
-      label: "ط§ظ„ظ…طھطµظ„",
-      tip: "ط¹ط¯ط¯ ط§ظ„ظ…ظ†طµط§طھ ط§ظ„ظ…طھطµظ„ط© ط§ظ„ط¢ظ† ظ…ظ† ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ظ…ظ†طµط§طھ ط§ظ„ظ…ط¯ط¹ظˆظ…ط©",
+      label: "المتصل",
+      tip: "عدد المنصات المتصلة الآن من إجمالي المنصات المدعومة",
       value: `${live.length}/${connections.length}`,
       tone: overallTone,
     },
     {
-      label: "ط§ظ„ط§ط³طھط¬ط§ط¨ط©",
-      tip: "ظ…طھظˆط³ط· ط²ظ…ظ† ظˆطµظˆظ„ ط§ظ„ط¨ظٹط§ظ†ط§طھ (Latency) ط¹ط¨ط± ط§ظ„ظ…ظ†طµط§طھ ط§ظ„ظ…طھطµظ„ط©طŒ ط¨ط§ظ„ظ…ظ„ظ„ظٹ ط«ط§ظ†ظٹط©",
+      label: "الاستجابة",
+      tip: "متوسط زمن وصول البيانات (Latency) عبر المنصات المتصلة، بالمللي ثانية",
       value: avgLatency !== null ? `${avgLatency}ms` : "N/A",
       tone: live.length > 0 ? "good" : "neutral",
     },
     {
-      label: "ط­ط¯ط«/ط«",
-      tip: "ط¹ط¯ط¯ ط£ط­ط¯ط§ط« ط§ظ„طھط¯ط§ظˆظ„ ط§ظ„ظ…ط³طھظ„ظ…ط© ظپظٹ ط§ظ„ط«ط§ظ†ظٹط© ط§ظ„ظˆط§ط­ط¯ط©",
+      label: "حدث/ث",
+      tip: "عدد أحداث التداول المستلمة في الثانية الواحدة",
       value: `${state.quality.eventRate} e/s`,
       tone: "neutral",
     },
@@ -227,18 +227,18 @@ function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
 
   return (
     <Section
-      title="ط¨ظˆط§ط¨ط§طھ ط§ظ„ط¨ظٹط§ظ†ط§طھ"
+      title="بوابات البيانات"
       collapsible
       snippet={
-        <SnippetRow label="ط§ظ„ط­ط§ظ„ط©">
+        <SnippetRow label="الحالة">
           <Tag tone={overallTone}>
             <Dot tone={overallTone} pulse={live.length > 0} />
-            {live.length}/{connections.length} ظ…طھطµظ„ آ· {avgLatency !== null ? `${avgLatency}ms` : "N/A"}
+            {live.length}/{connections.length} متصل · {avgLatency !== null ? `${avgLatency}ms` : "N/A"}
           </Tag>
         </SnippetRow>
       }
     >
-      {/* Summary metrics â€” stacked (label above value) inside the panel frame */}
+      {/* Summary metrics — stacked (label above value) inside the panel frame */}
       <div className="grid grid-cols-3 gap-2">
         {tiles.map((t) => (
           <div
@@ -255,7 +255,7 @@ function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
         ))}
       </div>
 
-      {/* Gateways â€” fixed 2-col grid, no scroll: brand logo right / response speed left */}
+      {/* Gateways — fixed 2-col grid, no scroll: brand logo right / response speed left */}
       <div className="mt-3 grid grid-cols-2 gap-1.5">
         {connections.map((c) => (
           <GatewayRow key={c.exchange} conn={c} />
@@ -265,7 +265,7 @@ function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
   );
 }
 
-// â”€â”€â”€ 02 آ· Buy / Sell pressure â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 02 · Buy / Sell pressure ───────────────────────────────────────
 
 function PressurePanel({ snap }: { snap: FlowSnapshot }) {
   const w = snap.state.windows.find((x) => x.seconds === 60);
@@ -276,14 +276,14 @@ function PressurePanel({ snap }: { snap: FlowSnapshot }) {
   const buyP = total > 0 ? pct(buy, total) : 0;
   return (
     <Section
-      title="ط¶ط؛ط· ط§ظ„ط´ط±ط§ط، / ط§ظ„ط¨ظٹط¹"
+      title="ضغط الشراء / البيع"
      
       collapsible
-      actions={<Tag tone="neutral">60 ط«ط§ظ†ظٹط©</Tag>}
+      actions={<Tag tone="neutral">60 ثانية</Tag>}
       snippet={
-        <SnippetRow label="ط§ظ„ط¶ط؛ط·">
+        <SnippetRow label="الضغط">
           <span className={`text-xs font-bold ${total > 0 ? (buyP >= 50 ? "text-up-fg" : "text-down-fg") : "text-zinc-300"}`} dir="ltr" style={mono}>
-            ط¨ظٹط¹ {sell > 0 ? ((sell / total) * 100).toFixed(0) : "0"}% / ط´ط±ط§ط، {buyP.toFixed(0)}%
+            بيع {sell > 0 ? ((sell / total) * 100).toFixed(0) : "0"}% / شراء {buyP.toFixed(0)}%
           </span>
         </SnippetRow>
       }
@@ -292,7 +292,7 @@ function PressurePanel({ snap }: { snap: FlowSnapshot }) {
       <div className="mt-2 grid grid-cols-2 gap-2">
         <div className="rounded-panel border border-line bg-surface-1/30 px-2 py-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-3xs text-muted">ط´ط±ط§ط،</span>
+            <span className="text-3xs text-muted">شراء</span>
             <Dot tone="long" />
           </div>
           <div className="text-base font-extrabold leading-none text-up-fg" dir="ltr" style={mono}>{usd(buy)}</div>
@@ -300,7 +300,7 @@ function PressurePanel({ snap }: { snap: FlowSnapshot }) {
         </div>
         <div className="rounded-panel border border-line bg-surface-1/30 px-2 py-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-3xs text-muted">ط¨ظٹط¹</span>
+            <span className="text-3xs text-muted">بيع</span>
             <Dot tone="short" />
           </div>
           <div className="text-base font-extrabold leading-none text-down-fg" dir="ltr" style={mono}>{usd(sell)}</div>
@@ -311,7 +311,7 @@ function PressurePanel({ snap }: { snap: FlowSnapshot }) {
   );
 }
 
-// â”€â”€â”€ 03 آ· Net flow â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 03 · Net flow ──────────────────────────────────────────────────
 
 function NetFlowPanel({ snap }: { snap: FlowSnapshot }) {
   const { state } = snap;
@@ -323,11 +323,11 @@ function NetFlowPanel({ snap }: { snap: FlowSnapshot }) {
   const stroke = netTone === "long" ? "#34d399" : netTone === "short" ? "#f87171" : "#a1a1aa";
   return (
     <Section
-      title="ط§ظ„طھط¯ظپظ‚ ط§ظ„طµط§ظپظٹ"
+      title="التدفق الصافي"
      
       collapsible
       snippet={
-        <SnippetRow label="طµط§ظپظٹ / ط«ط§ظ†ظٹط©">
+        <SnippetRow label="صافي / ثانية">
           <span className={`text-xs font-bold ${TONE_TEXT[netTone]}`} dir="ltr" style={mono}>
             {signedUsd(net)}
           </span>
@@ -335,8 +335,8 @@ function NetFlowPanel({ snap }: { snap: FlowSnapshot }) {
       }
     >
       <div className="grid grid-cols-2 gap-2">
-        <Tile label="طµط§ظپظٹ / ط«ط§ظ†ظٹط©" value={signedUsd(net)} tone={netTone} />
-        <Tile label="ط§ظ„طھط³ط§ط±ط¹" value={signedUsd(accel)} tone={flowTone(accel)} />
+        <Tile label="صافي / ثانية" value={signedUsd(net)} tone={netTone} />
+        <Tile label="التسارع" value={signedUsd(accel)} tone={flowTone(accel)} />
       </div>
       <div className="mt-2 h-9 w-full">
         <ResponsiveContainer width="100%" height="100%">
@@ -355,7 +355,7 @@ function NetFlowPanel({ snap }: { snap: FlowSnapshot }) {
   );
 }
 
-// â”€â”€â”€ 04 آ· Trade tape â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 04 · Trade tape ────────────────────────────────────────────────
 
 function TapeRow({ trade }: { trade: NormalizedTrade }) {
   const tone: Tone = trade.side === "buy" ? "long" : "short";
@@ -376,32 +376,32 @@ function TapePanel({ snap }: { snap: FlowSnapshot }) {
   const last = trades[trades.length - 1];
   return (
     <Section
-      title="ط´ط±ظٹط· ط§ظ„طµظپظ‚ط§طھ"
+      title="شريط الصفقات"
      
       collapsible
       bodyClassName="p-2"
       snippet={
         last ? (
-          <SnippetRow label="ط¢ط®ط± طµظپظ‚ط©">
+          <SnippetRow label="آخر صفقة">
             <span className={`text-xs font-bold ${TONE_TEXT[last.side === "buy" ? "long" : "short"]}`} dir="ltr" style={mono}>
-              {usd(last.notional)} آ· {ADAPTER_LABELS[last.exchange] ?? last.exchange}
+              {usd(last.notional)} · {ADAPTER_LABELS[last.exchange] ?? last.exchange}
             </span>
           </SnippetRow>
         ) : (
-          <SnippetRow label="ط´ط±ظٹط· ط§ظ„طµظپظ‚ط§طھ">
-            <span className="text-xs text-muted">ط¨ط§ظ†طھط¸ط§ط± ط§ظ„طµظپظ‚ط§طھ</span>
+          <SnippetRow label="شريط الصفقات">
+            <span className="text-xs text-muted">بانتظار الصفقات</span>
           </SnippetRow>
         )
       }
       actions={
         <Tag tone={liveCount > 0 ? "good" : "warn"}>
           <Dot tone={liveCount > 0 ? "good" : "warn"} pulse={liveCount > 0} />
-          {liveCount > 0 ? "ظ…ط¨ط§ط´ط±" : "ظ…ظ‚ط·ظˆط¹"}
+          {liveCount > 0 ? "مباشر" : "مقطوع"}
         </Tag>
       }
     >
       {trades.length === 0 ? (
-        <div className="py-6 text-center text-2xs text-muted">ط¨ط§ظ†طھط¸ط§ط± ط§ظ„طµظپظ‚ط§طھ ط§ظ„ظ…ط¨ط§ط´ط±ط©â€¦</div>
+        <div className="py-6 text-center text-2xs text-muted">بانتظار الصفقات المباشرة…</div>
       ) : (
         <div className="max-h-56 space-y-1 overflow-y-auto pr-0.5">
           {[...trades].reverse().map((t, i) => (
@@ -413,7 +413,7 @@ function TapePanel({ snap }: { snap: FlowSnapshot }) {
   );
 }
 
-// â”€â”€â”€ 05 آ· Large trades â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 05 · Large trades ──────────────────────────────────────────────
 
 function LargeTrades({ snap }: { snap: FlowSnapshot }) {
   const { state } = snap;
@@ -424,24 +424,24 @@ function LargeTrades({ snap }: { snap: FlowSnapshot }) {
   if (all.length === 0) {
     return (
       <Section
-        title="ط§ظ„طµظپظ‚ط§طھ ط§ظ„ظƒط¨ظٹط±ط©"
+        title="الصفقات الكبيرة"
        
         collapsible
-        snippet={<SnippetRow label="ط§ظ„ط¹ط¯ط¯"><span className="text-xs text-muted">ظ„ط§ طµظپظ‚ط§طھ ظƒط¨ظٹط±ط© ظ…ط¤ط®ط±ط§ظ‹</span></SnippetRow>}
+        snippet={<SnippetRow label="العدد"><span className="text-xs text-muted">لا صفقات كبيرة مؤخراً</span></SnippetRow>}
       >
-        <span className="text-2xs text-muted">ظ„ط§ طµظپظ‚ط§طھ ظƒط¨ظٹط±ط© ظ…ط¤ط®ط±ط§ظ‹</span>
+        <span className="text-2xs text-muted">لا صفقات كبيرة مؤخراً</span>
       </Section>
     );
   }
   return (
     <Section
-      title="ط§ظ„طµظپظ‚ط§طھ ط§ظ„ظƒط¨ظٹط±ط©"
+      title="الصفقات الكبيرة"
      
       collapsible
       snippet={
-        <SnippetRow label={`${all.length} طµظپظ‚ط§طھ`}>
+        <SnippetRow label={`${all.length} صفقات`}>
           <span className={`text-xs font-bold ${buyP >= 50 ? "text-up-fg" : "text-down-fg"}`} dir="ltr" style={mono}>
-            ط´ط±ط§ط، {buyP.toFixed(0)}%
+            شراء {buyP.toFixed(0)}%
           </span>
         </SnippetRow>
       }
@@ -463,7 +463,7 @@ function LargeTrades({ snap }: { snap: FlowSnapshot }) {
   );
 }
 
-// â”€â”€â”€ 06 آ· Liquidations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 06 · Liquidations ──────────────────────────────────────────────
 
 function Liquidations({ snap }: { snap: FlowSnapshot }) {
   const liq = snap.state.liquidations;
@@ -471,52 +471,52 @@ function Liquidations({ snap }: { snap: FlowSnapshot }) {
   const tone: Tone = liq.burst ? "warn" : "neutral";
   return (
     <Section
-      title="ط§ظ„طھطµظپظٹط©"
+      title="التصفية"
      
       collapsible
-      actions={liq.burst ? <Tag tone="warn">ط§ظ†ظپط¬ط§ط±</Tag> : <Tag tone={total > 0 ? "neutral" : "quiet"}>{total > 0 ? "ظ†ط´ط·" : "ظ„ط§ طھطµظپظٹط§طھ"}</Tag>}
+      actions={liq.burst ? <Tag tone="warn">انفجار</Tag> : <Tag tone={total > 0 ? "neutral" : "quiet"}>{total > 0 ? "نشط" : "لا تصفيات"}</Tag>}
       snippet={
-        <SnippetRow label="ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ظ…طµظپظٹ">
+        <SnippetRow label="إجمالي المصفي">
           <span className={`text-xs font-bold ${TONE_TEXT[tone]}`} dir="ltr" style={mono}>
-            {usd(total)}{total > 0 ? ` / ${usd(liq.velocity)}/ط«` : ""}
+            {usd(total)}{total > 0 ? ` / ${usd(liq.velocity)}/ث` : ""}
           </span>
         </SnippetRow>
       }
     >
       {total === 0 ? (
-        <span className="text-2xs text-muted">ظ„ط§ طھطµظپظٹط§طھ ظ…ط¨ط§ط´ط±ط©</span>
+        <span className="text-2xs text-muted">لا تصفيات مباشرة</span>
       ) : (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-3xs text-muted">ظ„ظˆظ†ط¬ ظ…طµظپظ‘ظ‰ {pct(liq.longVolume, total).toFixed(0)}%</span>
-            <span className="text-3xs text-muted">ط´ظˆط±طھ {pct(liq.shortVolume, total).toFixed(0)}%</span>
+            <span className="text-3xs text-muted">لونج مصفّى {pct(liq.longVolume, total).toFixed(0)}%</span>
+            <span className="text-3xs text-muted">شورت {pct(liq.shortVolume, total).toFixed(0)}%</span>
           </div>
           <SplitBar buy={liq.shortVolume} sell={liq.longVolume} buyPctFill="bg-up" sellPctFill="bg-down" />
-          <StatRow label="ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ظ…طµظپظٹ" value={usd(total)} tone={tone} />
-          <StatRow label="ط³ط±ط¹ط© ط§ظ„طھطµظپظٹط©" value={`${usd(liq.velocity)}/ط«`} tone={liq.burst ? "warn" : "neutral"} />
+          <StatRow label="إجمالي المصفي" value={usd(total)} tone={tone} />
+          <StatRow label="سرعة التصفية" value={`${usd(liq.velocity)}/ث`} tone={liq.burst ? "warn" : "neutral"} />
         </div>
       )}
     </Section>
   );
 }
 
-// â”€â”€â”€ 07 آ· CVD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 07 · CVD ───────────────────────────────────────────────────────
 
 function CvdPanel({ snap }: { snap: FlowSnapshot }) {
   const cvd = snap.state.cvd;
   const cells = [
-    { label: "1 ط«", v: cvd.cvdDelta1s },
-    { label: "5 ط«", v: cvd.cvdDelta5s },
-    { label: "30 ط«", v: cvd.cvdDelta30s },
-    { label: "1 ط¯", v: cvd.cvdDelta1m },
+    { label: "1 ث", v: cvd.cvdDelta1s },
+    { label: "5 ث", v: cvd.cvdDelta5s },
+    { label: "30 ث", v: cvd.cvdDelta30s },
+    { label: "1 د", v: cvd.cvdDelta1m },
   ];
   return (
     <Section
-      title="ط¯ظ„طھط§ ط§ظ„ط­ط¬ظ… ط§ظ„طھط±ط§ظƒظ…ظٹ"
+      title="دلتا الحجم التراكمي"
      
       collapsible
       snippet={
-        <SnippetRow label="CVD 1ط¯">
+        <SnippetRow label="CVD 1د">
           <span className={`text-xs font-bold ${TONE_TEXT[flowTone(cvd.cvdDelta1m)]}`} dir="ltr" style={mono}>
             {signedUsd(cvd.cvdDelta1m)}
           </span>
@@ -537,15 +537,15 @@ function CvdPanel({ snap }: { snap: FlowSnapshot }) {
   );
 }
 
-// â”€â”€â”€ 08 آ· Time windows + 09 آ· Flow أ— Price â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── 08 · Time windows + 09 · Flow × Price ──────────────────────────
 
 function WindowRow({ w }: { w: FlowWindow }) {
   return (
     <div className="space-y-1">
       <div className={row}>
-        <span className="text-2xs text-muted">{w.seconds} ط«ظˆط§ظ†ظٹ</span>
+        <span className="text-2xs text-muted">{w.seconds} ثواني</span>
         <span className={`text-xs font-bold ${TONE_TEXT[flowTone(w.netFlow)]}`} dir="ltr" style={mono}>{signedUsd(w.netFlow)}</span>
-        <span className="text-2xs text-muted" style={mono}>{w.tradeCount} طµظپظ‚ط©</span>
+        <span className="text-2xs text-muted" style={mono}>{w.tradeCount} صفقة</span>
       </div>
       <SplitBar buy={w.buyNotional} sell={w.sellNotional} heightClass="h-1" />
     </div>
@@ -557,11 +557,11 @@ function WindowsPanel({ snap }: { snap: FlowSnapshot }) {
   const w1 = snap.state.windows.find((x) => x.seconds === 1);
   return (
     <Section
-      title="ط§ظ„ظ†ظˆط§ظپط° ط§ظ„ط²ظ…ظ†ظٹط©"
+      title="النوافذ الزمنية"
      
       collapsible
       snippet={
-        <SnippetRow label="طµط§ظپظٹ 1ط«">
+        <SnippetRow label="صافي 1ث">
           <span className={`text-xs font-bold ${TONE_TEXT[flowTone(w1?.netFlow ?? null)]}`} dir="ltr" style={mono}>
             {signedUsd(w1?.netFlow ?? null)}
           </span>
@@ -586,41 +586,41 @@ function FlowPricePanel({ snap }: { snap: FlowSnapshot }) {
       ? "short"
       : "neutral";
   const responseLabel: Record<string, string> = {
-    strong_positive: "طھط£ظƒظٹط¯ ط´ط±ط§ط¦ظٹ",
-    positive: "ط´ط±ط§ط¦ظٹ",
-    neutral: "ظ…ط­ط§ظٹط¯",
-    negative: "ط¨ظٹط¹ظٹ",
-    strong_negative: "طھط£ظƒظٹط¯ ط¨ظٹط¹ظٹ",
+    strong_positive: "تأكيد شرائي",
+    positive: "شرائي",
+    neutral: "محايد",
+    negative: "بيعي",
+    strong_negative: "تأكيد بيعي",
   };
   const absorptionLabel: Record<string, string> = {
-    buy_absorption: "ط§ظ…طھطµط§طµ ط´ط±ط§ط،",
-    sell_absorption: "ط§ظ…طھطµط§طµ ط¨ظٹط¹",
-    none: "â€”",
+    buy_absorption: "امتصاص شراء",
+    sell_absorption: "امتصاص بيع",
+    none: "—",
   };
   const divergenceLabel: Record<string, string> = {
-    bullish_divergence: "طھط¨ط§ط¹ط¯ طµط§ط¹ط¯",
-    bearish_divergence: "طھط¨ط§ط¹ط¯ ظ‡ط§ط¨ط·",
-    none: "â€”",
+    bullish_divergence: "تباعد صاعد",
+    bearish_divergence: "تباعد هابط",
+    none: "—",
   };
   const cascadeLabel: Record<string, string> = {
-    high: "ظ…ط±طھظپط¹",
-    medium: "ظ…طھظˆط³ط·",
-    low: "ظ…ظ†ط®ظپط¶",
-    none: "â€”",
+    high: "مرتفع",
+    medium: "متوسط",
+    low: "منخفض",
+    none: "—",
   };
   const rows: { label: string; value: string; tone: Tone }[] = [
-    { label: "ط§ط³طھط¬ط§ط¨ط© ط§ظ„ط³ط¹ط±", value: responseLabel[a.priceResponse] ?? a.priceResponse, tone: responseTone },
-    { label: "ط§ظ…طھطµط§طµ", value: absorptionLabel[a.absorption] ?? a.absorption, tone: a.absorption === "buy_absorption" ? "short" : a.absorption === "sell_absorption" ? "long" : "neutral" },
-    { label: "ط§ظ„طھط¨ط§ط¹ط¯", value: divergenceLabel[a.divergence] ?? a.divergence, tone: a.divergence === "bullish_divergence" ? "long" : a.divergence === "bearish_divergence" ? "short" : "neutral" },
-    { label: "ط®ط·ط± ط§ظ„ط§ظ†ط¬ط±ط§ظپ", value: cascadeLabel[a.cascadeRisk] ?? a.cascadeRisk, tone: a.cascadeRisk === "high" ? "short" : a.cascadeRisk === "medium" ? "warn" : "neutral" },
+    { label: "استجابة السعر", value: responseLabel[a.priceResponse] ?? a.priceResponse, tone: responseTone },
+    { label: "امتصاص", value: absorptionLabel[a.absorption] ?? a.absorption, tone: a.absorption === "buy_absorption" ? "short" : a.absorption === "sell_absorption" ? "long" : "neutral" },
+    { label: "التباعد", value: divergenceLabel[a.divergence] ?? a.divergence, tone: a.divergence === "bullish_divergence" ? "long" : a.divergence === "bearish_divergence" ? "short" : "neutral" },
+    { label: "خطر الانجراف", value: cascadeLabel[a.cascadeRisk] ?? a.cascadeRisk, tone: a.cascadeRisk === "high" ? "short" : a.cascadeRisk === "medium" ? "warn" : "neutral" },
   ];
   return (
     <Section
-      title="ط§ظ„طھط¯ظپظ‚ ظ…ظ‚ط§ط¨ظ„ ط§ظ„ط³ط¹ط±"
+      title="التدفق مقابل السعر"
      
       collapsible
       snippet={
-        <SnippetRow label="ط§ط³طھط¬ط§ط¨ط© ط§ظ„ط³ط¹ط±">
+        <SnippetRow label="استجابة السعر">
           <span className={`text-xs font-bold ${TONE_TEXT[responseTone]}`}>{responseLabel[a.priceResponse] ?? a.priceResponse}</span>
         </SnippetRow>
       }
@@ -631,7 +631,7 @@ function FlowPricePanel({ snap }: { snap: FlowSnapshot }) {
         ))}
       </div>
       <div className={`${row} mt-2 border-t border-line/60 pt-2`}>
-        <span className="text-2xs text-muted">طھط؛ظٹظ‘ط± ط§ظ„ط³ط¹ط± ط®ظ„ط§ظ„ ط§ظ„ظ†ط§ظپط°ط©</span>
+        <span className="text-2xs text-muted">تغيّر السعر خلال النافذة</span>
         <span className={`text-sm font-bold ${TONE_TEXT[responseTone]}`} dir="ltr" style={mono}>
           {a.priceDelta >= 0 ? "+" : ""}
           {a.priceDelta.toFixed(3)}%
@@ -641,7 +641,7 @@ function FlowPricePanel({ snap }: { snap: FlowSnapshot }) {
   );
 }
 
-// â”€â”€â”€ Composite â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Composite ──────────────────────────────────────────────────────
 
 export function FlowPanel({ snap }: { snap: FlowSnapshot | null | undefined }) {
   if (!snap) {
@@ -649,7 +649,7 @@ export function FlowPanel({ snap }: { snap: FlowSnapshot | null | undefined }) {
       <ThemeGate>
         <div className="flex flex-col items-center justify-center gap-2 rounded-panel border border-line bg-surface-1/40 py-10 text-center">
           <Dot tone="warn" pulse />
-          <span className="text-2xs text-muted">ط¬ط§ط±ظچ ط§ظ„ط§طھطµط§ظ„ ط¨ظ…طµط§ط¯ط± ط§ظ„طھط¯ظپظ‚ ط§ظ„ظ…ط¨ط§ط´ط±â€¦</span>
+          <span className="text-2xs text-muted">جارٍ الاتصال بمصادر التدفق المباشر…</span>
         </div>
       </ThemeGate>
     );

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import type { ScalpingForecast, ScalpDirection } from "../../types";
 import { Section, Tag, Bar, TONE_TEXT } from "./TradingPrimitives";
@@ -6,16 +6,16 @@ import { num } from "@/components/ui/design-tokens";
 import { Tip } from "./TerminalTip";
 
 const DIR: Record<ScalpDirection, { text: string; tone: "long" | "short" | "neutral" }> = {
-  LONG: { text: "طµط§ط¹ط¯", tone: "long" },
-  SHORT: { text: "ظ‡ط§ط¨ط·", tone: "short" },
-  NEUTRAL: { text: "ظ…ط­ط§ظٹط¯", tone: "neutral" },
+  LONG: { text: "صاعد", tone: "long" },
+  SHORT: { text: "هابط", tone: "short" },
+  NEUTRAL: { text: "محايد", tone: "neutral" },
 };
 
 export function ForecastPanel({ forecast }: { forecast: ScalpingForecast | null }) {
   if (!forecast || forecast.horizons.length === 0) {
     return (
-      <Section title="ط§ظ„طھظˆظ‚ط¹" collapsible snippet={<span className="text-2xs text-muted">ظ„ط§ طھظˆظ‚ط¹ ط¨ط¹ط¯.</span>}>
-        <p className="py-6 text-center text-xs text-muted">ظ„ط§ طھظˆظ‚ط¹ ط¨ط¹ط¯.</p>
+      <Section title="التوقع" collapsible snippet={<span className="text-2xs text-muted">لا توقع بعد.</span>}>
+        <p className="py-6 text-center text-xs text-muted">لا توقع بعد.</p>
       </Section>
     );
   }
@@ -24,20 +24,20 @@ export function ForecastPanel({ forecast }: { forecast: ScalpingForecast | null 
 
   return (
     <Section
-      title="ط§ظ„طھظˆظ‚ط¹"
+      title="التوقع"
      
       collapsible
       snippet={
         <div className="flex items-center justify-between gap-3">
-          <span className="text-2xs text-muted">ط§ظ„ط§طھط¬ط§ظ‡ ط§ظ„ط³ط§ط¦ط¯</span>
+          <span className="text-2xs text-muted">الاتجاه السائد</span>
           <Tag tone={dominant.tone}>
-            {dominant.text} آ· طھظˆط§ظپظ‚ {forecast.alignment}/{forecast.alignmentTotal}
+            {dominant.text} · توافق {forecast.alignment}/{forecast.alignmentTotal}
           </Tag>
         </div>
       }
       actions={
-        <Tip title="ط¹ط¯ط¯ ط§ظ„ط¢ظپط§ظ‚ ط§ظ„ظ…طھظپظ‚ط© ظ…ط¹ ط§ظ„ط§طھط¬ط§ظ‡ ط§ظ„ط³ط§ط¦ط¯ ظ…ظ† ط§ظ„ط¥ط¬ظ…ط§ظ„ظٹ.">
-          <Tag tone={dominant.tone}>طھظˆط§ظپظ‚ {forecast.alignment}/{forecast.alignmentTotal}</Tag>
+        <Tip title="عدد الآفاق المتفقة مع الاتجاه السائد من الإجمالي.">
+          <Tag tone={dominant.tone}>توافق {forecast.alignment}/{forecast.alignmentTotal}</Tag>
         </Tip>
       }
     >
@@ -54,8 +54,8 @@ export function ForecastPanel({ forecast }: { forecast: ScalpingForecast | null 
                 <Bar pct={h.confidence} tone={dm.tone} />
               </div>
               <div className="mt-1.5 flex items-center justify-between">
-                <Tip title="ط¯ط±ط¬ط© طھظˆط§ظپظ‚ ط§ظ„ط¹ظˆط§ظ…ظ„ ط§ظ„ظ…ط¤ط¯ظٹط© ظ„ظ‡ط°ط§ ط§ظ„ط£ظپظ‚ â€” ظ‚ط±ط§ط،ط© ط¶ط؛ط·طŒ ظˆظ„ظٹط³طھ ط§ط­طھظ…ط§ظ„ ظ†ط¬ط§ط­ ظ…ط¶ظ…ظˆظ†.">
-                  <span className="text-2xs text-muted">ط§ظ„ط«ظ‚ط© (طھظˆط§ظپظ‚)</span>
+                <Tip title="درجة توافق العوامل المؤدية لهذا الأفق — قراءة ضغط، وليست احتمال نجاح مضمون.">
+                  <span className="text-2xs text-muted">الثقة (توافق)</span>
                 </Tip>
                 <span className={`font-mono text-xs font-bold ${TONE_TEXT[dm.tone]} ${num}`} dir="ltr">
                   {h.confidence}%
@@ -66,8 +66,8 @@ export function ForecastPanel({ forecast }: { forecast: ScalpingForecast | null 
         })}
       </div>
       <p className="mt-3 text-2xs leading-relaxed text-muted">
-        ظƒظ„ ط£ظپظ‚ ظٹطھظˆظ‚ط¹ ط§ط³طھظ…ط±ط§ط± ط§ظ„ط¶ط؛ط· ط§ظ„ظ„ط­ط¸ظٹ ط§ظ„ط­ط§ظ„ظٹ ظپظ‚ط· â€” ظˆظ„ظٹط³طھ ط­ط±ظƒط© ط³ط¹ط± ظ…ط¶ظ…ظˆظ†ط©. آ«ط§ظ„ط«ظ‚ط©آ» ط¯ط±ط¬ط© طھظˆط§ظپظ‚
-        ط§ظ„ط¹ظˆط§ظ…ظ„ ظˆظ„ظٹط³طھ ظ†ط³ط¨ط© ظ†ط¬ط§ط­.
+        كل أفق يتوقع استمرار الضغط اللحظي الحالي فقط — وليست حركة سعر مضمونة. «الثقة» درجة توافق
+        العوامل وليست نسبة نجاح.
       </p>
     </Section>
   );
