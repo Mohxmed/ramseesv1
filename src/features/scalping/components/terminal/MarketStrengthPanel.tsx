@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import type { ScalpingSnapshot } from "../../types";
 import { Section } from "./TradingPrimitives";
@@ -17,12 +17,12 @@ function readingTone(direction: string | undefined, state: string | undefined): 
 }
 
 function readingLabel(direction: string | undefined, state: string | undefined): string {
-  if (direction === "bullish") return "صاعد";
-  if (direction === "bearish") return "هابط";
-  if (state === "strong") return "قوي";
-  if (state === "moderate") return "متوسط";
-  if (state === "weak") return "ضعيف";
-  return "محايد";
+  if (direction === "bullish") return "طµط§ط¹ط¯";
+  if (direction === "bearish") return "ظ‡ط§ط¨ط·";
+  if (state === "strong") return "ظ‚ظˆظٹ";
+  if (state === "moderate") return "ظ…طھظˆط³ط·";
+  if (state === "weak") return "ط¶ط¹ظٹظپ";
+  return "ظ…ط­ط§ظٹط¯";
 }
 
 const TONE_TXT: Record<"long" | "short" | "neutral" | "warn", string> = {
@@ -72,41 +72,41 @@ export function MarketStrengthPanel({ snap }: { snap: ScalpingSnapshot }) {
 
   return (
     <Section
-      title="قوة السوق"
-      eyebrow="04 · Strength"
+      title="ظ‚ظˆط© ط§ظ„ط³ظˆظ‚"
+     
       collapsible
       snippet={
         <div className="flex items-center justify-between gap-3">
-          <span className="text-2xs text-muted">اتجاه السوق</span>
+          <span className="text-2xs text-muted">ط§طھط¬ط§ظ‡ ط§ظ„ط³ظˆظ‚</span>
           <span className={`text-2xs font-bold ${TONE_TXT[readingTone(trend?.direction, trend?.state)]}`}>
-            {trend ? readingLabel(trend.direction, trend.state) : "غير متاح"}
+            {trend ? readingLabel(trend.direction, trend.state) : "ط؛ظٹط± ظ…طھط§ط­"}
           </span>
         </div>
       }
     >
       <div className="space-y-2">
         <Row
-          label="اتجاه السوق"
-          tooltip="الاتجاه العام بناءً على قراءة نظام السوق."
-          value={trend ? readingLabel(trend.direction, trend.state) : "غير متاح"}
+          label="ط§طھط¬ط§ظ‡ ط§ظ„ط³ظˆظ‚"
+          tooltip="ط§ظ„ط§طھط¬ط§ظ‡ ط§ظ„ط¹ط§ظ… ط¨ظ†ط§ط،ظ‹ ط¹ظ„ظ‰ ظ‚ط±ط§ط،ط© ظ†ط¸ط§ظ… ط§ظ„ط³ظˆظ‚."
+          value={trend ? readingLabel(trend.direction, trend.state) : "ط؛ظٹط± ظ…طھط§ط­"}
           tone={readingTone(trend?.direction, trend?.state)}
         />
         <Row
-          label="الزخم"
-          tooltip="قوة الدفع اللحظية للسعر."
-          value={momentum ? readingLabel(momentum.direction, momentum.state) : "غير متاح"}
+          label="ط§ظ„ط²ط®ظ…"
+          tooltip="ظ‚ظˆط© ط§ظ„ط¯ظپط¹ ط§ظ„ظ„ط­ط¸ظٹط© ظ„ظ„ط³ط¹ط±."
+          value={momentum ? readingLabel(momentum.direction, momentum.state) : "ط؛ظٹط± ظ…طھط§ط­"}
           tone={readingTone(momentum?.direction, momentum?.state)}
         />
         <Row
-          label="حجم التداول"
-          tooltip="مستوى حجم التداول مقارنةً بالمعتاد."
-          value={volume ? readingLabel(volume.direction, volume.state) : "غير متاح"}
+          label="ط­ط¬ظ… ط§ظ„طھط¯ط§ظˆظ„"
+          tooltip="ظ…ط³طھظˆظ‰ ط­ط¬ظ… ط§ظ„طھط¯ط§ظˆظ„ ظ…ظ‚ط§ط±ظ†ط©ظ‹ ط¨ط§ظ„ظ…ط¹طھط§ط¯."
+          value={volume ? readingLabel(volume.direction, volume.state) : "ط؛ظٹط± ظ…طھط§ط­"}
           tone={readingTone(volume?.direction, volume?.state)}
         />
         <Row
-          label="تدفق الشراء/البيع"
-          tooltip="نسبة حصة المشترين النشطين من إجمالي الحجم (فوق 50% = ميل شرائي)."
-          value={takerBuy != null ? `${(takerBuy * 100).toFixed(0)}% شراء` : "غير متاح"}
+          label="طھط¯ظپظ‚ ط§ظ„ط´ط±ط§ط،/ط§ظ„ط¨ظٹط¹"
+          tooltip="ظ†ط³ط¨ط© ط­طµط© ط§ظ„ظ…ط´طھط±ظٹظ† ط§ظ„ظ†ط´ط·ظٹظ† ظ…ظ† ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ط­ط¬ظ… (ظپظˆظ‚ 50% = ظ…ظٹظ„ ط´ط±ط§ط¦ظٹ)."
+          value={takerBuy != null ? `${(takerBuy * 100).toFixed(0)}% ط´ط±ط§ط،` : "ط؛ظٹط± ظ…طھط§ط­"}
           tone={takerBuy != null && takerBuy > 0.5 ? "long" : takerBuy != null ? "short" : "neutral"}
           ltr
         />
@@ -114,24 +114,24 @@ export function MarketStrengthPanel({ snap }: { snap: ScalpingSnapshot }) {
 
       <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div className="rounded-panel border border-line bg-surface-2/40 px-3 py-2">
-          <Tip title="CVD = صافي الحجم التراكمي للصفقات النشطة (شراء - بيع) في النافذة.">
-            <div className="text-2xs text-muted">CVD (صافي التدفق)</div>
+          <Tip title="CVD = طµط§ظپظٹ ط§ظ„ط­ط¬ظ… ط§ظ„طھط±ط§ظƒظ…ظٹ ظ„ظ„طµظپظ‚ط§طھ ط§ظ„ظ†ط´ط·ط© (ط´ط±ط§ط، - ط¨ظٹط¹) ظپظٹ ط§ظ„ظ†ط§ظپط°ط©.">
+            <div className="text-2xs text-muted">CVD (طµط§ظپظٹ ط§ظ„طھط¯ظپظ‚)</div>
           </Tip>
           <div className={`mt-1 text-lg font-extrabold ${num} ${cvd != null && cvd > 0 ? "text-up-fg" : cvd != null ? "text-down-fg" : "text-muted"}`} dir="ltr">
-            {cvd != null ? `${cvd >= 0 ? "+" : ""}${cvd.toFixed(0)}` : "غير متاح"}
+            {cvd != null ? `${cvd >= 0 ? "+" : ""}${cvd.toFixed(0)}` : "ط؛ظٹط± ظ…طھط§ط­"}
           </div>
         </div>
         <div className="rounded-panel border border-line bg-surface-2/40 px-3 py-2">
-          <Tip title="قيمة التصفية القسرية في العقود الآجلة: Long تُصفّى مراكز الشراء، Short تُصفّى مراكز البيع.">
-            <div className="text-2xs text-muted">التصفية (Long / Short)</div>
+          <Tip title="ظ‚ظٹظ…ط© ط§ظ„طھطµظپظٹط© ط§ظ„ظ‚ط³ط±ظٹط© ظپظٹ ط§ظ„ط¹ظ‚ظˆط¯ ط§ظ„ط¢ط¬ظ„ط©: Long طھظڈطµظپظ‘ظ‰ ظ…ط±ط§ظƒط² ط§ظ„ط´ط±ط§ط،طŒ Short طھظڈطµظپظ‘ظ‰ ظ…ط±ط§ظƒط² ط§ظ„ط¨ظٹط¹.">
+            <div className="text-2xs text-muted">ط§ظ„طھطµظپظٹط© (Long / Short)</div>
           </Tip>
           <div className="mt-1 flex items-baseline gap-2">
             <span className={`text-sm font-extrabold ${num} ${liqLong != null && liqLong > 0 ? "text-up-fg" : "text-muted"}`} dir="ltr">
-              {liqLong != null ? compact(liqLong) : "—"}
+              {liqLong != null ? compact(liqLong) : "â€”"}
             </span>
             <span className="text-2xs text-muted">/</span>
             <span className={`text-sm font-extrabold ${num} ${liqShort != null && liqShort > 0 ? "text-down-fg" : "text-muted"}`} dir="ltr">
-              {liqShort != null ? compact(liqShort) : "—"}
+              {liqShort != null ? compact(liqShort) : "â€”"}
             </span>
           </div>
         </div>
@@ -141,6 +141,6 @@ export function MarketStrengthPanel({ snap }: { snap: ScalpingSnapshot }) {
 }
 
 function compact(v: number | null | undefined): string {
-  if (v == null || !isFinite(v)) return "—";
+  if (v == null || !isFinite(v)) return "â€”";
   return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(v);
 }

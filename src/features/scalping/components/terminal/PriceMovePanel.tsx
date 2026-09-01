@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { memo, useEffect, useState } from "react";
 import { ResponsiveContainer, AreaChart, Area, YAxis } from "recharts";
@@ -15,7 +15,7 @@ function dirOf(pct: number | null): "up" | "down" | "flat" {
   return "flat";
 }
 
-const ARROW: Record<"up" | "down" | "flat", string> = { up: "↑", down: "↓", flat: "→" };
+const ARROW: Record<"up" | "down" | "flat", string> = { up: "â†‘", down: "â†“", flat: "â†’" };
 const TEXT: Record<"up" | "down" | "neutral", string> = {
   up: "text-up-fg",
   down: "text-down-fg",
@@ -23,12 +23,12 @@ const TEXT: Record<"up" | "down" | "neutral", string> = {
 };
 
 /**
- * Micro-precision speed, unified to a single metric (%/ث = percent per
+ * Micro-precision speed, unified to a single metric (%/ط« = percent per
  * second). 4 decimal places keep tiny per-second shifts readable instead of
  * collapsing to "+0%".
  */
 function fmtVel(p: number): string {
-  return `${p >= 0 ? "+" : ""}${p.toFixed(4)}%/ث`;
+  return `${p >= 0 ? "+" : ""}${p.toFixed(4)}%/ط«`;
 }
 
 /** Which timeframes get the "fast" accent (1s + 5s) in the change row. */
@@ -36,32 +36,32 @@ const FAST_SECONDS = new Set([1, 5]);
 
 /** Format an absolute price velocity (USD/s) with sign, e.g. "+5.00". */
 function fmtUsd(v: number | null): string {
-  if (v == null || !isFinite(v)) return "—";
+  if (v == null || !isFinite(v)) return "â€”";
   return `${v >= 0 ? "+" : ""}${v.toFixed(2)}`;
 }
 
-/** Format a nullable metric (Ticks/s, bps) for tooltips: value or "—". */
+/** Format a nullable metric (Ticks/s, bps) for tooltips: value or "â€”". */
 function formatMetric(v: number | null | undefined): string {
-  if (v == null) return "—";
+  if (v == null) return "â€”";
   return Number.isInteger(v) ? String(v) : v.toFixed(1);
 }
 
-/** Format a bps reading as "X.XX نقطة" (2 decimals, "—" while unavailable). */
+/** Format a bps reading as "X.XX ظ†ظ‚ط·ط©" (2 decimals, "â€”" while unavailable). */
 function fmtPoint(v: number | null | undefined): string {
-  return v == null || !isFinite(v) ? "—" : `${v.toFixed(2)} نقطة`;
+  return v == null || !isFinite(v) ? "â€”" : `${v.toFixed(2)} ظ†ظ‚ط·ط©`;
 }
 
 /** Compact change-row badges keyed by window-seconds. */
 const BADGE_LABEL: Record<number, string> = {
-  1: "1ث",
-  5: "5ث",
-  30: "30ث",
-  60: "1م",
-  120: "2م",
+  1: "1ط«",
+  5: "5ط«",
+  30: "30ط«",
+  60: "1ظ…",
+  120: "2ظ…",
 };
 
 /* ------------------------------------------------------------------ */
-/* Volatility Regime & Liquidation Danger — status badge palette.      */
+/* Volatility Regime & Liquidation Danger â€” status badge palette.      */
 /* Four strict levels, derived from the real 1s window metrics.        */
 /* ------------------------------------------------------------------ */
 
@@ -75,26 +75,26 @@ const VOL_TONE: Record<VolatilityRegime, VolTone> = {
 };
 
 const VOL_LABEL: Record<VolatilityRegime, string> = {
-  L1_STAGNANT: "خامل — سيولة منخفضة",
-  L2_OPTIMAL: "نطاق مثالي — بيئة مناسبة",
-  L3_HIGH_VOLATILITY: "تذبذب مرتفع — حذر",
-  L4_LIQUIDATION_RISK: "خطر تصفية — امتناع عن الدخول",
+  L1_STAGNANT: "ط®ط§ظ…ظ„ â€” ط³ظٹظˆظ„ط© ظ…ظ†ط®ظپط¶ط©",
+  L2_OPTIMAL: "ظ†ط·ط§ظ‚ ظ…ط«ط§ظ„ظٹ â€” ط¨ظٹط¦ط© ظ…ظ†ط§ط³ط¨ط©",
+  L3_HIGH_VOLATILITY: "طھط°ط¨ط°ط¨ ظ…ط±طھظپط¹ â€” ط­ط°ط±",
+  L4_LIQUIDATION_RISK: "ط®ط·ط± طھطµظپظٹط© â€” ط§ظ…طھظ†ط§ط¹ ط¹ظ† ط§ظ„ط¯ط®ظˆظ„",
 };
 
 /**
- * Plain-language explanation of the exact math triggers. NO icons/emojis —
+ * Plain-language explanation of the exact math triggers. NO icons/emojis â€”
  * the tooltip states the raw bps / Ticks/s thresholds so the trader knows the
  * precise rule driving each level.
  */
 const VOL_DESC: Record<VolatilityRegime, string> = {
   L1_STAGNANT:
-    "خامل — سيولة منخفضة: نشاط التداول شبه معدوم. الشرط: تيك/ث أقل من 10 ومدى السعر خلال آخر ثانية ≤ 2 نقطة أساس.",
+    "ط®ط§ظ…ظ„ â€” ط³ظٹظˆظ„ط© ظ…ظ†ط®ظپط¶ط©: ظ†ط´ط§ط· ط§ظ„طھط¯ط§ظˆظ„ ط´ط¨ظ‡ ظ…ط¹ط¯ظˆظ…. ط§ظ„ط´ط±ط·: طھظٹظƒ/ط« ط£ظ‚ظ„ ظ…ظ† 10 ظˆظ…ط¯ظ‰ ط§ظ„ط³ط¹ط± ط®ظ„ط§ظ„ ط¢ط®ط± ط«ط§ظ†ظٹط© â‰¤ 2 ظ†ظ‚ط·ط© ط£ط³ط§ط³.",
   L2_OPTIMAL:
-    "نطاق مثالي — بيئة مناسبة: نشاط متوازن ومناسب للتداول. الشرط: تيك/ث بين 10 و45 ومدى السعر بين 2 و6 نقاط أساس.",
+    "ظ†ط·ط§ظ‚ ظ…ط«ط§ظ„ظٹ â€” ط¨ظٹط¦ط© ظ…ظ†ط§ط³ط¨ط©: ظ†ط´ط§ط· ظ…طھظˆط§ط²ظ† ظˆظ…ظ†ط§ط³ط¨ ظ„ظ„طھط¯ط§ظˆظ„. ط§ظ„ط´ط±ط·: طھظٹظƒ/ط« ط¨ظٹظ† 10 ظˆ45 ظˆظ…ط¯ظ‰ ط§ظ„ط³ط¹ط± ط¨ظٹظ† 2 ظˆ6 ظ†ظ‚ط§ط· ط£ط³ط§ط³.",
   L3_HIGH_VOLATILITY:
-    "تذبذب مرتفع — حذر: تقلب متصاعد يستدعي الحذر. الشرط: تيك/ث بين 46 و85 أو مدى السعر بين 7 و15 نقطة أساس.",
+    "طھط°ط¨ط°ط¨ ظ…ط±طھظپط¹ â€” ط­ط°ط±: طھظ‚ظ„ط¨ ظ…طھطµط§ط¹ط¯ ظٹط³طھط¯ط¹ظٹ ط§ظ„ط­ط°ط±. ط§ظ„ط´ط±ط·: طھظٹظƒ/ط« ط¨ظٹظ† 46 ظˆ85 ط£ظˆ ظ…ط¯ظ‰ ط§ظ„ط³ط¹ط± ط¨ظٹظ† 7 ظˆ15 ظ†ظ‚ط·ط© ط£ط³ط§ط³.",
   L4_LIQUIDATION_RISK:
-    "خطر تصفية — امتناع عن الدخول: حالة حادة جداً. الشرط: تيك/ث أكبر من 90 أو مدى السعر خلال ثانية أكبر من 16 نقطة أساس، أو خلال 5 ثوانٍ أكبر من 25 نقطة أساس، أو 2 انعكاسات اتجاه فأكثر خلال ثانية واحدة.",
+    "ط®ط·ط± طھطµظپظٹط© â€” ط§ظ…طھظ†ط§ط¹ ط¹ظ† ط§ظ„ط¯ط®ظˆظ„: ط­ط§ظ„ط© ط­ط§ط¯ط© ط¬ط¯ط§ظ‹. ط§ظ„ط´ط±ط·: طھظٹظƒ/ط« ط£ظƒط¨ط± ظ…ظ† 90 ط£ظˆ ظ…ط¯ظ‰ ط§ظ„ط³ط¹ط± ط®ظ„ط§ظ„ ط«ط§ظ†ظٹط© ط£ظƒط¨ط± ظ…ظ† 16 ظ†ظ‚ط·ط© ط£ط³ط§ط³طŒ ط£ظˆ ط®ظ„ط§ظ„ 5 ط«ظˆط§ظ†ظچ ط£ظƒط¨ط± ظ…ظ† 25 ظ†ظ‚ط·ط© ط£ط³ط§ط³طŒ ط£ظˆ 2 ط§ظ†ط¹ظƒط§ط³ط§طھ ط§طھط¬ط§ظ‡ ظپط£ظƒط«ط± ط®ظ„ط§ظ„ ط«ط§ظ†ظٹط© ظˆط§ط­ط¯ط©.",
 };
 
 const REG_BADGE: Record<VolTone, string> = {
@@ -133,7 +133,7 @@ const RISK_SEGMENT: Record<1 | 2 | 3 | 4, string> = {
 /**
  * Tracks document visibility (Page Visibility API). The Recharts sparkline is
  * expensive (SVG layout recomputation per tick burst), so while the tab is
- * hidden we unmount it to avoid browser lag — trades keep being buffered in the
+ * hidden we unmount it to avoid browser lag â€” trades keep being buffered in the
  * data layer (microTicksRef / module pulse ring) and render on refocus with the
  * latest window. Safe during SSR (guards for a missing `document`).
  */
@@ -150,15 +150,15 @@ function useDocumentVisible(): boolean {
 }
 
 /**
- * High-frequency micro-scalping panel — tick-level Price Action.
+ * High-frequency micro-scalping panel â€” tick-level Price Action.
  *
  * Change/velocity come from the REAL rolling windows + a real per-trade micro
  * buffer (the shared SSOT). The pulse sparkline renders every executed trade.
  * The status header is a strict 4-level Volatility Regime & Liquidation Danger
- * badge (خامل / نطاق مثالي / تذبذب مرتفع / خطر تصفية) derived from the real
+ * badge (ط®ط§ظ…ظ„ / ظ†ط·ط§ظ‚ ظ…ط«ط§ظ„ظٹ / طھط°ط¨ط°ط¨ ظ…ط±طھظپط¹ / ط®ط·ط± طھطµظپظٹط©) derived from the real
  * 1s-window metrics (ticks/sec, sub-second price range in bps, direction flips)
- * — each level's exact math trigger is stated in its tooltip. Nothing is
- * invented; missing values render "غير متاح".
+ * â€” each level's exact math trigger is stated in its tooltip. Nothing is
+ * invented; missing values render "ط؛ظٹط± ظ…طھط§ط­".
  */
 function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
   const docVisible = useDocumentVisible();
@@ -187,12 +187,12 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
   }
   const rangeTooltip = (
     <span className="flex flex-col gap-0.5 font-mono text-[11px]">
-      <span dir="ltr">مدى 1ث: {fmtPoint(series?.range1sBps)}</span>
-      <span dir="ltr">مدى 5ث: {fmtPoint(series?.range5sBps)}</span>
-      <span dir="ltr">مدى 30ث: {fmtPoint(series?.range30sBps)}</span>
+      <span dir="ltr">ظ…ط¯ظ‰ 1ط«: {fmtPoint(series?.range1sBps)}</span>
+      <span dir="ltr">ظ…ط¯ظ‰ 5ط«: {fmtPoint(series?.range5sBps)}</span>
+      <span dir="ltr">ظ…ط¯ظ‰ 30ط«: {fmtPoint(series?.range30sBps)}</span>
       {bps != null && bpsTrend !== "flat" && (
         <span className="mt-0.5">
-          {bpsTrend === "up" ? "↗ اتساع" : "↘ انكماش"} مقارنة بالقراءة السابقة.
+          {bpsTrend === "up" ? "â†— ط§طھط³ط§ط¹" : "â†ک ط§ظ†ظƒظ…ط§ط´"} ظ…ظ‚ط§ط±ظ†ط© ط¨ط§ظ„ظ‚ط±ط§ط،ط© ط§ظ„ط³ط§ط¨ظ‚ط©.
         </span>
       )}
     </span>
@@ -202,7 +202,7 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
   const vtone = VOL_TONE[vreg];
   const vLevel = { L1_STAGNANT: 1, L2_OPTIMAL: 2, L3_HIGH_VOLATILITY: 3, L4_LIQUIDATION_RISK: 4 }[vreg];
 
-  // Live indicator — from the shared WS health, never a duplicate socket.
+  // Live indicator â€” from the shared WS health, never a duplicate socket.
   const live = snap.health.status === "ready";
   const dir = dirOf(change[0]?.status === "ready" ? (change[0]?.value ?? null) : null);
   const stroke = dir === "up" ? colors.up : dir === "down" ? colors.down : colors.muted;
@@ -211,17 +211,17 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
     <Section
       title={
         <>
-          حركة السعر <span className="normal-case text-muted/70">(Price Action)</span>
+          ط­ط±ظƒط© ط§ظ„ط³ط¹ط± <span className="normal-case text-muted/70">(Price Action)</span>
         </>
       }
-      eyebrow="01 · Ticks"
+     
       collapsible
       className="h-full flex flex-col"
       snippet={
         <div className="flex items-center justify-between gap-3">
-          <span className="text-2xs text-muted">الحالة</span>
+          <span className="text-2xs text-muted">ط§ظ„ط­ط§ظ„ط©</span>
           <span className={`text-xs font-bold ${REG_TEXT[vtone]}`} dir="rtl">
-            المستوى {vLevel} — {VOL_LABEL[vreg]}
+            ط§ظ„ظ…ط³طھظˆظ‰ {vLevel} â€” {VOL_LABEL[vreg]}
           </span>
         </div>
       }
@@ -237,21 +237,21 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
               className={`inline-block h-1.5 w-1.5 rounded-full ${REG_DOT[vtone]} animate-[dot-blink_1s_ease-in-out_infinite]`}
             />
             <span className={`text-2xs font-bold ${REG_TEXT[vtone]}`}>
-              المستوى {vLevel} — {VOL_LABEL[vreg]}
+              ط§ظ„ظ…ط³طھظˆظ‰ {vLevel} â€” {VOL_LABEL[vreg]}
             </span>
           </span>
         </Tip>
       }
       bodyClassName="flex-1 flex flex-col"
     >
-      {/* risk meter — 4 escalating segments show real-time level intensity */}
+      {/* risk meter â€” 4 escalating segments show real-time level intensity */}
       <div className="mt-2">
         <Tip
-          title={`مقياس شدة الخطر (لحظي): المستوى ${vLevel} = ${vLevel * 25}%. تيك/ث ${formatMetric(
+          title={`ظ…ظ‚ظٹط§ط³ ط´ط¯ط© ط§ظ„ط®ط·ط± (ظ„ط­ط¸ظٹ): ط§ظ„ظ…ط³طھظˆظ‰ ${vLevel} = ${vLevel * 25}%. طھظٹظƒ/ط« ${formatMetric(
             vmet?.ticksPerSec
-          )} · مدى 1ث ${formatMetric(vmet?.range1sBps)} · مدى 5ث ${formatMetric(
+          )} آ· ظ…ط¯ظ‰ 1ط« ${formatMetric(vmet?.range1sBps)} آ· ظ…ط¯ظ‰ 5ط« ${formatMetric(
             vmet?.range5sBps
-          )} نقطة أساس · انعكاسات ${vmet?.flips ?? 0}.`}
+          )} ظ†ظ‚ط·ط© ط£ط³ط§ط³ آ· ط§ظ†ط¹ظƒط§ط³ط§طھ ${vmet?.flips ?? 0}.`}
         >
           <div className="flex items-center gap-1">
             {([1, 2, 3, 4] as const).map((seg) => {
@@ -275,7 +275,7 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
         </Tip>
       </div>
 
-      {/* per-period change cells — borders colour by direction (green up / red down / muted flat) */}
+      {/* per-period change cells â€” borders colour by direction (green up / red down / muted flat) */}
       <div className="mt-2 grid grid-cols-5 gap-1">
         {change.map((c) => {
           const ready = c.status === "ready";
@@ -287,7 +287,7 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
           return (
             <div
               key={c.label}
-              title={`التغيّر خلال ${c.label} — ${ready ? `نافذة حقيقية (%${c.seconds} ث).` : "لا تكفي البيانات بعد لتغطية هذه النافذة — يُستكمل بجمع التيكات."}`}
+              title={`ط§ظ„طھط؛ظٹظ‘ط± ط®ظ„ط§ظ„ ${c.label} â€” ${ready ? `ظ†ط§ظپط°ط© ط­ظ‚ظٹظ‚ظٹط© (%${c.seconds} ط«).` : "ظ„ط§ طھظƒظپظٹ ط§ظ„ط¨ظٹط§ظ†ط§طھ ط¨ط¹ط¯ ظ„طھط؛ط·ظٹط© ظ‡ط°ظ‡ ط§ظ„ظ†ط§ظپط°ط© â€” ظٹظڈط³طھظƒظ…ظ„ ط¨ط¬ظ…ط¹ ط§ظ„طھظٹظƒط§طھ."}`}
               className={`rounded-panel border px-1 py-1 text-center ${border}`}
             >
               <div
@@ -307,7 +307,7 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
                 </div>
               ) : (
                 <div className="mt-0.5 truncate text-[10px] font-semibold leading-none text-muted">
-                  جمع…
+                  ط¬ظ…ط¹â€¦
                 </div>
               )}
             </div>
@@ -315,9 +315,9 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
         })}
       </div>
 
-      {/* building-data micro indicator — sleek progress bar tied to coveragePct */}
+      {/* building-data micro indicator â€” sleek progress bar tied to coveragePct */}
       {building && (
-        <Tip title="نافذة التاريخ الكاملة (120 ثانية) لم تكتمل بعد؛ تُجمع التيكات تدريجياً وتستقر النسب كلما اكتملت نافذتها. (تعتمد على coveragePct الحقيقي)">
+        <Tip title="ظ†ط§ظپط°ط© ط§ظ„طھط§ط±ظٹط® ط§ظ„ظƒط§ظ…ظ„ط© (120 ط«ط§ظ†ظٹط©) ظ„ظ… طھظƒطھظ…ظ„ ط¨ط¹ط¯ط› طھظڈط¬ظ…ط¹ ط§ظ„طھظٹظƒط§طھ طھط¯ط±ظٹط¬ظٹط§ظ‹ ظˆطھط³طھظ‚ط± ط§ظ„ظ†ط³ط¨ ظƒظ„ظ…ط§ ط§ظƒطھظ…ظ„طھ ظ†ط§ظپط°طھظ‡ط§. (طھط¹طھظ…ط¯ ط¹ظ„ظ‰ coveragePct ط§ظ„ط­ظ‚ظٹظ‚ظٹ)">
           <div className="mt-2 rounded-panel border border-info/40 bg-info/5 px-2.5 py-1.5">
             <div className="flex items-center justify-between gap-2">
               <span className="flex items-center gap-1.5 text-2xs font-semibold text-muted">
@@ -325,10 +325,10 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-info opacity-60" />
                   <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-info" />
                 </span>
-                جارٍ التجميع
+                ط¬ط§ط±ظچ ط§ظ„طھط¬ظ…ظٹط¹
               </span>
               <span className={`${num} text-2xs font-bold text-info`} dir="ltr">
-                …{Math.round(coveragePct)}%
+                â€¦{Math.round(coveragePct)}%
               </span>
             </div>
             <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-surface-2">
@@ -341,30 +341,30 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
         </Tip>
       )}
 
-      {/* pulse sparkline — real per-trade ticks (paused while the tab is hidden) */}
+      {/* pulse sparkline â€” real per-trade ticks (paused while the tab is hidden) */}
       <div className="mt-2 rounded-panel border border-line/70 bg-black/20 p-1.5">
         <div style={{ width: "100%", height: 44 }}>
           {!docVisible ? (
             <div className="flex h-full items-center justify-center text-2xs text-muted">
-              المخطط متوقف مؤقتاً (التبويب مخفي)…
+              ط§ظ„ظ…ط®ط·ط· ظ…طھظˆظ‚ظپ ظ…ط¤ظ‚طھط§ظ‹ (ط§ظ„طھط¨ظˆظٹط¨ ظ…ط®ظپظٹ)â€¦
             </div>
           ) : pulse.length > 1 ? (
             <Sparkline data={pulse} stroke={stroke} />
           ) : (
             <div className="flex h-full items-center justify-center text-2xs text-muted">
-              لا بيانات تيك كافية بعد…
+              ظ„ط§ ط¨ظٹط§ظ†ط§طھ طھظٹظƒ ظƒط§ظپظٹط© ط¨ط¹ط¯â€¦
             </div>
           )}
         </div>
       </div>
 
-      {/* velocity — Ticks/sec on its own distinct row, then % + USD cards */}
+      {/* velocity â€” Ticks/sec on its own distinct row, then % + USD cards */}
       <div className="mt-2 border-t border-line/70 pt-2">
-        <span className="text-3xs font-semibold uppercase tracking-[0.14em] text-muted">السرعة</span>
+        <span className="text-3xs font-semibold uppercase tracking-[0.14em] text-muted">ط§ظ„ط³ط±ط¹ط©</span>
 
         {/* Ticks/sec + micro-range in one dedicated row (flex gap keeps it clean) */}
         <div className="mt-2 flex items-center gap-2">
-          <Tip title="Ticks/sec = عدد الصفقات المنفذة في الثانية من البث اللحظي الحقيقي (مقياس كثافة النشاط).">
+          <Tip title="Ticks/sec = ط¹ط¯ط¯ ط§ظ„طµظپظ‚ط§طھ ط§ظ„ظ…ظ†ظپط°ط© ظپظٹ ط§ظ„ط«ط§ظ†ظٹط© ظ…ظ† ط§ظ„ط¨ط« ط§ظ„ظ„ط­ط¸ظٹ ط§ظ„ط­ظ‚ظٹظ‚ظٹ (ظ…ظ‚ظٹط§ط³ ظƒط«ط§ظپط© ط§ظ„ظ†ط´ط§ط·).">
             <span
               key={ticksPerSec ?? "na"}
               className={`inline-flex items-center gap-1.5 rounded-chip border border-line bg-surface-2/40 px-2 py-0.5 text-2xs font-semibold text-zinc-300 ${
@@ -372,8 +372,8 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
               }`}
               dir="ltr"
             >
-              <span className="text-muted">⚡</span>
-              <span>{ticksPerSec != null ? `${ticksPerSec} تيك/ث` : "—"}</span>
+              <span className="text-muted">âڑ،</span>
+              <span>{ticksPerSec != null ? `${ticksPerSec} طھظٹظƒ/ط«` : "â€”"}</span>
             </span>
           </Tip>
 
@@ -388,9 +388,9 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
               }`}
               dir="ltr"
             >
-              <span className="text-muted">المدى 1ث:</span>
-              <span>{bps != null ? `${bps.toFixed(2)} نقطة` : "— نقطة"}</span>
-              {bps != null && <span>{bpsTrend === "up" ? "↑" : bpsTrend === "down" ? "↓" : "→"}</span>}
+              <span className="text-muted">ط§ظ„ظ…ط¯ظ‰ 1ط«:</span>
+              <span>{bps != null ? `${bps.toFixed(2)} ظ†ظ‚ط·ط©` : "â€” ظ†ظ‚ط·ط©"}</span>
+              {bps != null && <span>{bpsTrend === "up" ? "â†‘" : bpsTrend === "down" ? "â†“" : "â†’"}</span>}
             </span>
           </Tip>
         </div>
@@ -403,16 +403,16 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
             return (
               <div key={v.label} className={`rounded-panel border px-1 py-1 text-center ${border}`}>
                 <div className="text-2xs font-bold" dir="ltr">
-                  {v.pctPerSec != null ? fmtVel(v.pctPerSec) : "—"}
+                  {v.pctPerSec != null ? fmtVel(v.pctPerSec) : "â€”"}
                 </div>
-                <Tip title="السرعة الفعلية بالدولار في الثانية — النسبة المئوية مطبّقة على السعر اللحظي الحقيقي.">
+                <Tip title="ط§ظ„ط³ط±ط¹ط© ط§ظ„ظپط¹ظ„ظٹط© ط¨ط§ظ„ط¯ظˆظ„ط§ط± ظپظٹ ط§ظ„ط«ط§ظ†ظٹط© â€” ط§ظ„ظ†ط³ط¨ط© ط§ظ„ظ…ط¦ظˆظٹط© ظ…ط·ط¨ظ‘ظ‚ط© ط¹ظ„ظ‰ ط§ظ„ط³ط¹ط± ط§ظ„ظ„ط­ط¸ظٹ ط§ظ„ط­ظ‚ظٹظ‚ظٹ.">
                   <div
                     className={`mt-0.5 truncate text-[10px] font-semibold leading-none ${
                       d === "up" ? "text-up-fg" : d === "down" ? "text-down-fg" : "text-muted"
                     }`}
                     dir="ltr"
                   >
-                    ⚡ {fmtUsd(v.usdPerSec)} usd/ث
+                    âڑ، {fmtUsd(v.usdPerSec)} usd/ط«
                   </div>
                 </Tip>
                 <div className="mt-0.5 text-[9px] text-muted">({v.label})</div>
@@ -427,17 +427,17 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
         <Dot tone={live ? "good" : snap.health.status === "stale" ? "warn" : "quiet"} pulse={live} />
         <span className="text-2xs text-muted">
           {live
-            ? "بث لحظي مباشر"
+            ? "ط¨ط« ظ„ط­ط¸ظٹ ظ…ط¨ط§ط´ط±"
             : snap.health.status === "stale"
-            ? "التدفق قديم مؤقتاً"
-            : "بانتظار البث اللحظي…"}
+            ? "ط§ظ„طھط¯ظپظ‚ ظ‚ط¯ظٹظ… ظ…ط¤ظ‚طھط§ظ‹"
+            : "ط¨ط§ظ†طھط¸ط§ط± ط§ظ„ط¨ط« ط§ظ„ظ„ط­ط¸ظٹâ€¦"}
         </span>
       </div>
     </Section>
   );
 }
 
-/** Memoised Recharts sparkline — no animation (sub-second cadence unchanged). */
+/** Memoised Recharts sparkline â€” no animation (sub-second cadence unchanged). */
 function Sparkline({ data, stroke }: { data: { t: number; price: number }[]; stroke: string }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
