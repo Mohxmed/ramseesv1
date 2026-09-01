@@ -51,6 +51,16 @@ export function ExecutionPanel({ snap }: { snap: ScalpingSnapshot }) {
     <Section
       title="السيولة والتنفيذ"
       eyebrow="05 · Execution"
+      collapsible
+      snippet={
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-2xs text-muted">الحكم على التنفيذ</span>
+          <Tag tone={verdict.tone}>
+            <Dot tone={verdict.tone} />
+            {verdict.label}
+          </Tag>
+        </div>
+      }
       actions={
         <Tip title={verdict.reason}>
           <Tag tone={verdict.tone}>

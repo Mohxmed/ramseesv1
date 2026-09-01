@@ -34,7 +34,7 @@ export const muiTheme: Theme = createTheme({
       secondary: colors.muted,
     },
   },
-  shape: { borderRadius: 8 },
+  shape: { borderRadius: 6 },
   components: {
     MuiPaper: {
       styleOverrides: {

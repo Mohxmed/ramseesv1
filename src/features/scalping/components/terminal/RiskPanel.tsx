@@ -38,7 +38,20 @@ export function RiskPanel({ snap }: { snap: ScalpingSnapshot }) {
   const rr = stop != null && stop > 0 ? 2 : null;
 
   return (
-    <Section title="المخاطر" eyebrow="08 · Risk">
+    <Section
+      title="المخاطر"
+      eyebrow="08 · Risk"
+      collapsible
+      snippet={
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-2xs text-muted">خطر التصفية</span>
+          <Tag tone={liqIntensity ? LIQ_TONE[liqIntensity] ?? "warn" : "neutral"}>
+            <Dot tone={liqIntensity ? LIQ_TONE[liqIntensity] ?? "warn" : "neutral"} />
+            {liqPressure ?? "غير متاح"}
+          </Tag>
+        </div>
+      }
+    >
       <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
         <Metric label="المسافة للوقف" value={atrV != null ? `$${stop!.toFixed(0)} (1×ATR)` : "غير متاح"} hint="تقدير مبني على ATR" tone="warn" ltr />
         <Metric label="المسافة للهدف" value={atrV != null ? `$${target!.toFixed(0)} (2×ATR)` : "غير متاح"} hint="تقدير مبني على ATR" tone="good" ltr />

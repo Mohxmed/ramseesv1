@@ -1,7 +1,12 @@
 "use client";
 
 import type { ComponentType, ReactNode } from "react";
-import { num } from "./design-tokens";
+import { useState } from "react";
+import MuiCollapse from "@mui/material/Collapse";
+import IconButton from "@mui/material/IconButton";
+import ButtonBase from "@mui/material/ButtonBase";
+import { ChevronDown } from "lucide-react";
+import { num, radius } from "./design-tokens";
 
 /**
  * Premium reusable UI primitives.
@@ -66,6 +71,10 @@ export interface CardProps {
   eyebrow?: ReactNode;
   actions?: ReactNode;
   children: ReactNode;
+  /** When true, the card body can be collapsed/expanded (MUI Collapse + chevron). */
+  collapsible?: boolean;
+  /** Highlights shown in place of the body while collapsed. */
+  snippet?: ReactNode;
   className?: string;
   bodyClassName?: string;
 }
@@ -76,25 +85,74 @@ export function Card({
   eyebrow,
   actions,
   children,
+  collapsible = false,
+  snippet,
   className = "",
   bodyClassName = "",
 }: CardProps) {
+  const [open, setOpen] = useState(true);
+
+  const titleBlock = (
+    <span className="min-w-0">
+      {eyebrow ? (
+        <div className="text-3xs font-semibold uppercase tracking-[0.18em] text-muted">
+          {eyebrow}
+        </div>
+      ) : null}
+      {title ? <h2 className="text-[13px] font-bold text-zinc-100">{title}</h2> : null}
+    </span>
+  );
+
   return (
     <section className={`rounded-card border border-line bg-surface-1/40 ${className}`}>
       {title || eyebrow || actions ? (
         <div className="flex items-center justify-between gap-2 border-b border-line/70 px-4 py-2.5">
-          <div>
-            {eyebrow ? (
-              <div className="text-3xs font-semibold uppercase tracking-[0.18em] text-muted">
-                {eyebrow}
-              </div>
-            ) : null}
-            {title ? <h2 className="text-[13px] font-bold text-zinc-100">{title}</h2> : null}
-          </div>
-          {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
+          {collapsible ? (
+            <ButtonBase
+              onClick={() => setOpen((v) => !v)}
+              disableRipple
+              className="text-right"
+              aria-expanded={open}
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                minWidth: 0,
+                flex: 1,
+                borderRadius: radius.panel,
+                textAlign: "right",
+                "&:hover": { backgroundColor: "rgba(255,255,255,0.03)" },
+              }}
+            >
+              {titleBlock}
+              <IconButton
+                size="small"
+                aria-label={open ? "طي اللوحة" : "فتح اللوحة"}
+                disableRipple
+                sx={{ color: "text.muted", p: 0.25, mr: 0.5 }}
+              >
+                <ChevronDown
+                  size={16}
+                  style={{ transition: "transform 200ms ease", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
+                />
+              </IconButton>
+            </ButtonBase>
+          ) : (
+            titleBlock
+          )}
+          {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
         </div>
       ) : null}
-      <div className={`p-4 ${bodyClassName}`}>{children}</div>
+      {collapsible && !open && snippet ? (
+        <div className="border-b border-line/60 px-4 py-2">{snippet}</div>
+      ) : null}
+      {collapsible ? (
+        <MuiCollapse in={open} timeout={220}>
+          <div className={bodyClassName !== undefined ? `p-4 ${bodyClassName}` : "p-4"}>{children}</div>
+        </MuiCollapse>
+      ) : (
+        <div className={bodyClassName !== undefined ? `p-4 ${bodyClassName}` : "p-4"}>{children}</div>
+      )}
     </section>
   );
 }

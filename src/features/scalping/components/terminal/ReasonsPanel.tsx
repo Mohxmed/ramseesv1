@@ -13,7 +13,16 @@ export function ReasonsPanel({ snap }: { snap: ScalpingSnapshot }) {
   const hasDetails = rest.length > 0 || warnings.length > 0 || invalidation.length > 0;
 
   return (
-    <Section title="أسباب القرار" eyebrow="07 · Reasons">
+    <Section
+      title="أسباب القرار"
+      eyebrow="07 · Reasons"
+      collapsible
+      snippet={
+        <span className="block truncate text-2xs text-zinc-300">
+          {top[0] ?? "لا عوامل داعمة كافية حالياً — الضغط متوازن."}
+        </span>
+      }
+    >
       <ul className="space-y-1.5">
         {top.map((r, i) => (
           <li key={i} className="flex items-start gap-2 text-2xs leading-relaxed text-zinc-300">

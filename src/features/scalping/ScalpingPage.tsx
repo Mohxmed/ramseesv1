@@ -133,7 +133,7 @@ export function ScalpingPage() {
           {/* Advanced layer — preserves the reporter/self-eval + full detail (kept from the original) */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <StatisticalEdge decision={snap.decision ?? null} recorder={snap.recorder ?? null} />
-            <Section title="التفاصيل الكاملة" eyebrow="09 · Detail">
+            <Section title="التفاصيل الكاملة" eyebrow="09 · Detail" collapsible snippet={<span className="text-2xs text-muted">عرض جدول المتغيرات والمراكز قابلة للطي</span>}>
               <Collapse summary={<span className="font-semibold">عرض تفاصيل المتغيرات والمراكز</span>} open={false}>
                 <div className="pt-1">
                   <DiagnosticsContent

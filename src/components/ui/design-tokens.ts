@@ -60,9 +60,9 @@ export const spacing = {
 } as const;
 
 export const radius = {
-  chip: "6px",
-  panel: "12px",
-  card: "16px",
+  chip: "4px",
+  panel: "6px",
+  card: "8px",
   pill: "9999px",
 } as const;
 

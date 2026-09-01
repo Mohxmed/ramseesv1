@@ -71,7 +71,19 @@ export function MarketStrengthPanel({ snap }: { snap: ScalpingSnapshot }) {
   const liqShort = futures?.liquidations?.short?.notional ?? null;
 
   return (
-    <Section title="قوة السوق" eyebrow="04 · Strength">
+    <Section
+      title="قوة السوق"
+      eyebrow="04 · Strength"
+      collapsible
+      snippet={
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-2xs text-muted">اتجاه السوق</span>
+          <span className={`text-2xs font-bold ${TONE_TXT[readingTone(trend?.direction, trend?.state)]}`}>
+            {trend ? readingLabel(trend.direction, trend.state) : "غير متاح"}
+          </span>
+        </div>
+      }
+    >
       <div className="space-y-2">
         <Row
           label="اتجاه السوق"

@@ -22,6 +22,16 @@ export function StatisticalEdge({
     <Section
       title="الحافة الإحصائية"
       eyebrow="05 · Edge"
+      collapsible
+      snippet={
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-2xs text-muted">الاحتمال الأساسي</span>
+          <span className={`font-mono text-sm font-bold ${probTone === "long" ? "text-up-fg" : probTone === "short" ? "text-down-fg" : "text-zinc-300"}`} dir="ltr">
+            {prob != null ? `${(prob * 100).toFixed(0)}%` : "—"}
+            {probDir ? <span className="text-muted"> · {probDir}</span> : null}
+          </span>
+        </div>
+      }
       actions={
         decision?.probabilityCalibrated ? (
           <Tag tone="good">محسوبة من النتائج</Tag>

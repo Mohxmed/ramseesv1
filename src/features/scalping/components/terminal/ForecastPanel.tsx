@@ -14,7 +14,7 @@ const DIR: Record<ScalpDirection, { text: string; tone: "long" | "short" | "neut
 export function ForecastPanel({ forecast }: { forecast: ScalpingForecast | null }) {
   if (!forecast || forecast.horizons.length === 0) {
     return (
-      <Section title="التوقع" eyebrow="06 · Forecast">
+      <Section title="التوقع" eyebrow="06 · Forecast" collapsible snippet={<span className="text-2xs text-muted">لا توقع بعد.</span>}>
         <p className="py-6 text-center text-xs text-muted">لا توقع بعد.</p>
       </Section>
     );
@@ -26,6 +26,15 @@ export function ForecastPanel({ forecast }: { forecast: ScalpingForecast | null 
     <Section
       title="التوقع"
       eyebrow="06 · Forecast"
+      collapsible
+      snippet={
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-2xs text-muted">الاتجاه السائد</span>
+          <Tag tone={dominant.tone}>
+            {dominant.text} · توافق {forecast.alignment}/{forecast.alignmentTotal}
+          </Tag>
+        </div>
+      }
       actions={
         <Tip title="عدد الآفاق المتفقة مع الاتجاه السائد من الإجمالي.">
           <Tag tone={dominant.tone}>توافق {forecast.alignment}/{forecast.alignmentTotal}</Tag>
