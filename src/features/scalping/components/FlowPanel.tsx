@@ -3,7 +3,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { Area, AreaChart, ResponsiveContainer } from "recharts";
 
-import type { FlowSnapshot, FlowWindow, NormalizedTrade } from "../flow/types";
+import type { ExchangeConnection, FlowSnapshot, FlowWindow, NormalizedTrade } from "../flow/types";
 import { ADAPTER_LABELS } from "../flow/exchanges";
 import {
   Section,
@@ -133,14 +133,23 @@ const STATUS_META: Record<string, { label: string; tone: Tone }> = {
   ERROR: { label: "خطأ", tone: "warn" },
 };
 
-function StatusChip({ exchange, status }: { exchange: string; status: string }) {
-  const meta = STATUS_META[status] ?? { label: status, tone: "quiet" as Tone };
-  const isLive = status === "LIVE";
+function GatewayRow({ conn }: { conn: ExchangeConnection }) {
+  const meta = STATUS_META[conn.status] ?? { label: conn.status, tone: "quiet" as Tone };
+  const isLive = conn.status === "LIVE";
+  const name = conn.label || ADAPTER_LABELS[conn.exchange] || conn.exchange;
   return (
-    <Tag tone={meta.tone} className="min-w-[88px] justify-center">
-      <Dot tone={meta.tone} pulse={isLive} />
-      <span className="truncate">{ADAPTER_LABELS[exchange] ?? exchange}</span>
-    </Tag>
+    <div
+      dir="rtl"
+      className="flex items-center justify-between gap-2 rounded-panel border border-line bg-surface-1/30 px-2.5 py-1.5"
+    >
+      <span className="flex min-w-0 items-center gap-1.5 text-2xs font-semibold text-zinc-200">
+        <Dot tone={meta.tone} pulse={isLive} />
+        <span className="truncate">{name}</span>
+      </span>
+      <span className="shrink-0 text-2xs text-muted" dir="ltr" style={mono}>
+        {conn.latency >= 0 ? `${conn.latency}ms` : "—"}
+      </span>
+    </div>
   );
 }
 
@@ -151,9 +160,15 @@ function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
   const avgLatency = liveLat.length > 0 ? Math.round(liveLat.reduce((a, b) => a + b.latency, 0) / liveLat.length) : null;
   const overallTone: Tone = live.length > 0 ? "good" : "warn";
 
+  const tiles: { label: string; value: string; tone: Tone; sub?: string }[] = [
+    { label: "المتصل", value: `${live.length}/${connections.length}`, tone: overallTone, sub: `${live.length}/${connections.length} متصل` },
+    { label: "الاستجابة", value: avgLatency !== null ? `${avgLatency}ms` : "N/A", tone: live.length > 0 ? "good" : "neutral", sub: "متوسط الوصول" },
+    { label: "حدث/ث", value: `${state.quality.eventRate}`, tone: "neutral", sub: "معدل الأحداث" },
+  ];
+
   return (
     <Section
-      title="التدفق المباشر"
+      title="بوابات البيانات"
       eyebrow="01 · Live Aggregation"
       collapsible
       snippet={
@@ -165,20 +180,26 @@ function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
         </SnippetRow>
       }
     >
-      {/* Summary — one aligned strip */}
+      {/* Summary — RTL-aligned: label on the right, number on the left */}
       <div className="grid grid-cols-3 gap-2">
-        <Tile label="الغطاء" value={`${state.quality.coverage}%`} tone={overallTone} sub={`${live.length}/${connections.length} متصل`} />
-        <Tile label="الكمون" value={avgLatency !== null ? `${avgLatency}ms` : "N/A"} tone={live.length > 0 ? "good" : "neutral"} sub="متوسط الوصول" />
-        <Tile label="أحداث/ث" value={`${state.quality.eventRate}`} tone="neutral" sub="معدل الأحداث" />
+        {tiles.map((t) => (
+          <div key={t.label} dir="rtl" className="rounded-panel border border-line bg-surface-1/30 px-2.5 py-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="text-3xs font-semibold text-muted">{t.label}</span>
+              <span className={`text-lg font-extrabold leading-none ${TONE_TEXT[t.tone]}`} dir="ltr" style={mono}>
+                {t.value}
+              </span>
+            </div>
+            {t.sub ? <div className="mt-1 text-3xs text-muted/70">{t.sub}</div> : null}
+          </div>
+        ))}
       </div>
 
-      {/* Exchange rail — single non-wrapping scrollable line (no layout shift) */}
-      <div className="mt-3 overflow-x-auto pb-1" dir="ltr">
-        <div className="flex w-max items-center gap-1.5">
-          {connections.map((c) => (
-            <StatusChip key={c.exchange} exchange={c.exchange} status={c.status} />
-          ))}
-        </div>
+      {/* Gateways — fixed 2-col grid, no scroll: name right / response speed left */}
+      <div className="mt-3 grid grid-cols-2 gap-1.5">
+        {connections.map((c) => (
+          <GatewayRow key={c.exchange} conn={c} />
+        ))}
       </div>
     </Section>
   );
