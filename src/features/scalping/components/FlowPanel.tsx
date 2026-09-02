@@ -144,6 +144,14 @@ const PLATFORM: Record<string, { code: string; bg: string; fg: string }> = {
   mexc: { code: "MX", bg: "#1E7DF0", fg: "#ffffff" },
   hyperliquid: { code: "HL", bg: "#E2E8F0", fg: "#0b1220" },
   coinbase: { code: "CB", bg: "#0052FF", fg: "#ffffff" },
+  gateio: { code: "GT", bg: "#2F54EB", fg: "#ffffff" },
+  kucoin: { code: "KC", bg: "#24AE8F", fg: "#04201a" },
+  kraken: { code: "KR", bg: "#6A4CFF", fg: "#ffffff" },
+  deribit: { code: "DR", bg: "#1a1a2e", fg: "#F4E3D7" },
+  upbit: { code: "UP", bg: "#2F6BFF", fg: "#ffffff" },
+  htx: { code: "HT", bg: "#0F2D7C", fg: "#ffffff" },
+  bitstamp: { code: "BS", bg: "#FF6B00", fg: "#ffffff" },
+  bitfinex: { code: "BI", bg: "#5A7D9C", fg: "#ffffff" },
 };
 
 /** Fall back to the label short-form when a platform isn't in the map above. */
@@ -232,6 +240,18 @@ function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
       tip: "عدد أحداث التداول المستلمة في الثانية الواحدة",
       value: `${state.quality.eventRate}`,
       tone: "neutral",
+    },
+    {
+      label: "السعر المرجعي",
+      tip: "سعر مركب (Composite) من البورصات المباشرة: وسطيات مستبعدة للقيم الشاذّة وموزونة بالطزوجة وخطأ التوازن — يظهر N/A عند عدم وجود مصدر مباشر",
+      value: state.composite.price != null ? state.composite.price.toFixed(2) : "N/A",
+      tone: state.composite.status === "UNAVAILABLE" ? "quiet" : "neutral",
+    },
+    {
+      label: "تباعد المنصات",
+      tip: "أقصى انحراف بين أسعار البورصات المباشرة عن السعر المرجعي (٪) — يحتاج 2+ بورصة مباشرة",
+      value: state.divergence.maxDeviationPct != null ? `${state.divergence.maxDeviationPct.toFixed(3)}%` : "N/A",
+      tone: state.divergence.maxDeviationPct != null && state.divergence.maxDeviationPct > 0.3 ? "warn" : "neutral",
     },
   ];
 

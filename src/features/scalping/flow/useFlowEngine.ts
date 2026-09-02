@@ -25,6 +25,14 @@ const DEFAULT_EXCHANGES: AdapterId[] = [
   "hyperliquid",
   "binance_spot",
   "coinbase",
+  "gateio",
+  "kucoin",
+  "kraken",
+  "deribit",
+  "upbit",
+  "htx",
+  "bitstamp",
+  "bitfinex",
 ];
 
 export type UseFlowEngineOptions = {

@@ -31,6 +31,9 @@ import type {
   FlowSnapshot,
   ExchangeAdapter,
   ExchangeConnection,
+  CompositePrice,
+  ExchangeDivergence,
+  DataQualityStatus,
 } from "./types";
 
 // ─── Ring Buffer (generic) ──────────────────────────────────────────
@@ -94,7 +97,24 @@ class RingBuffer<T> {
 // ─── Default Config ─────────────────────────────────────────────────
 
 const DEFAULT_CONFIG: FlowEngineConfig = {
-  exchanges: ["binance_futures", "bybit", "okx", "bitget", "mexc", "hyperliquid", "binance_spot", "coinbase"],
+  exchanges: [
+    "binance_futures",
+    "bybit",
+    "okx",
+    "bitget",
+    "mexc",
+    "hyperliquid",
+    "binance_spot",
+    "coinbase",
+    "gateio",
+    "kucoin",
+    "kraken",
+    "deribit",
+    "upbit",
+    "htx",
+    "bitstamp",
+    "bitfinex",
+  ],
   symbol: "BTCUSDT",
   windowDurations: [1, 3, 5, 10, 30, 60, 300],
   largeTradeThreshold: 50_000,
@@ -134,6 +154,12 @@ let liqEvents: LiqEvent[] = [];
 
 // Price tracking for flow × price
 let priceHistory: { time: number; price: number }[] = [];
+
+// Latest valid trade price per exchange (drives composite price + divergence).
+const latestPriceByExchange = new Map<
+  string,
+  { price: number; receivedAt: number; latency: number }
+>();
 
 // Data quality
 let droppedEvents = 0;
@@ -206,6 +232,7 @@ export function resetFlowState(): void {
   rawTradeRing.clear();
   largeBuyRing.clear();
   largeSellRing.clear();
+  latestPriceByExchange.clear();
 }
 
 // ─── Trade Ingestion ────────────────────────────────────────────────
@@ -226,6 +253,14 @@ export function ingestTrade(trade: NormalizedTrade): void {
 
   // Store raw trade
   rawTradeRing.push(trade);
+
+  // Latest price per exchange (composite + divergence inputs).
+  const adapterLatency = adapter?.getHealth().latency ?? -1;
+  latestPriceByExchange.set(trade.exchange, {
+    price: trade.price,
+    receivedAt: trade.receivedAt,
+    latency: adapterLatency,
+  });
 
   // Price tracking
   priceHistory.push({ time: trade.timestamp, price: trade.price });
@@ -547,6 +582,202 @@ function computeDataQuality(): DataQuality {
   };
 }
 
+// ─── Composite Price + Cross-Exchange Divergence ────────────────────
+
+/**
+ * Build the composite price from all LIVE exchanges.
+ *
+ * Robust to garbage: prices are median/MAD-outlier-rejected, weighted toward
+ * fresh + low-latency sources, and only genuinely-live exchanges contribute.
+ * There is NEVER a fabricated 0: if no live exchange reports a price the
+ * composite is null and the status is DEGRADED/UNAVAILABLE accordingly.
+ *
+ * Only USD/USDT-quoted venues feed the USD composite; non-USD venues (e.g.
+ * Upbit's KRW market) still contribute to trade flow but are never averaged
+ * into a USD price with a different currency.
+ */
+const NON_USD_QUOTED = new Set(["upbit"]);
+
+function computeComposite(): CompositePrice {
+  const now = Date.now();
+  const ingredients: CompositePrice["ingredients"] = [];
+
+  for (const adapter of adapters) {
+    const conn = adapter.getHealth();
+    const live = conn.status === "LIVE";
+    const row = latestPriceByExchange.get(adapter.id);
+    const usdQuoted = !NON_USD_QUOTED.has(adapter.id);
+    const price =
+      live && usdQuoted && row && Number.isFinite(row.price) && row.price > 0
+        ? row.price
+        : null;
+    ingredients.push({
+      exchange: adapter.id,
+      price,
+      latency: conn.latency,
+    });
+  }
+
+  const livePrices = ingredients
+    .filter((i) => i.price != null)
+    .map((i) => i.price as number);
+
+  if (livePrices.length === 0) {
+    return {
+      price: null,
+      contributingCount: 0,
+      rejectedOutliers: 0,
+      spreadPct: null,
+      freshnessMs: null,
+      status: "UNAVAILABLE",
+      ingredients,
+    };
+  }
+
+  // Outlier rejection: drop prices beyond 2x MAD below/above the median.
+  const sorted = [...livePrices].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  const absDev = sorted.map((p) => Math.abs(p - median)).sort((a, b) => a - b);
+  const mad = absDev[Math.floor(absDev.length / 2)] || 0;
+  const scale = (1.4826 * mad + 1e-9); // robust sigma (avoid div-by-0 on ties)
+  const threshold = scale * 2;
+
+  let rejected = 0;
+  const kept = ingredients.filter((i) => {
+    if (i.price == null) return false;
+    if (Math.abs(i.price - median) / scale > 2) {
+      rejected++;
+      return false;
+    }
+    return true;
+  });
+
+  if (kept.length === 0) {
+    // All were outliers — fall back to the median rather than inventing one.
+    return {
+      price: median,
+      contributingCount: 1,
+      rejectedOutliers: rejected,
+      spreadPct: 0,
+      freshnessMs: now - latestReceipt(ingredients),
+      status: "DEGRADED",
+      ingredients,
+    };
+  }
+
+  // Freshness/latency weighting: fresher + lower-latency sources weigh more.
+  let wSum = 0;
+  let wPrice = 0;
+  let oldestRcv = Infinity;
+  let newestRcv = 0;
+  for (const i of kept) {
+    const ageMs = now - (latestPriceByExchange.get(i.exchange)?.receivedAt ?? now);
+    const w = 1 / (1 + ageMs / 1000 + Math.max(0, i.latency) / 1000);
+    wPrice += (i.price as number) * w;
+    wSum += w;
+    oldestRcv = Math.min(oldestRcv, latestPriceByExchange.get(i.exchange)?.receivedAt ?? now);
+    newestRcv = Math.max(newestRcv, latestPriceByExchange.get(i.exchange)?.receivedAt ?? now);
+  }
+  const composite = wSum > 0 ? wPrice / wSum : median;
+  const spreadPct =
+    kept.length > 1 && composite > 0
+      ? ((Math.max(...kept.map((i) => i.price as number)) - Math.min(...kept.map((i) => i.price as number))) /
+          composite) *
+        100
+      : 0;
+
+  const contributingCount = kept.length;
+  let status: DataQualityStatus = "LIVE";
+  if (contributingCount === 1) status = "DEGRADED";
+  else if (newestRcv > 0 && now - newestRcv > POLL_STALE) status = "STALE";
+
+  return {
+    price: composite,
+    contributingCount,
+    rejectedOutliers: rejected,
+    spreadPct,
+    freshnessMs: newestRcv > 0 ? now - newestRcv : null,
+    status,
+    ingredients,
+  };
+}
+
+function latestReceipt(ingredients: CompositePrice["ingredients"]): number {
+  let max = 0;
+  for (const i of ingredients) {
+    const rcv = latestPriceByExchange.get(i.exchange)?.receivedAt ?? 0;
+    if (rcv > max) max = rcv;
+  }
+  return max;
+}
+
+/** Threshold constant mirroring the polling stale window. */
+const POLL_STALE = 15_000;
+
+/**
+ * Cross-exchange divergence measured against the composite. Only LIVE sources
+ * contribute; leading/lagging identify the extremes of the live set.
+ */
+function computeDivergence(composite: CompositePrice): ExchangeDivergence {
+  const ingredients = composite.ingredients.filter(
+    (i) => i.price != null && !NON_USD_QUOTED.has(i.exchange)
+  );
+  const referencePrice = composite.price;
+
+  if (referencePrice == null || ingredients.filter((i) => i.price != null).length < 2) {
+    return {
+      referencePrice,
+      maxDeviationPct: null,
+      deviationPct: null,
+      maxSpreadPct: null,
+      leading: null,
+      lagging: null,
+      contributingCount: ingredients.filter((i) => i.price != null).length,
+      status: "UNAVAILABLE",
+    };
+  }
+
+  // Build the live set that actually has a price.
+  const liveRows = ingredients
+    .filter((i) => i.price != null)
+    .map((i) => ({ exchange: i.exchange, price: i.price as number, pct: ((i.price as number) - referencePrice) / referencePrice }));
+
+  if (liveRows.length < 2) {
+    return {
+      referencePrice,
+      maxDeviationPct: null,
+      deviationPct: null,
+      maxSpreadPct: null,
+      leading: null,
+      lagging: null,
+      contributingCount: liveRows.length,
+      status: "DEGRADED",
+    };
+  }
+
+  let leading = liveRows[0];
+  let lagging = liveRows[0];
+  let maxPct = 0;
+  for (const r of liveRows) {
+    if (r.pct > leading.pct) leading = r;
+    if (r.pct < lagging.pct) lagging = r;
+    if (Math.abs(r.pct) > Math.abs(maxPct)) maxPct = r.pct;
+  }
+  const prices = liveRows.map((r) => r.price);
+  const maxSpreadPct = referencePrice > 0 ? ((Math.max(...prices) - Math.min(...prices)) / referencePrice) * 100 : null;
+
+  return {
+    referencePrice,
+    maxDeviationPct: Math.abs(maxPct) * 100,
+    deviationPct: maxPct * 100,
+    maxSpreadPct,
+    leading: { exchange: leading.exchange, pct: leading.pct * 100 },
+    lagging: { exchange: lagging.exchange, pct: lagging.pct * 100 },
+    contributingCount: liveRows.length,
+    status: composite.status === "LIVE" ? "LIVE" : "DEGRADED",
+  };
+}
+
 // ─── Snapshot Publication ───────────────────────────────────────────
 
 function publishSnapshot(): void {
@@ -560,6 +791,8 @@ function publishSnapshot(): void {
   const exchangeFlows = computeExchangeFlows();
   const analysis = computeFlowPriceAnalysis();
   const quality = computeDataQuality();
+  const composite = computeComposite();
+  const divergence = computeDivergence(composite);
 
   const currentPrice = priceHistory.length > 0 ? priceHistory[priceHistory.length - 1].price : 0;
   const lastTrade = rawTradeRing.peekLatest();
@@ -575,6 +808,8 @@ function publishSnapshot(): void {
     exchangeFlows,
     analysis,
     quality,
+    composite,
+    divergence,
     currentPrice,
     lastTradePrice: lastTrade?.price ?? 0,
   };

@@ -59,6 +59,7 @@ function Row({
 export function MarketStrengthPanel({ snap }: { snap: ScalpingSnapshot }) {
   const ms = snap.decision?.marketState;
   const futures = snap.futuresState;
+  const opts = snap.optionsState;
 
   const trend = feature(snap, "market-regime");
   const momentum = feature(snap, "micro-momentum");
@@ -110,6 +111,39 @@ export function MarketStrengthPanel({ snap }: { snap: ScalpingSnapshot }) {
           tone={takerBuy != null && takerBuy > 0.5 ? "long" : takerBuy != null ? "short" : "neutral"}
           ltr
         />
+
+        <div className="border-t border-line/40 pt-1">
+          <div className="mb-1 flex items-center gap-1.5">
+            <span className="text-2xs text-muted">الخيارات (Deribit)</span>
+            <span className={`text-2xs ${opts?.dataHealth.allLive ? "text-up-fg" : "text-muted"}`}>
+              {opts ? (opts.dataHealth.allLive ? "مباشر" : "متاح جزئيًا") : "غير متاح"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between rounded-panel border border-line bg-surface-2/40 px-3 py-2">
+            <Tip title="نسبة حجم البوت إلى الكول في خيارات BTC — فوق طبيعي = ميل وقائي/هبوطي.">
+              <span className="text-2xs text-muted">بوت/كول</span>
+            </Tip>
+            <span dir="ltr" className={`text-2xs font-bold ${num} ${opts?.putCallOiRatio != null && opts.putCallOiRatio > 0.8 ? "text-down-fg" : "text-zinc-300"}`}>
+              {opts?.putCallOiRatio != null ? opts.putCallOiRatio.toFixed(2) : "N/A"}
+            </span>
+          </div>
+          <div className="mt-2 flex items-center justify-between rounded-panel border border-line bg-surface-2/40 px-3 py-2">
+            <Tip title="انحراف التقلب: متوسط IV للبوت خارج النقد ناقص IV للكول (نقاط مئوية) — موجب = طلب حماية هبوطية.">
+              <span className="text-2xs text-muted">انحراف IV</span>
+            </Tip>
+            <span dir="ltr" className={`text-2xs font-bold ${num} ${opts?.skew25 != null && opts.skew25 > 0 ? "text-down-fg" : opts?.skew25 != null ? "text-up-fg" : "text-zinc-300"}`}>
+              {opts?.skew25 != null ? `${opts.skew25 > 0 ? "+" : ""}${opts.skew25.toFixed(1)}` : "N/A"}
+            </span>
+          </div>
+          <div className="mt-2 flex items-center justify-between rounded-panel border border-line bg-surface-2/40 px-3 py-2">
+            <Tip title="التقلب الضمني للـATM (٪) — مستوى الريغيم الحالي.">
+              <span className="text-2xs text-muted">تقلب ATM</span>
+            </Tip>
+            <span dir="ltr" className={`text-2xs font-bold ${num} text-zinc-300`}>
+              {opts?.atmIv != null ? `${opts.atmIv.toFixed(1)}%` : "N/A"}
+            </span>
+          </div>
+        </div>
       </div>
 
       <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">

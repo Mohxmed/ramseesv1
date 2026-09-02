@@ -12,6 +12,7 @@ import {
   flowLiquidation,
   flowPriceResolution,
 } from "./flow";
+import { optionsPositioning, optionsVolatility } from "./options";
 
 /**
  * Feature Engine — the 10 micro-scalping variables.
@@ -470,6 +471,21 @@ export const FEATURE_REGISTRY: FeatureRegistryItem[] = [
     description: "استجابة السعر لتدفق الأوامر (تأكيد/امتصاص/تباعد/انجراف).",
     unit: "",
     compute: flowPriceResolution,
+  },
+  // ── Deribit Options features ───────────────────────────────────────
+  {
+    key: "options-positioning",
+    label: "الخيارات: تموضع",
+    description: "تموضع المشتقات عبر خيارات Deribit (نسبة بوت/كول + انحراف + IV).",
+    unit: "",
+    compute: optionsPositioning,
+  },
+  {
+    key: "options-vol",
+    label: "تقلب الخيارات",
+    description: "مستوى التقلب الضمني للـATM (ريغيم، وليس اتجاهًا).",
+    unit: "%",
+    compute: optionsVolatility,
   },
 ];
 

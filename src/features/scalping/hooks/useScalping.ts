@@ -140,6 +140,7 @@ export function useScalping(): ScalpingSnapshot {
         overview: cmd.overview,
         futures: cmd.futures,
         futuresState: cmd.futuresState,
+        optionsState: cmd.optionsState ?? null,
         marketState: cmd.marketState,
         analysis30m: cmd.analysis30m as SupportResistanceResult | null,
         liquidity: cmd.liquidity,
@@ -287,6 +288,7 @@ export function useScalping(): ScalpingSnapshot {
           stale: cmd.futuresWsStale,
           latency: cmd.futuresWsLatency,
         },
+        optionsState: cmd.optionsState ?? null,
         flow: flowView,
         flowLatest,
       });

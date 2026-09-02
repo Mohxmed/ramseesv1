@@ -60,6 +60,8 @@ export const SCALPING_CONFIG = {
     "flow-large-trades": { weight: 0.6, family: "flow" as FeatureFamily },
     "flow-liquidation": { weight: 0.5, family: "positioning" as FeatureFamily },
     "flow-price": { weight: 0.9, family: "flow" as FeatureFamily },
+    "options-positioning": { weight: 0.5, family: "positioning" as FeatureFamily },
+    "options-vol": { weight: 0.3, family: "price-action" as FeatureFamily },
   } as Record<string, { weight: number; family: FeatureFamily }>,
 
   /** Per-family aggregate weights (also configurable). */

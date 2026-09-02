@@ -60,6 +60,58 @@ export type ExchangeAdapter = {
   onTrade: ((trade: NormalizedTrade) => void) | null;
 };
 
+// ─── Data-Quality / Availability ────────────────────────────────────
+
+/**
+ * Per-value data quality state shown in the UI. `UNAVAILABLE` means the data
+ * item genuinely cannot be provided (no stream, not supported upstream,
+ * permission-restricted) and is DISPLAYED AS N/A — it is never mocked or
+ * zero-filled. Numeric metrics are always accompanied by an explicit
+ * availability so the UI can render N/A instead of a fabricated number.
+ */
+export type DataQualityStatus =
+  | "LIVE" // fresh, real value
+  | "DEGRADED" // real but delayed / partial / reduced coverage
+  | "STALE" // real but past its freshness window
+  | "DISCONNECTED" // the feed is down
+  | "UNAVAILABLE"; // genuinely unsupported / no source (rendered N/A)
+
+/** A value with an explicit availability state and N/A-able payload. */
+export type AvailableValue<T> = {
+  value: T | null; // null => N/A (never a fabricated 0)
+  status: DataQualityStatus;
+  /** Exchange (source id) the value came from, for explainability. */
+  source: string | null;
+  /** Local receipt ms; null while never observed. */
+  receivedAt: number | null;
+};
+
+// ─── Exchange Divergence ────────────────────────────────────────────
+
+/**
+ * Cross-exchange price divergence for the symbol. Computed over the currently
+ * LIVE set of exchanges only (disconnected/unavailable exchanges are excluded,
+ * never averaged in as 0). `leading`/`lagging` identify the most-ahead /
+ * most-behind space among the LIVE set based on skew-corrected latency.
+ */
+export type ExchangeDivergence = {
+  /** Composite (weighted) reference price the divergence is measured against. */
+  referencePrice: number | null;
+  /** Max % deviation of any live exchange from the composite (0 if <2 live). */
+  maxDeviationPct: number | null;
+  /** (price - composite) as a fraction; positive = trading above composite. */
+  deviationPct: number | null;
+  /** Widest bid/ask spread % among live exchanges. */
+  maxSpreadPct: number | null;
+  /** Exchange currently trading highest above the composite. */
+  leading: { exchange: string; pct: number } | null;
+  /** Exchange currently trading lowest below the composite. */
+  lagging: { exchange: string; pct: number } | null;
+  /** Number of live exchanges contributing (>=2 needed for a real divergence). */
+  contributingCount: number;
+  status: DataQualityStatus;
+};
+
 // ─── Exchange Connection State ───────────────────────────────────────
 
 export type ExchangeConnection = {
@@ -225,9 +277,42 @@ export type MarketFlowState = {
   // Data quality
   quality: DataQuality;
 
+  // Composite price + cross-exchange divergence
+  composite: CompositePrice;
+  divergence: ExchangeDivergence;
+
   // Current price (from flow data)
   currentPrice: number;
   lastTradePrice: number;
+};
+
+// ─── Composite Price ────────────────────────────────────────────────
+
+/**
+ * Composite (synthetic) price derived from all LIVE exchanges. Built with
+ * freshness weighting, statistical outlier rejection and disconnect-exclusion:
+ *   - Each contributing exchange contributes its latest trade price.
+ *   - Prices beyond a MAD/z threshold from the median are discarded as outliers.
+ *   - Weights favour fresher / lower-latency exchanges.
+ * `contributingCount` is the number of LIVE exchanges actually used; when fewer
+ * than two are live the composite is just the freshest single price (and
+ * `status` reflects the reduced confidence). No exchange is ever averaged in as
+ * 0 when it has no live price.
+ */
+export type CompositePrice = {
+  /** The composite price; null only when no live exchange has a price. */
+  price: number | null;
+  /** Number of live exchanges with a real price contributing. */
+  contributingCount: number;
+  /** Number of live exchanges that had a price but were rejected as outliers. */
+  rejectedOutliers: number;
+  /** Spread of contributing prices as % of composite (0 if single source). */
+  spreadPct: number | null;
+  /** ms since the most recent ingredient price was received. */
+  freshnessMs: number | null;
+  status: DataQualityStatus;
+  /** Per-exchange ingredient prices (for explainability). */
+  ingredients: { exchange: string; price: number | null; latency: number }[];
 };
 
 // ─── Flow Engine Config ─────────────────────────────────────────────

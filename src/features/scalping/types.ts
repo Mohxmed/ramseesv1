@@ -239,6 +239,8 @@ export type ScalpingSnapshot = {
   /** Unified real-time futures state + feed liveness for the UI panels. */
   futuresState?: FuturesState | null;
   futuresFeed?: { live: boolean; stale: boolean; latency: number | null };
+  /** Unified Deribit options state (OI/IV/PCR/skew/max pain) for the UI panels. */
+  optionsState?: OptionsState | null;
   /**
    * Real-Time AGGR Flow snapshot — multi-exchange trade flow state computed by
    * engine.ts. Added as-is, populated by the hook. Undefined while the flow
@@ -341,6 +343,7 @@ import type {
   OrderFlowData,
 } from "../bitcoin/types";
 import type { FuturesState } from "../bitcoin/futures/types";
+import type { OptionsState } from "../bitcoin/options/types";
 import type { LiquidityAnalysis } from "../bitcoin/analysis";
 import type { SupportResistanceResult } from "../bitcoin/analysis/types";
 import type { MarketStructureAnalysis } from "../bitcoin/analysis";
@@ -361,6 +364,8 @@ export type ScalpingContext = {
   futures: FuturesContext | null;
   /** Unified real-time futures state (OI + positioning + liquidations). */
   futuresState: FuturesState | null;
+  /** Unified Deribit options state (OI/IV/PCR/skew/max pain). */
+  optionsState?: OptionsState | null;
   marketState: MarketState | null;
   analysis30m: SupportResistanceResult | null;
   liquidity: LiquidityAnalysis | null;

@@ -45,6 +45,9 @@ import {
 } from "../constants";
 import { buildFuturesState } from "../futures";
 import type { FuturesState, OiSample } from "../futures/types";
+import { DeribitOptionsProvider } from "../options/provider";
+import { buildOptionsState } from "../options";
+import type { OptionsState } from "../options/types";
 import type {
   BtcCandle,
   BtcTimeframe,
@@ -68,6 +71,9 @@ type DataState =
   | { status: "loading" }
   | { status: "error"; message: string }
   | { status: "ready" };
+
+/** Shared Deribit options poller (single network consumer for all consumers). */
+const optionsProvider = new DeribitOptionsProvider();
 
 export function useBitcoinPipeline() {
   const [timeframe, setTimeframe] = useState<BtcTimeframe>(
@@ -99,6 +105,8 @@ export function useBitcoinPipeline() {
   const [liveUpdatedAt, setLiveUpdatedAt] = useState<number | null>(null);
   // Unified futures state (OI + positioning + liquidations + price/OI + health).
   const [futuresState, setFuturesState] = useState<FuturesState | null>(null);
+  // Deribit options state (OI per strike, IV, PCR, skew, max pain).
+  const [optionsState, setOptionsState] = useState<OptionsState | null>(null);
   // OI sampling ring (no live OI WS; sampled via REST on the fast cadence).
   const oiSamplesRef = useRef<OiSample[]>([]);
   // RAW positioning inputs captured from the slow-tier REST — null when the
@@ -535,6 +543,15 @@ export function useBitcoinPipeline() {
     };
   }, [fetchSlow, fetchFast]);
 
+  // Deribit options poller (started once; publishes raw snapshots → OptionsState).
+  useEffect(() => {
+    optionsProvider.onSnapshot((raw) => {
+      setOptionsState(buildOptionsState({ raw, nowMs: Date.now() }));
+    });
+    optionsProvider.start();
+    return () => optionsProvider.stop();
+  }, []);
+
   const refresh = useCallback(() => {
     fetchFast();
     fetchSlow();
@@ -560,6 +577,7 @@ export function useBitcoinPipeline() {
     wsHealth: liveFeed.wsHealth,
     futures,
     futuresState,
+    optionsState,
     futuresWsLive: liveFeed.futuresLive,
     futuresWsStale: liveFeed.futuresStale,
     futuresWsLatency: liveFeed.futuresLatency,
