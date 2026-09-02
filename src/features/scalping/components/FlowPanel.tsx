@@ -15,7 +15,7 @@ import {
   type Tone,
 } from "./terminal/TradingPrimitives";
 import { ThemeGate } from "@/components/ui/mui-theme";
-import { siBinance, siCoinbase, siOkx } from "simple-icons";
+import { Tip } from "./terminal/TerminalTip";
 
 /**
  * Real-Time AGGR Flow Window — matches the terminal's shared presentation
@@ -134,63 +134,73 @@ const STATUS_META: Record<string, { label: string; tone: Tone }> = {
   ERROR: { label: "خطأ", tone: "warn" },
 };
 
-const LOGO_META: Record<string, { hex: string; path: string; title: string }> = {
-  binance_futures: siBinance,
-  binance_spot: siBinance,
-  coinbase: siCoinbase,
-  okx: siOkx,
+/** Platform letter marks — short code + brand colour so identity reads at a glance. */
+const PLATFORM: Record<string, { code: string; bg: string; fg: string }> = {
+  binance_futures: { code: "BN", bg: "#F0B90B", fg: "#1a1200" },
+  binance_spot: { code: "BN", bg: "#F0B90B", fg: "#1a1200" },
+  bybit: { code: "BY", bg: "#F5A900", fg: "#1a1200" },
+  bitget: { code: "BG", bg: "#00AEEC", fg: "#06222a" },
+  okx: { code: "OK", bg: "#1a1a1a", fg: "#ffffff" },
+  mexc: { code: "MX", bg: "#1E7DF0", fg: "#ffffff" },
+  hyperliquid: { code: "HL", bg: "#E2E8F0", fg: "#0b1220" },
+  coinbase: { code: "CB", bg: "#0052FF", fg: "#ffffff" },
 };
 
-/** Brand logos whose official hex is too dark for the dark theme get an explicit light fill. */
-const LOGO_FILL: Record<string, string> = {
-  okx: "#ffffff",
-};
+/** Fall back to the label short-form when a platform isn't in the map above. */
+function platformCode(exchange: string): { code: string; bg: string; fg: string } {
+  const p = PLATFORM[exchange];
+  if (p) return p;
+  return { code: (ADAPTER_LABELS[exchange] ?? exchange).slice(0, 2).toUpperCase(), bg: "#5a6472", fg: "#ffffff" };
+}
 
-/** Letter fallback for platforms with no brand-logo asset — coloured with their real brand colour so the identity reads at a glance. */
-const LOGO_LETTER: Record<string, { text: string; bg: string; fg: string }> = {
-  bybit: { text: "BY", bg: "#F5A900", fg: "#1a1200" },
-  bitget: { text: "BG", bg: "#00AEEC", fg: "#06222a" },
-  mexc: { text: "MX", bg: "#1E7DF0", fg: "#ffffff" },
-  hyperliquid: { text: "HL", bg: "#E2E8F0", fg: "#0b1220" },
-};
+/** One labelled line inside the platform tooltip. */
+function TipRow({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="flex items-center justify-between gap-3">
+      <span className="text-muted">{label}</span>
+      <span dir="ltr" className="font-semibold text-zinc-100" style={mono}>{value}</span>
+    </span>
+  );
+}
 
 function GatewayRow({ conn }: { conn: ExchangeConnection }) {
   const meta = STATUS_META[conn.status] ?? { label: conn.status, tone: "quiet" as Tone };
   const isLive = conn.status === "LIVE";
-  const logo = LOGO_META[conn.exchange];
-  const letter = LOGO_LETTER[conn.exchange];
-  const name = conn.label || ADAPTER_LABELS[conn.exchange] || conn.exchange;
+  const p = platformCode(conn.exchange);
+  const fullName = conn.label || ADAPTER_LABELS[conn.exchange] || conn.exchange;
+  const dim = !isLive;
+
+  const tooltip = (
+    <div className="flex min-w-[170px] flex-col gap-1 text-[11px]">
+      <span className="mb-0.5 flex items-center gap-1.5 font-bold text-zinc-100">
+        {fullName}
+        <span className="font-medium normal-case text-muted">{meta.label}</span>
+      </span>
+      <TipRow label="الاستجابة" value={conn.latency >= 0 ? `${conn.latency}ms` : "—"} />
+      <TipRow label="أحداث" value={String(conn.eventCount)} />
+      <TipRow label="آخر حدث" value={conn.lastEvent ? hhmmss(conn.lastEvent) : "—"} />
+      <TipRow label="الاتصال" value={conn.wsOpen ? "مفتوح" : "مغلق"} />
+      {conn.reconnectCount > 0 ? <TipRow label="إعادة الاتصال" value={String(conn.reconnectCount)} /> : null}
+    </div>
+  );
+
   return (
     <div
-      title={`${name} — ${meta.label} · ${conn.latency >= 0 ? `${conn.latency}ms` : "لا بيانات"}`}
       dir="rtl"
-      className="flex items-center justify-between gap-2 rounded-panel border border-line bg-surface-1/30 px-2.5 py-2"
+      className={`flex items-center justify-between gap-2 rounded-panel border border-line bg-surface-1/30 px-2.5 py-2 transition-opacity ${dim ? "opacity-55" : ""}`}
     >
-      {/* Platform mark — brand logo (or brand-coloured letter) on the right */}
-      <span className="relative flex shrink-0 items-center">
-        {logo ? (
-          <svg
-            viewBox="0 0 24 24"
-            width={20}
-            height={20}
-            fill={LOGO_FILL[conn.exchange] ?? logo.hex}
-            aria-hidden="true"
-          >
-            <path d={logo.path} />
-          </svg>
-        ) : (
+      <Tip title={tooltip}>
+        <span className="flex items-center gap-2">
           <span
-            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] text-[9px] font-extrabold leading-none"
-            style={{ backgroundColor: letter.bg, color: letter.fg }}
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] text-[10px] font-extrabold leading-none"
+            style={{ backgroundColor: p.bg, color: p.fg }}
           >
-            {letter.text}
+            {p.code}
           </span>
-        )}
-        <span className="absolute -right-2 -top-2">
           <Dot tone={meta.tone} pulse={isLive} />
         </span>
-      </span>
-      <span className="shrink-0 text-2xs text-muted" dir="ltr" style={mono}>
+      </Tip>
+      <span className="shrink-0 text-2xs text-zinc-300" dir="ltr" style={mono}>
         {conn.latency >= 0 ? `${conn.latency}ms` : "—"}
       </span>
     </div>
@@ -220,7 +230,7 @@ function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
     {
       label: "حدث/ث",
       tip: "عدد أحداث التداول المستلمة في الثانية الواحدة",
-      value: `${state.quality.eventRate} e/s`,
+      value: `${state.quality.eventRate}`,
       tone: "neutral",
     },
   ];
@@ -238,17 +248,17 @@ function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
         </SnippetRow>
       }
     >
-      {/* Summary metrics — stacked (label above value) inside the panel frame */}
-      <div className="grid grid-cols-3 gap-2">
+      {/* Summary metrics — compact stacked (label above value) inside the panel frame */}
+      <div className="grid grid-cols-3 gap-1.5">
         {tiles.map((t) => (
           <div
             key={t.label}
             title={t.tip}
             dir="rtl"
-            className="flex flex-col items-center justify-center gap-1.5 rounded-panel border border-line bg-surface-1/30 px-2 py-3 text-center"
+            className="flex flex-col items-center justify-center gap-1 rounded-panel border border-line bg-surface-1/30 px-2 py-2 text-center"
           >
             <span className="text-3xs font-semibold text-muted">{t.label}</span>
-            <span className={`text-xl font-extrabold leading-none ${TONE_TEXT[t.tone]}`} dir="ltr" style={mono}>
+            <span className={`text-lg font-extrabold leading-none ${TONE_TEXT[t.tone]}`} dir="ltr" style={mono}>
               {t.value}
             </span>
           </div>
