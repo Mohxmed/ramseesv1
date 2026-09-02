@@ -1,27 +1,114 @@
 /**
- * Kraken Spot Adapter (polled REST)
+ * Kraken Spot Adapter (WebSocket primary + REST fallback)
  *
- * Endpoint: GET https://api.kraken.com/0/public/Trades?pair=XBTUSDT
- * Response: { result: { "XBTUSDT": [ [price, volume, time(sec), side, order, misc] ] } }
+ * WebSocket v2: wss://ws.kraken.com/v2
+ *   Subscribe: { method: "subscribe", params: { channel: "trade",
+ *                symbol: ["BTC/USD"], snapshot: true } }
+ *   Ack:       { method: "subscribe", success: true, result: {...} }
+ *   Update:    { channel: "trade", type: "update", data: [ { symbol, side,
+ *                price, qty, trade_id, timestamp (RFC3339) } ] }
+ *   Ping:      { method: "ping" }
  *
- * Kraken symbol namespace: BTC -> XBT. The pair must also be USDT-quoted.
+ * REST fallback: GET https://api.kraken.com/0/public/Trades?pair=XBTUSDT
+ *
+ * Kraken v2 uses "BTC/USD" (not "XBT" / not "USDT-quoted").
  */
 
 import type { NormalizedTrade } from "../types";
-import { PollingExchangeAdapter } from "./polling";
+import { HybridExchangeAdapter } from "./hybrid";
 
-export class KrakenAdapter extends PollingExchangeAdapter {
+const WS_URL = "wss://ws.kraken.com/v2";
+
+export class KrakenAdapter extends HybridExchangeAdapter {
   readonly id = "kraken";
   readonly label = "Kraken";
   readonly market = "spot" as const;
 
+  /** Kraken v2 pair is "BTC/USD" (engine passes "BTCUSDT"). */
   protected pairFor(symbol: string): string {
-    const q = symbol.replace("BTC", "XBT");
+    if (symbol.includes("/")) return symbol;
+    return `${symbol.replace(/USDT$/, "")}/USD`;
+  }
+
+  protected getWsUrl(): string {
+    return WS_URL;
+  }
+
+  protected getSubscribeMsg(symbol: string): unknown {
+    return {
+      method: "subscribe",
+      params: { channel: "trade", symbol: [this.pairFor(symbol)], snapshot: true },
+    };
+  }
+
+  protected getUnsubscribeMsg(symbol: string): unknown {
+    return {
+      method: "unsubscribe",
+      params: { channel: "trade", symbol: [this.pairFor(symbol)] },
+    };
+  }
+
+  protected getPingMsg(): unknown {
+    return { method: "ping" };
+  }
+
+  protected getPingIntervalMs(): number {
+    return 30_000;
+  }
+
+  protected handleMessage(data: unknown): void {
+    const msg = data as { method?: string; success?: boolean; channel?: string; type?: string; data?: Record<string, unknown>[] };
+    if (msg.method === "subscribe" || msg.method === "unsubscribe") {
+      if (msg.success) this.confirmSubscription();
+      return;
+    }
+    if (msg.method === "pong") return;
+    if (msg.channel !== "trade" || msg.type !== "update") return;
+    const trades = this.normalizeTrade(msg.data);
+    if (trades.length) this.markWsTrade();
+    for (const t of trades) this.emitTrade(t);
+  }
+
+  normalizeTrade(data: unknown): NormalizedTrade[] {
+    const list = Array.isArray(data) ? data : [];
+    const now = Date.now();
+    const out: NormalizedTrade[] = [];
+    for (const t of list) {
+      const rec = t as { symbol?: string; side?: string; price?: number; qty?: number; trade_id?: string; timestamp?: string };
+      const price = Number(rec.price ?? NaN);
+      const qty = Number(rec.qty ?? NaN);
+      const ts = rec.timestamp ? Date.parse(rec.timestamp) : NaN;
+      if (!Number.isFinite(price) || !Number.isFinite(qty) || price <= 0) continue;
+      out.push({
+        exchange: this.id,
+        market: this.market,
+        symbol: rec.symbol ?? this.currentSymbol(),
+        timestamp: Number.isFinite(ts) ? ts : now,
+        receivedAt: now,
+        price,
+        quantity: qty,
+        notional: price * qty,
+        side: rec.side === "sell" || rec.side === "s" ? "sell" : "buy",
+        tradeId: String(rec.trade_id ?? `${rec.symbol}_${ts}`),
+        liquidation: false,
+      });
+    }
+    return out;
+  }
+
+  normalizeLiquidation(): NormalizedTrade[] {
+    return [];
+  }
+
+  // ── REST fallback (XBT-quoted REST namespace) ─────────────────────
+
+  protected pairForRest(symbol: string): string {
+    const q = symbol.replace(/BTC/, "XBT");
     return q.includes("/") ? q.replace("/", "") : q.replace("USDT", "/USDT");
   }
 
   protected getTradesUrl(symbol: string): string {
-    return `https://api.kraken.com/0/public/Trades?pair=${this.pairFor(symbol)}`;
+    return `https://api.kraken.com/0/public/Trades?pair=${this.pairForRest(symbol)}`;
   }
 
   protected parseTrades(json: unknown, symbol: string): NormalizedTrade[] {
@@ -29,8 +116,9 @@ export class KrakenAdapter extends PollingExchangeAdapter {
     const result = body?.result ?? {};
     let rows: unknown[] = [];
     for (const key of Object.keys(result)) {
-      if (Array.isArray(result[key]) && result[key].length && Array.isArray(result[key][0])) {
-        rows = result[key] as unknown[];
+      const val = result[key];
+      if (Array.isArray(val) && val.length && Array.isArray(val[0])) {
+        rows = val as unknown[];
         break;
       }
     }
@@ -58,13 +146,5 @@ export class KrakenAdapter extends PollingExchangeAdapter {
       });
     }
     return out;
-  }
-
-  normalizeTrade(data: unknown): NormalizedTrade[] {
-    return this.parseTrades(data, "");
-  }
-
-  normalizeLiquidation(): NormalizedTrade[] {
-    return [];
   }
 }

@@ -1,9 +1,17 @@
 /**
- * Upbit Spot Adapter (polled REST)
+ * Upbit Spot Adapter (WebSocket primary + REST fallback)
  *
- * Endpoint: GET https://api.upbit.com/v1/trades/ticks?market=KRW-BTC&count=50
- * Response: [ { market, trade_date, trade_time, trade_price, trade_volume,
- *               ask_bid: "ASK"|"BID", timestamp(ms) } ]
+ * WebSocket: wss://api.upbit.com/websocket/v1
+ *   Subscribe is a JSON *array* (Upbit convention) — the whole array is one
+ *   message sent on open:
+ *     [ { ticket: "<uuid>" }, { type: "trade", codes: ["KRW-BTC"],
+ *       is_only_realtime: true }, { format: "DEFAULT" } ]
+ *   Trade message: { type: "trade", code: "KRW-BTC", trade_price,
+ *                    trade_volume, ask_bid: "ASK"|"BID",
+ *                    sequential_id, trade_timestamp(ms) }
+ *   ask_bid "ASK" => sell, "BID" => buy.
+ *
+ * REST fallback: GET https://api.upbit.com/v1/trades/ticks?market=KRW-BTC&count=50
  *
  * Upbit is a KRW-quoted, SPOT-ONLY venue. The quoted symbol must be mapped to a
  * KRW market (KRW-BTC). This is labelled spot-flow, never treated as an
@@ -11,16 +19,89 @@
  */
 
 import type { NormalizedTrade } from "../types";
-import { PollingExchangeAdapter } from "./polling";
+import { HybridExchangeAdapter } from "./hybrid";
 
-export class UpbitAdapter extends PollingExchangeAdapter {
+const WS_URL = "wss://api.upbit.com/websocket/v1";
+
+export class UpbitAdapter extends HybridExchangeAdapter {
   readonly id = "upbit";
   readonly label = "Upbit";
   readonly market = "spot" as const;
 
+  private ticket = `ramsees-${Math.random().toString(36).slice(2, 12)}`;
+
   protected marketFor(symbol: string): string {
     return `KRW-${symbol.replace(/USDT$/, "")}`;
   }
+
+  protected getWsUrl(): string {
+    return WS_URL;
+  }
+
+  protected getSubscribeMsg(symbol: string): unknown {
+    return [
+      { ticket: this.ticket },
+      { type: "trade", codes: [this.marketFor(symbol)], is_only_realtime: true },
+      { format: "DEFAULT" },
+    ];
+  }
+
+  protected getUnsubscribeMsg(symbol: string): unknown {
+    return [
+      { ticket: this.ticket },
+      { type: "unsubscribe", codes: [this.marketFor(symbol)] },
+      { format: "DEFAULT" },
+    ];
+  }
+
+  protected getPingMsg(): unknown {
+    return null;
+  }
+
+  protected getPingIntervalMs(): number {
+    return 0;
+  }
+
+  protected handleMessage(data: unknown): void {
+    const msg = data as { type?: string; code?: string };
+    if (msg.type !== "trade") return;
+    const trades = this.normalizeTrade(data);
+    if (trades.length) this.markWsTrade();
+    for (const t of trades) this.emitTrade(t);
+  }
+
+  normalizeTrade(data: unknown): NormalizedTrade[] {
+    const rec = (data ?? {}) as {
+      code?: string; trade_price?: number; trade_volume?: number; timestamp?: number;
+      trade_timestamp?: number; ask_bid?: string; sequential_id?: string | number;
+    };
+    const price = Number(rec.trade_price ?? NaN);
+    const qty = Number(rec.trade_volume ?? NaN);
+    const ts = Number(rec.trade_timestamp ?? rec.timestamp ?? 0);
+    if (!Number.isFinite(price) || !Number.isFinite(qty) || price <= 0) return [];
+    const now = Date.now();
+    const symbol = rec.code ?? this.currentSymbol();
+    const finalTs = ts > 1e12 ? ts : ts * 1000;
+    return [{
+      exchange: this.id,
+      market: this.market,
+      symbol,
+      timestamp: finalTs,
+      receivedAt: now,
+      price,
+      quantity: qty,
+      notional: price * qty,
+      side: rec.ask_bid === "ASK" ? "sell" : "buy",
+      tradeId: String(rec.sequential_id ?? `${symbol}_${finalTs}`),
+      liquidation: false,
+    }];
+  }
+
+  normalizeLiquidation(): NormalizedTrade[] {
+    return [];
+  }
+
+  // ── REST fallback ─────────────────────────────────────────────────
 
   protected getTradesUrl(symbol: string): string {
     return `https://api.upbit.com/v1/trades/ticks?market=${this.marketFor(symbol)}&count=50`;
@@ -28,14 +109,14 @@ export class UpbitAdapter extends PollingExchangeAdapter {
 
   protected parseTrades(json: unknown, symbol: string): NormalizedTrade[] {
     const list = Array.isArray(json) ? json : [];
-    const now = Date.now();
     const out: NormalizedTrade[] = [];
     for (const t of list) {
-      const rec = t as { trade_price?: number; trade_volume?: number; timestamp?: number; ask_bid?: string; sequential_id?: string };
+      const rec = t as { trade_price?: number; trade_volume?: number; timestamp?: number; ask_bid?: string; sequential_id?: string | number };
       const price = Number(rec.trade_price ?? NaN);
       const qty = Number(rec.trade_volume ?? NaN);
       const ts = Number(rec.timestamp ?? 0);
       if (!Number.isFinite(price) || !Number.isFinite(qty) || price <= 0) continue;
+      const now = Date.now();
       out.push({
         exchange: this.id,
         market: this.market,
@@ -51,13 +132,5 @@ export class UpbitAdapter extends PollingExchangeAdapter {
       });
     }
     return out;
-  }
-
-  normalizeTrade(data: unknown): NormalizedTrade[] {
-    return this.parseTrades(data, "");
-  }
-
-  normalizeLiquidation(): NormalizedTrade[] {
-    return [];
   }
 }

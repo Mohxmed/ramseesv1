@@ -711,7 +711,7 @@ function latestReceipt(ingredients: CompositePrice["ingredients"]): number {
   return max;
 }
 
-/** Threshold constant mirroring the polling stale window. */
+/** Threshold for considering a composite source fresh (aligned with the hybrid fallback window). */
 const POLL_STALE = 15_000;
 
 /**
