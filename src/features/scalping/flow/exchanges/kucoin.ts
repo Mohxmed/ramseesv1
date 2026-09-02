@@ -54,23 +54,37 @@ export class KucoinAdapter extends HybridExchangeAdapter {
   public override async connect(): Promise<void> {
     if (this.ws) return;
     this.startRestFallback();
+    // Resolve the token endpoint with a hard timeout so a hang never leaves the
+    // adapter suspended. If it fails we still leave the REST fallback running
+    // (data flows) and report the WS as best-effort.
+    let url: string | null = null;
     try {
-      const ep = await this.resolveEndpoint();
-      if (ep) this.resolvedUrl = ep;
+      url = await this.resolveEndpoint();
     } catch (err) {
       this.recordError(this.handlePollError(err));
+      return; // keep REST fallback, do not spin an invalid socket error-loop
     }
+    if (url) this.resolvedUrl = url;
     super.connect();
   }
 
   private async resolveEndpoint(): Promise<string | null> {
-    const res = await fetch("https://api.kucoin.com/api/v1/bullet-public", { method: "POST" });
-    if (!res.ok) return null;
-    const body = (await res.json()) as KucoinEndpoint;
-    const server = body?.data?.instanceServers?.[0];
-    const token = body?.data?.token;
-    if (!server?.endpoint || !token) return null;
-    return `${server.endpoint}?token=${token}`;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 5000);
+    try {
+      const res = await fetch("https://api.kucoin.com/api/v1/bullet-public", {
+        method: "POST",
+        signal: ctrl.signal,
+      });
+      if (!res.ok) return null;
+      const body = (await res.json()) as KucoinEndpoint;
+      const server = body?.data?.instanceServers?.[0];
+      const token = body?.data?.token;
+      if (!server?.endpoint || !token) return null;
+      return `${server.endpoint}?token=${token}`;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   protected getSubscribeMsg(symbol: string): unknown {

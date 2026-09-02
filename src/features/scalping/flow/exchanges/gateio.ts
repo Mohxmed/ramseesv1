@@ -77,7 +77,9 @@ export class GateioAdapter extends HybridExchangeAdapter {
   }
 
   normalizeTrade(data: unknown, symbol = this.currentSymbol()): NormalizedTrade[] {
-    const list = Array.isArray(data) ? data : [];
+    // Gate sends one trade object per update, but the REST history returns an
+    // array — so accept either shape defensively.
+    const list: unknown[] = Array.isArray(data) ? data : data && typeof data === "object" ? [data] : [];
     const now = Date.now();
     const out: NormalizedTrade[] = [];
     for (const t of list) {

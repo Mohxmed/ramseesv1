@@ -23,8 +23,12 @@ export class BitstampAdapter extends HybridExchangeAdapter {
   readonly label = "Bitstamp";
   readonly market = "spot" as const;
 
+  protected marketFor(symbol: string): string {
+    return symbol.replace(/USDT$/, "USD").toLowerCase();
+  }
+
   protected channelFor(symbol: string): string {
-    return `live_trades_${symbol.toLowerCase()}`;
+    return `live_trades_${this.marketFor(symbol)}`;
   }
 
   protected getWsUrl(): string {
@@ -90,7 +94,7 @@ export class BitstampAdapter extends HybridExchangeAdapter {
   // ── REST fallback ─────────────────────────────────────────────────
 
   protected getTradesUrl(symbol: string): string {
-    return `https://www.bitstamp.net/api/v2/transactions/${symbol.toLowerCase()}/`;
+    return `https://www.bitstamp.net/api/v2/transactions/${this.marketFor(symbol)}/`;
   }
 
   protected parseTrades(json: unknown, symbol: string): NormalizedTrade[] {

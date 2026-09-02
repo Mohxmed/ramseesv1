@@ -37,9 +37,15 @@ export const REST_FALLBACK_INTERVAL_MS = 4000;
 /** No successful REST response within this window → flagged not-connecting via REST. */
 export const REST_FAIL_MS = 15_000;
 
+/** REST fallback trades older than this are treated as stale history and dropped. */
+export const REST_FRESH_MS = 10_000;
+
 export abstract class HybridExchangeAdapter extends BaseExchangeAdapter {
   /** How often (ms) to poll the trades endpoint as a WS fallback. */
   protected restFallbackIntervalMs = REST_FALLBACK_INTERVAL_MS;
+
+  /** REST trades older than this many ms relative to receipt are deemed stale. */
+  protected restFreshMs = REST_FRESH_MS;
 
   /** URI of the public trades endpoint for a symbol (REST fallback). */
   protected abstract getTradesUrl(symbol: string): string;
@@ -56,6 +62,8 @@ export abstract class HybridExchangeAdapter extends BaseExchangeAdapter {
   private fetching = false;
   private lastWsTradeAt = 0;
   private lastRestSuccessAt = 0;
+  private lastRestEmittedTs = 0;
+  private lastRestEmittedSymbol = "";
   private consecutivePollFailures = 0;
 
   /** The symbol actually being fed (first subscribed symbol). */
@@ -125,8 +133,24 @@ export abstract class HybridExchangeAdapter extends BaseExchangeAdapter {
       // connection healthy even on an empty batch (zero trades is legit).
       this.consecutivePollFailures = 0;
       this.lastRestSuccessAt = Date.now();
-      // Only emit REST trades when the WS truly is not supplying data.
-      for (const t of trades) this.emitTrade(t);
+      // Only emit REST trades when the WS truly is not supplying data — and only
+      // the FRESH ones. REST "last N trades" endpoints echo old history on
+      // re-poll; feeding those into markTradeValid inflates the clock-skew
+      // estimate and produces huge reported latencies. We therefore drop any
+      // trade older than restFreshMs and dedupe by timestamp so the fallback
+      // reports live, low-latency data instead of a stale backlog.
+      const now = Date.now();
+      let maxTs = 0;
+      for (const t of trades) {
+        if (now - t.timestamp > this.restFreshMs) continue; // stale history
+        if (t.timestamp <= this.lastRestEmittedTs && symbol === this.lastRestEmittedSymbol) continue;
+        this.emitTrade(t);
+        if (t.timestamp > maxTs) maxTs = t.timestamp;
+      }
+      if (maxTs > 0) {
+        this.lastRestEmittedTs = maxTs;
+        this.lastRestEmittedSymbol = symbol;
+      }
     } catch (err) {
       this.consecutivePollFailures++;
       this.recordError(this.handlePollError(err));

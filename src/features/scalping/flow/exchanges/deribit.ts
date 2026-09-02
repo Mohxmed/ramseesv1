@@ -81,7 +81,8 @@ export class DeribitAdapter extends HybridExchangeAdapter {
     }
     // Ack for subscribe/unsubscribe carries the echoed channel string as `result`.
     if (typeof (data as { result?: unknown }).result === "string") {
-      this.confirmSubscription();
+      const result = (data as { result?: string }).result as string;
+      if (result.startsWith("trades.")) this.confirmSubscription();
     }
   }
 
