@@ -6,11 +6,13 @@
  *   POST https://api.kucoin.com/api/v1/bullet-public
  *   → { data: { token, instanceServers: [ { endpoint } ] } }
  *   The connect URL is `${endpoint}?token=${token}`.
- *   The handshake can be CORS-blocked in a browser. connect() therefore always
- *   opens the socket and the token URL is warmed/cached in the background, so
- *   the base reconnect loop self-heals onto the valid endpoint once available.
- *   The REST histories fallback (time in nanoseconds) is CORS-dependent too, so
- *   the WebSocket is the reliable data path in a browser.
+ *   The handshake is CORS-blocked in a browser, so it is proxied through the
+ *   same-origin /api/kucoin/token route (server fetches KuCoin, no CORS). The
+ *   client then opens the socket itself. connect() always opens the socket and
+ *   the token URL is warmed/cached in the background, so the base reconnect
+ *   loop self-heals onto the valid endpoint once available.
+ *   The REST histories fallback is also CORS-blocked and is proxied through
+ *   /api/kucoin/histories; the WebSocket is the primary data path.
  *
  *   Subscribe: { id, type: "subscribe", topic: "/market/match:BTC-USDT",
  *                privateChannel: false, response: true }
@@ -86,12 +88,26 @@ export class KucoinAdapter extends HybridExchangeAdapter {
   }
 
   private async resolveEndpoint(): Promise<string | null> {
+    // Same-origin proxy (server-side fetch bypasses browser CORS).
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 5000);
     try {
+      const res = await fetch("/api/kucoin/token", { signal: ctrl.signal, cache: "no-store" });
+      if (res.ok) {
+        const body = (await res.json()) as { endpoint?: string; token?: string };
+        if (body?.endpoint && body?.token) return `${body.endpoint}?token=${body.token}`;
+      }
+    } catch {
+      /* fall through to direct fetch (non-browser environments) */
+    } finally {
+      clearTimeout(timer);
+    }
+    const ctrl2 = new AbortController();
+    const timer2 = setTimeout(() => ctrl2.abort(), 5000);
+    try {
       const res = await fetch("https://api.kucoin.com/api/v1/bullet-public", {
         method: "POST",
-        signal: ctrl.signal,
+        signal: ctrl2.signal,
       });
       if (!res.ok) return null;
       const body = (await res.json()) as KucoinEndpoint;
@@ -100,7 +116,7 @@ export class KucoinAdapter extends HybridExchangeAdapter {
       if (!server?.endpoint || !token) return null;
       return `${server.endpoint}?token=${token}`;
     } finally {
-      clearTimeout(timer);
+      clearTimeout(timer2);
     }
   }
 
@@ -188,7 +204,9 @@ export class KucoinAdapter extends HybridExchangeAdapter {
   // ── REST fallback ─────────────────────────────────────────────────
 
   protected getTradesUrl(symbol: string): string {
-    return `https://api.kucoin.com/api/v1/market/histories?symbol=${this.pairFor(symbol)}`;
+    // Route through the same-origin proxy: KuCoin's histories endpoint is
+    // CORS-blocked in the browser, so the server performs the fetch.
+    return `/api/kucoin/histories?symbol=${this.pairFor(symbol)}`;
   }
 
   protected parseTrades(json: unknown, symbol: string): NormalizedTrade[] {
