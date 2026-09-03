@@ -243,6 +243,10 @@ export function ingestTrade(trade: NormalizedTrade): void {
   const latest = rawTradeRing.peekLatest();
   if (latest && latest.tradeId === trade.tradeId && latest.exchange === trade.exchange && Math.abs(latest.timestamp - trade.timestamp) < 100) {
     duplicateEvents++;
+    // Account the drop on the source adapter's health so monitoring shows the
+    // per-exchange dropped rate rather than a single global counter.
+    const dropAdapter = adapters.find((a) => a.id === trade.exchange);
+    if (dropAdapter?.recordDropped) dropAdapter.recordDropped();
     return;
   }
 
@@ -554,9 +558,11 @@ function computeDataQuality(): DataQuality {
   const totalCount = adapters.length;
   const coverage = `${liveCount}/${totalCount}`;
 
-  // Average latency only over LIVE connections with valid (non-negative, finite) latency.
-  const liveLatencies = conns.filter((c) => c.status === "LIVE" && c.latency >= 0 && Number.isFinite(c.latency)).map((c) => c.latency);
-  const avgLatency = liveLatencies.length > 0 ? liveLatencies.reduce((a, b) => a + b, 0) / liveLatencies.length : 0;
+  // Latency = fastest HEALTHY live source, NOT a mean. A plain average over
+  // live connections lets one slow/flatlined source (e.g. GT at 38s) drag the
+  // reported system latency up for everyone, even though the healthy feeds are
+  // sub-second. Fault isolation => show the best live feed's latency.
+  const latency = healthyLiveLatency() ?? 0;
   const eventRate = eventRateBuffer.length;
 
   const now = Date.now();
@@ -573,7 +579,7 @@ function computeDataQuality(): DataQuality {
     connectedCount: liveCount,
     totalCount,
     coverage,
-    latency: avgLatency,
+    latency,
     eventRate,
     droppedEvents,
     duplicateEvents,
@@ -598,29 +604,71 @@ function computeDataQuality(): DataQuality {
  */
 const NON_USD_QUOTED = new Set(["upbit"]);
 
+/**
+ * Fault isolation for the reference price: a single slow/stale/flatlined
+ * source must never skew the composite or drag down divergence. A source only
+ * counts toward the reference price when it is LIVE, has delivered fresh data,
+ * is USD/USDT-quoted, has a valid price AND is not carrying an excessive
+ * latency. Sources failing any check are excluded from the reference price and
+ * reported as non-contributing (they still feed trade flow/CVD independently).
+ */
+const PRICE_FRESH_MS = 2500; // trades freshness window for reference-price inclusion
+const PRICE_LATENCY_CAP_MS = 5000; // above this per-event latency a source is too slow to trust
+
+/** Live + fresh + low-latency + USD-quoted sources with a valid price (for composite/divergence). */
+function livePriceRows(): { exchange: string; price: number; receivedAt: number; latency: number }[] {
+  const now = Date.now();
+  const rows: { exchange: string; price: number; receivedAt: number; latency: number }[] = [];
+  for (const adapter of adapters) {
+    const conn = adapter.getHealth();
+    if (conn.status !== "LIVE") continue; // not feeding us right now
+    if (NON_USD_QUOTED.has(adapter.id)) continue; // not USD-comparable
+    const row = latestPriceByExchange.get(adapter.id);
+    if (!row || !Number.isFinite(row.price) || !(row.price > 0)) continue;
+    if (now - row.receivedAt > PRICE_FRESH_MS) continue; // stale — ignore for pricing
+    const lat = Number.isFinite(conn.latency) ? conn.latency : -1;
+    if (lat > PRICE_LATENCY_CAP_MS) continue; // excessive latency — ignore for pricing
+    rows.push({ exchange: adapter.id, price: row.price, receivedAt: row.receivedAt, latency: Math.max(0, lat) });
+  }
+  return rows;
+}
+
+/**
+ * Fastest HEALTHY live latency (fault-isolated): the smallest latency among
+ * LIVE sources that are fresh and not carrying excessive latency. This is the
+ * "system latency" that reflects the fastest live stream, not a mean that a
+ * single slow platform drags upward. Null when no healthy live source exists.
+ */
+function healthyLiveLatency(): number | null {
+  const now = Date.now();
+  let best: number | null = null;
+  for (const adapter of adapters) {
+    const conn = adapter.getHealth();
+    if (conn.status !== "LIVE") continue;
+    const lat = conn.latency;
+    if (!Number.isFinite(lat) || lat < 0) continue; // unknown latency — not a candidate
+    if (lat > PRICE_LATENCY_CAP_MS) continue; // too slow to call "healthy"
+    if (now - conn.receivedAt > PRICE_FRESH_MS) continue; // stale, not healthy
+    if (best === null || lat < best) best = lat;
+  }
+  return best;
+}
+
 function computeComposite(): CompositePrice {
   const now = Date.now();
+  const priceRows = livePriceRows();
   const ingredients: CompositePrice["ingredients"] = [];
 
   for (const adapter of adapters) {
-    const conn = adapter.getHealth();
-    const live = conn.status === "LIVE";
-    const row = latestPriceByExchange.get(adapter.id);
-    const usdQuoted = !NON_USD_QUOTED.has(adapter.id);
-    const price =
-      live && usdQuoted && row && Number.isFinite(row.price) && row.price > 0
-        ? row.price
-        : null;
+    const row = priceRows.find((r) => r.exchange === adapter.id);
     ingredients.push({
       exchange: adapter.id,
-      price,
-      latency: conn.latency,
+      price: row ? row.price : null,
+      latency: adapter.getHealth().latency,
     });
   }
 
-  const livePrices = ingredients
-    .filter((i) => i.price != null)
-    .map((i) => i.price as number);
+  const livePrices = priceRows.map((r) => r.price);
 
   if (livePrices.length === 0) {
     return {

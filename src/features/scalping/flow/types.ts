@@ -53,6 +53,12 @@ export type ExchangeAdapter = {
    */
   markTradeValid(trade: NormalizedTrade): void;
 
+  /** Record a locally-dropped (duplicate/stale) event for per-exchange monitoring. */
+  recordDropped?(): void;
+
+  /** Record a detected sequence gap in the trade stream. */
+  recordGap?(): void;
+
   /** Full per-exchange diagnostic state (authoritative for the UI). */
   getHealth(): ExchangeConnection;
 
@@ -133,6 +139,12 @@ export type ExchangeConnection = {
   /** Last real error message ("" if none). Not a placeholder. */
   lastError: string;
   subscribedSymbols: string[];
+  /** Rolling rate of valid trades delivered per second (0 = none yet). */
+  messagesPerSec: number;
+  /** Valid trades dropped locally as duplicates/stale during the session. */
+  droppedEvents: number;
+  /** Detected sequence gaps in the ingested trade stream for this exchange. */
+  sequenceGaps: number;
 };
 
 // ─── Flow Windows ───────────────────────────────────────────────────

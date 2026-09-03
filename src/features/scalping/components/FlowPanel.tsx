@@ -184,9 +184,12 @@ function GatewayRow({ conn }: { conn: ExchangeConnection }) {
         {fullName}
         <span className="font-medium normal-case text-muted">{meta.label}</span>
       </span>
-      <TipRow label="الاستجابة" value={conn.latency >= 0 ? `${conn.latency}ms` : "—"} />
+      <TipRow label="الاستجابة" value={conn.latency >= 0 ? `${conn.latency}ms` : "N/A"} />
+      <TipRow label="آخر تحديث" value={conn.receivedAt ? hhmmss(conn.receivedAt) : "N/A"} />
+      <TipRow label="حدث/ث" value={String(conn.messagesPerSec)} />
       <TipRow label="أحداث" value={String(conn.eventCount)} />
-      <TipRow label="آخر حدث" value={conn.lastEvent ? hhmmss(conn.lastEvent) : "—"} />
+      {conn.droppedEvents > 0 ? <TipRow label="مُسقَط" value={String(conn.droppedEvents)} /> : null}
+      {conn.sequenceGaps > 0 ? <TipRow label="فجوات التسلسل" value={String(conn.sequenceGaps)} /> : null}
       <TipRow label="الاتصال" value={conn.wsOpen ? "مفتوح" : "مغلق"} />
       {conn.reconnectCount > 0 ? <TipRow label="إعادة الاتصال" value={String(conn.reconnectCount)} /> : null}
     </div>
@@ -209,7 +212,7 @@ function GatewayRow({ conn }: { conn: ExchangeConnection }) {
         </span>
       </Tip>
       <span className="shrink-0 text-2xs text-zinc-300" dir="ltr" style={mono}>
-        {conn.latency >= 0 ? `${conn.latency}ms` : "—"}
+        {conn.latency >= 0 ? `${conn.latency}ms` : "N/A"}
       </span>
     </div>
   );
@@ -218,8 +221,15 @@ function GatewayRow({ conn }: { conn: ExchangeConnection }) {
 function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
   const { connections, state } = snap;
   const live = connections.filter((c) => c.status === "LIVE");
-  const liveLat = live.filter((c) => c.latency >= 0);
-  const avgLatency = liveLat.length > 0 ? Math.round(liveLat.reduce((a, b) => a + b.latency, 0) / liveLat.length) : null;
+  // Fault-isolated aggregate latency: fastest HEALTHY live source. A plain mean
+  // lets one slow/flatlined platform (e.g. GT at 38s) drag the reported
+  // response time up for everyone — here we ignore stale/too-slow sources and
+  // report the best live feed's latency instead.
+  const now = snap.state.timestamp; // derived from the snapshot → render-pure
+  const healthyLat = live
+    .filter((c) => Number.isFinite(c.latency) && c.latency >= 0 && c.latency <= 5000 && now - c.receivedAt <= 2500)
+    .map((c) => c.latency);
+  const avgLatency = healthyLat.length > 0 ? Math.min(...healthyLat) : null;
   const overallTone: Tone = live.length > 0 ? "good" : "warn";
 
   const tiles: { label: string; tip: string; value: string; tone: Tone }[] = [
@@ -231,7 +241,7 @@ function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
     },
     {
       label: "الاستجابة",
-      tip: "متوسط زمن وصول البيانات (Latency) عبر المنصات المتصلة، بالمللي ثانية",
+      tip: "زمن استجابة أسرع مصدر حي سليم (Fault-Isolated) — يستبعد المصادر البطيئة/المجمدة حتى لا تسحب أوقات استجابة المنصات السريعة — يظهر N/A عند عدم وجود مصدر حي",
       value: avgLatency !== null ? `${avgLatency}ms` : "N/A",
       tone: live.length > 0 ? "good" : "neutral",
     },

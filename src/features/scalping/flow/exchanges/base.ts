@@ -47,6 +47,13 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
   protected lastError = "";
   protected wsEverOpened = false;
 
+  // Per-exchange monitoring: rolling msg rate, dropped-event and sequence-gap
+  // counters. Dropped/duplicate events are bumped by the engine (the only place
+  // a dedup decision is made); they are exposed here for the health snapshot.
+  protected droppedCount = 0;
+  protected gapCount = 0;
+  private msgTicks: number[] = []; // timestamps of the last (valid or dropped) WS trades for rate
+
   // Clock-skew estimation. Independent exchanges timestamp events in true UTC,
   // which may be ahead of this host's local clock (NTP skew). We estimate the
   // skew as the most-ahead (timestamp - receivedAt) sample and subtract it, so
@@ -119,6 +126,38 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
     this.lastWsTradeAt = Date.now();
   }
 
+  /** Record any incoming WS message for the rolling throughput (msg/sec) metric. */
+  protected recordMessage(): void {
+    this.msgTicks.push(Date.now());
+    if (this.msgTicks.length > 512) {
+      this.msgTicks = this.msgTicks.slice(-512);
+    }
+  }
+
+  /** Record a local duplicate/stale drop (called by the engine on dedup). */
+  recordDropped(): void {
+    this.droppedCount++;
+    this.recordMessage();
+  }
+
+  /** Record a detected sequence gap in the trade stream. */
+  recordGap(): void {
+    this.gapCount++;
+  }
+
+  /** Valid trades delivered during the last second (rolling window). */
+  protected messagesPerSec(): number {
+    if (this.msgTicks.length === 0) return 0;
+    const now = Date.now();
+    const cutoff = now - 1000;
+    let n = 0;
+    for (let i = this.msgTicks.length - 1; i >= 0; i--) {
+      if (this.msgTicks[i] >= cutoff) n++;
+      else break;
+    }
+    return n;
+  }
+
   /**
    * Called by the engine for every non-duplicate, valid real trade. Updates the
    * last-valid-event clock (source of STALE/LIVE) and stores latency ONLY when
@@ -184,6 +223,9 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
       reconnectCount: this.reconnectCount,
       lastError: this.lastError,
       subscribedSymbols: Array.from(this.subscribedSymbols),
+      messagesPerSec: this.messagesPerSec(),
+      droppedEvents: this.droppedCount,
+      sequenceGaps: this.gapCount,
     };
   }
 
@@ -246,6 +288,7 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
       } catch {
         // Binary or unparseable — ignore
       }
+      this.recordMessage();
     };
 
     ws.onerror = (event) => {
