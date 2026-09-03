@@ -16,6 +16,7 @@ import type { NormalizedTrade } from "../types";
 import { BaseExchangeAdapter } from "./base";
 
 const WS_URL = "wss://api-pub.bitfinex.com/ws/2";
+const PING_INTERVAL = 15_000;
 
 export class BitfinexAdapter extends BaseExchangeAdapter {
   readonly id = "bitfinex";
@@ -39,17 +40,22 @@ export class BitfinexAdapter extends BaseExchangeAdapter {
   }
 
   protected getPingMsg(): unknown {
-    return null;
+    // Bitfinex supports a client-initiated keepalive: { event: "ping" } →
+    // { event: "pong" }. The server also sends [CHAN,"hb"] heartbeats on idle
+    // channels, which already refresh our inbound-message watchdog.
+    return { event: "ping", cid: Date.now() };
   }
 
   protected getPingIntervalMs(): number {
-    return 0;
+    return PING_INTERVAL;
   }
 
   protected handleMessage(data: unknown): void {
     // Control events are objects.
     if (data && typeof data === "object" && !Array.isArray(data)) {
       const ev = data as { event?: string; channel?: string; symbol?: string };
+      // "pong" replies to our keepalive — nothing to do, it already refreshed
+      // the watchdog via onmessage.
       if (ev.event === "subscribed" || ev.event === "info" || ev.event === "conf") {
         this.confirmSubscription();
       }

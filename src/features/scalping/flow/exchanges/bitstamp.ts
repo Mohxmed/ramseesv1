@@ -15,6 +15,7 @@ import type { NormalizedTrade } from "../types";
 import { BaseExchangeAdapter } from "./base";
 
 const WS_URL = "wss://ws.bitstamp.net";
+const PING_INTERVAL = 8_000;
 
 export class BitstampAdapter extends BaseExchangeAdapter {
   readonly id = "bitstamp";
@@ -42,15 +43,28 @@ export class BitstampAdapter extends BaseExchangeAdapter {
   }
 
   protected getPingMsg(): unknown {
-    return null;
+    // Bitstamp requires a client heartbeat to keep idle sockets alive; without
+    // it the server drops the connection, which is what caused repeated
+    // open/close. The server may also ask the client to reconnect for
+    // maintenance (handled in handleMessage).
+    return { event: "bts:heartbeat" };
   }
 
   protected getPingIntervalMs(): number {
-    return 0;
+    return PING_INTERVAL;
   }
 
   protected handleMessage(data: unknown): void {
     const msg = data as { event?: string; channel?: string; data?: unknown };
+    // Heartbeat acknowledgement — not a subscription, just keepalive.
+    if (msg.event === "bts:heartbeat" || msg.event === "bts:heartbeat_ack") return;
+    // Maintenance: the server tells the client to reconnect. Close the current
+    // socket so the standard onclose → scheduleReconnect path reopens it (with
+    // our backoff, so we don't hammer in a tight loop).
+    if (msg.event === "bts:request_reconnect") {
+      if (this.wsOpen) this.ws?.close();
+      return;
+    }
     if (msg.event === "bts:subscription_succeeded" || msg.event === "bts:subscription_error") {
       this.confirmSubscription();
       return;

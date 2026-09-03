@@ -29,7 +29,7 @@ import type { NormalizedTrade } from "../types";
 import { BaseExchangeAdapter } from "./base";
 
 const DEFAULT_WS_URL = "wss://ws-api.kucoin.com";
-const PING_INTERVAL = 20_000;
+const PING_INTERVAL = 8_000;
 
 interface KucoinEndpoint {
   data?: {
@@ -44,6 +44,8 @@ export class KucoinAdapter extends BaseExchangeAdapter {
   readonly market = "spot" as const;
 
   private resolvedUrl = DEFAULT_WS_URL;
+  private hasToken = false;
+  private resolving = false;
   private msgSeq = 0;
 
   protected pairFor(symbol: string): string {
@@ -54,38 +56,65 @@ export class KucoinAdapter extends BaseExchangeAdapter {
     return this.resolvedUrl;
   }
 
-  public override async connect(): Promise<void> {
-    if (this.ws) return;
-    // Always create the WebSocket. If the token handshake hasn't resolved yet
-    // (or the browser blocks the CORS token fetch) the base reconnect loop will
-    // retry createWs(), which re-reads getWsUrl() — by then the cached token
-    // URL is normally ready, so the socket self-heals onto the valid endpoint.
-    super.connect();
-    void this.warmEndpoint();
+  /**
+   * KuCoin's socket URL is NOT static — it needs a token handshake
+   * (POST /api/v1/bullet-public → { endpoint, token }), and the connection
+   * only becomes usable once the server's `welcome` message is received. A
+   * tokenless socket is rejected immediately, so we MUST resolve the endpoint
+   * before opening and never fall back to a tokenless reconnect (that was the
+   * cause of the repeat open/close loop). Once a valid URL is cached we open
+   * it; reconnects reuse the cached URL unless it is missing, in which case we
+   * re-resolve (tokens can expire).
+   */
+  public override connect(): void {
+    if (this.ws) return; // duplicate-connection guard (base contract)
+    this.disposed = false;
+    if (this.resolving) return;
+    void this.connectWithToken();
   }
 
-  /** Fetch + cache the token endpoint (best-effort; browser CORS may block it). */
-  private async warmEndpoint(): Promise<void> {
-    try {
-      const ep = await this.resolveEndpoint();
-      if (ep && ep !== this.resolvedUrl) {
-        this.resolvedUrl = ep;
-        // Re-open on the freshly resolved URL.
-        if (this.wsOpen) {
-          this.ws?.close();
-        } else {
-          super.connect();
-        }
+  private async connectWithToken(): Promise<void> {
+    if (this.ws || this.disposed) return;
+    // Base reconnect () calls createWs() directly (not connect()), so a
+    // resolved URL persists across reconnects. Only resolve up-front here when
+    // we don't yet have a token-bearing URL.
+    if (!this.hasToken) {
+      this.resolving = true;
+      const url = await this.resolveEndpoint();
+      this.resolving = false;
+      if (this.disposed || this.ws) return;
+      if (!url) {
+        // Could not obtain a token (e.g. network/CORS). Retry with backoff so
+        // a transient failure self-heals instead of hammering the token API.
+        this.recordError("kucoin: unable to obtain websocket token");
+        this.scheduleReconnect();
+        return;
       }
-    } catch (err) {
-      this.recordError(err instanceof Error ? err.message : String(err));
+      this.resolvedUrl = url;
+      this.hasToken = true;
     }
+    if (this.ws || this.disposed) return;
+    // Open the socket on the token-carrying URL.
+    this.createWs();
+  }
+
+  /** On close, base schedules createWs() (not connect) — fine, it reuses the cached URL. */
+  protected override createWs(): void {
+    // If we somehow still lack a token when asked to (re)connect, go through
+    // the token resolution path instead of opening a doomed tokenless socket.
+    if (!this.hasToken) {
+      if (!this.resolving && !this.ws) {
+        void this.connectWithToken();
+      }
+      return;
+    }
+    super.createWs();
   }
 
   private async resolveEndpoint(): Promise<string | null> {
     // Same-origin proxy (server-side fetch bypasses browser CORS).
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 5000);
+    const timer = setTimeout(() => ctrl.abort(), 8000);
     try {
       const res = await fetch("/api/kucoin/token", { signal: ctrl.signal, cache: "no-store" });
       if (res.ok) {
@@ -98,7 +127,7 @@ export class KucoinAdapter extends BaseExchangeAdapter {
       clearTimeout(timer);
     }
     const ctrl2 = new AbortController();
-    const timer2 = setTimeout(() => ctrl2.abort(), 5000);
+    const timer2 = setTimeout(() => ctrl2.abort(), 8000);
     try {
       const res = await fetch("https://api.kucoin.com/api/v1/bullet-public", {
         method: "POST",
@@ -144,10 +173,13 @@ export class KucoinAdapter extends BaseExchangeAdapter {
   protected handleMessage(data: unknown): void {
     const msg = data as { type?: string; topic?: string; subject?: string; data?: Record<string, unknown> };
     if (msg.type === "welcome") {
-      // Re-subscribe any symbols once the socket is ready after auth handshake.
+      // The connection is only usable after the server's welcome message.
+      // Re-subscribe any symbols once ready; base also subscribes on open, but
+      // those early frames are ignored until the handshake completes.
       for (const symbol of this.subscribedSymbols) {
         this.send(this.getSubscribeMsg(symbol));
       }
+      this.confirmSubscription();
       return;
     }
     if (msg.type === "ack") {

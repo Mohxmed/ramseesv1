@@ -142,6 +142,33 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
   abstract normalizeTrade(data: unknown): NormalizedTrade[];
   abstract normalizeLiquidation(data: unknown): NormalizedTrade[];
 
+  // ── Per-exchange tunables (overridden by adapters with specific needs) ──
+
+  /** How long after the last valid trade an open socket is marked STALE/DEGRADED. */
+  protected getStaleThresholdMs(): number {
+    return STALE_EVENT_THRESHOLD_MS;
+  }
+
+  /** Max time a socket may spend in CONNECTING before it is torn down & retried. */
+  protected getConnectTimeoutMs(): number {
+    return CONNECT_TIMEOUT_MS;
+  }
+
+  /** Max time with no inbound WS message (any kind) before a silent socket is dropped. */
+  protected getMessageTimeoutMs(): number {
+    return MESSAGE_TIMEOUT_MS;
+  }
+
+  /** How often the liveness watchdog evaluates the message-timeout. */
+  protected getWatchdogIntervalMs(): number {
+    return WATCHDOG_INTERVAL_MS;
+  }
+
+  /** Upper bound on the exponential-reconnect delay before jitter is applied. */
+  protected getMaxReconnectDelayMs(): number {
+    return MAX_RECONNECT_DELAY_MS;
+  }
+
   // ── Lifecycle ──────────────────────────────────────────────────────
 
   connect(): void {
@@ -369,8 +396,9 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
 
   protected computeStatus(now: number): ExchangeStatus {
     if (!this.wsOpen) {
+      const staleMs = this.getStaleThresholdMs();
       // Connection lost — a real trade may still be recent enough to show STALE.
-      if (this.lastValidAt > 0 && now - this.lastValidAt <= STALE_EVENT_THRESHOLD_MS) {
+      if (this.lastValidAt > 0 && now - this.lastValidAt <= staleMs) {
         return "STALE";
       }
       return "DISCONNECTED";
@@ -381,7 +409,8 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
     // socket's health.
     const dataSinceOpen = this.socketOpenedAt > 0 && this.lastValidAt >= this.socketOpenedAt;
 
-    if (this.lastValidAt > 0 && now - this.lastValidAt > STALE_EVENT_THRESHOLD_MS) {
+    const staleMs = this.getStaleThresholdMs();
+    if (this.lastValidAt > 0 && now - this.lastValidAt > staleMs) {
       // Socket is open but market data has gone quiet/stale → DEGRADED.
       return "DEGRADED";
     }
@@ -441,7 +470,7 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
           /* ignore */
         }
       }
-    }, CONNECT_TIMEOUT_MS);
+    }, this.getConnectTimeoutMs());
 
     ws.onopen = () => {
       clearTimeout(connectTimer);
@@ -576,11 +605,11 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
     this.stopWatchdog();
     this.watchdogInterval = setInterval(() => {
       if (this.disposed) return;
-      if (Date.now() - this.lastPong > MESSAGE_TIMEOUT_MS) {
+      if (Date.now() - this.lastPong > this.getMessageTimeoutMs()) {
         if (this.ws) this.recordError("no messages received; forcing reconnect");
         this.ws?.close();
       }
-    }, WATCHDOG_INTERVAL_MS);
+    }, this.getWatchdogIntervalMs());
   }
 
   protected stopWatchdog(): void {
@@ -598,7 +627,7 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
     // together don't all reconnect in a synchronized thundering herd.
     const base = Math.min(
       1000 * Math.pow(2, this.reconnectCount - 1),
-      MAX_RECONNECT_DELAY_MS,
+      this.getMaxReconnectDelayMs(),
     );
     const delay = Math.round(base * (0.5 + Math.random() * 0.5));
     this.reconnectTimeout = setTimeout(() => {
