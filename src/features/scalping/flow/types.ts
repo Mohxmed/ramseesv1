@@ -319,6 +319,153 @@ export type ExchangeFlow = {
   connected: boolean;
 };
 
+// ─── Pressure (Composite Buy/Sell Pressure Model) ───────────────────
+//
+// The pressure model is built ONLY from data genuinely available on the live
+// trade streams (aggressive flow, volume delta, CVD, trade velocity,
+// liquidations, per-exchange breakdown). There is NO order-book, OI or funding
+// stream in the engine, so those components are reported as UNAVAILABLE (never
+// mocked/fabricated) — the UI renders them as N/A with a source note.
+//
+// A single indicator is never trusted: pressure is composed from aggressive
+// flow + volume delta + CVD + trade velocity + liquidations, with logical
+// weighting, and only LIVE/FRESH exchanges contribute to the global figure.
+
+export type PressureStrength = "strong" | "moderate" | "weak" | "balanced";
+export type PressureDirection = "BUY" | "SELL" | "BALANCED";
+export type PressureMomentum = "increasing" | "decreasing" | "stable";
+
+/** Buy/sell pressure over a single timeframe, derived from real trade flow. */
+export type TfPressure = {
+  /** Timeframe length in seconds. */
+  seconds: number;
+  /** Short label, e.g. "5s", "30s", "1m", "4h". */
+  label: string;
+  /** Aggressive buy share of notional (0-100). */
+  buyPct: number;
+  /** Aggressive sell share of notional (0-100). */
+  sellPct: number;
+  /** Net flow (buy−sell notional) in USD. */
+  delta: number;
+  /** Signed composite pressure score, e.g. +34 (BUY) / −16 (SELL). */
+  score: number;
+  strength: PressureStrength;
+  direction: PressureDirection;
+  buyVolume: number;
+  sellVolume: number;
+  tradeCount: number;
+  /** Aggressive trade rate: buy trades/sec, sell trades/sec, total trades/sec. */
+  buyTradesPerSec: number;
+  sellTradesPerSec: number;
+  tradesPerSec: number;
+  /** Average trade notional (USD) over the window. */
+  avgTradeSize: number;
+  /** Count of notional ≥ large-trade threshold on each side. */
+  largeBuys: number;
+  largeSells: number;
+  /** CVD change over this timeframe (null until enough history). */
+  cvdDelta: number | null;
+  /** Milliseconds since the newest trade in the window was received. 0 = none. */
+  ageMs: number;
+};
+
+/** Pressure source breakdown — every component is a REAL, sourced value. */
+export type PressureSource = {
+  value: number | null;
+  status: DataQualityStatus;
+  /** Id of the source/exchange that produced the value (explainability). */
+  source: string | null;
+  /** Freshness of the component in ms (null until observed). */
+  ageMs: number | null;
+};
+
+export type PressureBreakdown = {
+  aggressiveFlow: {
+    buyVolume: number;
+    sellVolume: number;
+    ratio: number; // buy/sell
+    delta: number;
+    status: DataQualityStatus;
+  };
+  volumeDelta: PressureSource;
+  cvd: { value: number; cvdVelocity: number; status: DataQualityStatus };
+  orderBook: { status: "UNAVAILABLE"; note: string };
+  tradeActivity: {
+    tradesPerSec: number;
+    buyTradesPerSec: number;
+    sellTradesPerSec: number;
+    avgTradeSize: number;
+    largeBuys: number;
+    largeSells: number;
+    status: DataQualityStatus;
+  };
+  futures: { status: "UNAVAILABLE"; note: string };
+  liquidations: {
+    longNotional10s: number;
+    shortNotional10s: number;
+    velocity: number;
+    burst: boolean;
+    status: DataQualityStatus;
+  };
+};
+
+/** Per-exchange pressure contribution (real, derived from each venue's trades). */
+export type ExchangePressure = {
+  exchange: string;
+  label: string;
+  status: ExchangeStatus;
+  /** Whether this exchange contributes to the global pressure (LIVE + fresh). */
+  contributing: boolean;
+  buyPct: number;
+  sellPct: number;
+  delta: number;
+  eventsPerSec: number;
+  dataAge: number;
+};
+
+/** A detected cross-signal pressure/price divergence (or confirmations). */
+export type PressureDivergence = {
+  id: string;
+  /** Short title, e.g. "Bearish Divergence". */
+  title: string;
+  /** Plain-language detail with the REAL numbers behind the signal. */
+  detail: string;
+  /** bullish = warns of upside risk, bearish = downside risk, null = neutral. */
+  bullish: boolean | null;
+  severity: "none" | "low" | "moderate" | "strong";
+};
+
+export type PressureState = {
+  /** Currently dominant side across the composed model. */
+  dominant: PressureDirection;
+  /** Weighted composite BUY pressure % (0-100) over the primary window. */
+  buyPct: number;
+  /** Signed pressure score, e.g. +34 (buy dominant). */
+  score: number;
+  strength: PressureStrength;
+  momentum: PressureMomentum;
+  /** Signed acceleration of the pressure score. */
+  acceleration: number;
+  /**
+   * Confidence (0-100) that the dominant side is real — how many healthy
+   * timeframes agree. Computed from actual agreement, never overstated.
+   */
+  confidence: number;
+  /** Primary (default) timeframe used for the hero number, in seconds. */
+  primarySeconds: number;
+  /** Per-timeframe pressure (8 rows: 5s,30s,1m,5m,10m,30m,1h,4h). */
+  timeframes: TfPressure[];
+  /** Component breakdown for the selected timeframe (real values only). */
+  breakdown: PressureBreakdown;
+  /** Per-exchange pressure across all 16 venues. */
+  exchanges: ExchangePressure[];
+  /** Live (healthy) exchange count feeding the global figures. */
+  globalLiveCount: number;
+  totalCount: number;
+  /** Detected cross-signal divergences / confirmations. */
+  divergences: PressureDivergence[];
+};
+
 // ─── Flow × Price Analysis ──────────────────────────────────────────
 
 export type FlowPriceAnalysis = {
@@ -378,6 +525,9 @@ export type MarketFlowState = {
 
   // Per-exchange flow
   exchangeFlows: ExchangeFlow[];
+
+  // Composite buy/sell pressure model (per-timeframe + per-exchange + divergence)
+  pressure: PressureState;
 
   // Flow × Price
   analysis: FlowPriceAnalysis;

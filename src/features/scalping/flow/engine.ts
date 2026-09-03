@@ -35,6 +35,14 @@ import type {
   ExchangeDivergence,
   DataQualityStatus,
   GlobalMetrics,
+  PressureState,
+  TfPressure,
+  PressureStrength,
+  PressureDirection,
+  PressureMomentum,
+  PressureBreakdown,
+  ExchangePressure,
+  PressureDivergence,
 } from "./types";
 
 // ─── Ring Buffer (generic) ──────────────────────────────────────────
@@ -121,7 +129,9 @@ const DEFAULT_CONFIG: FlowEngineConfig = {
     "bitfinex",
   ],
   symbol: "BTCUSDT",
-  windowDurations: [1, 3, 5, 10, 30, 60, 300],
+  // 5s, 30s, 1m, 5m, 10m, 30m, 1h, 4h — the pressure timeline/matrix timeframes.
+  // 1s retained for velocity; 60s retained for exchange flow + existing panels.
+  windowDurations: [1, 5, 30, 60, 300, 600, 1800, 3600, 14400],
   largeTradeThreshold: 50_000,
   // Shared across all 16 feeds and read for the 300s (5min) window aggregation.
   // 5000 was far too small under high-frequency traffic and silently truncated
@@ -263,6 +273,7 @@ export function resetFlowState(): void {
   lastSeenByExchange.clear();
   overflowCount = 0;
   overflowLog.length = 0;
+  pressurePrimarySeconds = 60;
 }
 
 // ─── Trade Ingestion ────────────────────────────────────────────────
@@ -965,6 +976,328 @@ function computeDivergence(composite: CompositePrice): ExchangeDivergence {
   };
 }
 
+// ─── Pressure (Composite Buy/Sell Pressure Model) ───────────────────
+
+/** The 8 pressure timeframes (5s → 4h), in seconds. */
+const PRESSURE_TFS = [5, 30, 60, 300, 600, 1800, 3600, 14400];
+const TF_LABELS: Record<number, string> = {
+  5: "5s", 30: "30s", 60: "1m", 300: "5m", 600: "10m", 1800: "30m", 3600: "1h", 14400: "4h",
+};
+function tfLabel(seconds: number): string {
+  return TF_LABELS[seconds] ?? `${seconds}s`;
+}
+/** Buy share of notional (0-100); 50 when no trades. */
+function pctOf(buy: number, sell: number): number {
+  const t = buy + sell;
+  return t > 0 ? (buy / t) * 100 : 50;
+}
+/** Signed score from a BUY % (67% buy → +34). */
+function scoreOf(buyPct: number): number {
+  return 2 * buyPct - 100;
+}
+function strengthOf(score: number): PressureStrength {
+  const a = Math.abs(score);
+  if (a < 8) return "weak";
+  if (a < 22) return "moderate";
+  return "strong";
+}
+function dirOf(score: number): PressureDirection {
+  if (score > 8) return "BUY";
+  if (score < -8) return "SELL";
+  return "BALANCED";
+}
+function momentumOf(score: number, prevScore: number): PressureMomentum {
+  const d = score - prevScore;
+  if (d > 1) return "increasing";
+  if (d < -1) return "decreasing";
+  return "stable";
+}
+
+/** Timeframe currently spotlighted by the hero/breakdown (UI-driven). */
+let pressurePrimarySeconds = 60;
+
+/**
+ * Select which timeframe the pressure hero + breakdown reflect. Call from the
+ * UI on filter change; the next snapshot (every ~80ms) reflects the new TF.
+ * Only real pressure timeframes are accepted; anything else is ignored.
+ */
+export function setPressureTimeframe(seconds: number): void {
+  if (PRESSURE_TFS.includes(seconds)) pressurePrimarySeconds = seconds;
+  else if (seconds === 1) pressurePrimarySeconds = 60; // 1s is not a pressure TF
+}
+export function getPressureTimeframe(): number {
+  return pressurePrimarySeconds;
+}
+
+/** Large-trade counts over a window (from the session large-trade rings). */
+function largeCountsInWindow(seconds: number, now: number): { buys: number; sells: number } {
+  const cutoff = now - seconds * 1000;
+  let buys = 0;
+  let sells = 0;
+  for (const t of largeBuyRing.toArray()) if (t.timestamp >= cutoff) buys++;
+  for (const t of largeSellRing.toArray()) if (t.timestamp >= cutoff) sells++;
+  return { buys, sells };
+}
+
+/** CVD delta over a window; null until enough history exists. */
+function cvdDeltaOver(seconds: number, cvd: number): number | null {
+  const cutoff = Date.now() - seconds * 1000;
+  const oldest = cvdSnapshots.find((s) => s.time >= cutoff);
+  if (!oldest) return null;
+  return cvd - oldest.value;
+}
+
+/** Per-timeframe pressure from a real flow window. */
+function buildTfPressure(w: FlowWindow, cvd: number, large: { buys: number; sells: number }, now: number): TfPressure {
+  const buyPct = pctOf(w.buyNotional, w.sellNotional);
+  const score = scoreOf(buyPct);
+  const secs = Math.max(1, w.seconds);
+  return {
+    seconds: w.seconds,
+    label: tfLabel(w.seconds),
+    buyPct,
+    sellPct: 100 - buyPct,
+    delta: w.netFlow,
+    score,
+    strength: strengthOf(score),
+    direction: dirOf(score),
+    buyVolume: w.buyNotional,
+    sellVolume: w.sellNotional,
+    tradeCount: w.tradeCount,
+    buyTradesPerSec: w.buyCount / secs,
+    sellTradesPerSec: w.sellCount / secs,
+    tradesPerSec: w.tradeCount / secs,
+    avgTradeSize: w.avgTradeSize,
+    largeBuys: large.buys,
+    largeSells: large.sells,
+    cvdDelta: cvdDeltaOver(w.seconds, cvd),
+    ageMs: now - (rawTradeRing.peekLatest()?.receivedAt ?? now),
+  };
+}
+
+/** Per-exchange pressure over the primary window (real trades per venue). */
+function computeExchangePressure(primarySeconds: number, now: number): ExchangePressure[] {
+  const cutoff = now - primarySeconds * 1000;
+  const rows: ExchangePressure[] = [];
+  for (const adapter of adapters) {
+    const conn = adapter.getHealth();
+    let buy = 0;
+    let sell = 0;
+    for (const t of rawTradeRing.toArray()) {
+      if (t.receivedAt < cutoff || t.exchange !== adapter.id) continue;
+      if (t.side === "buy") buy += t.notional;
+      else sell += t.notional;
+    }
+    const buyPct = pctOf(buy, sell);
+    rows.push({
+      exchange: adapter.id,
+      label: adapter.label || adapter.id,
+      status: conn.status,
+      contributing: conn.status === "LIVE" && now - conn.receivedAt <= 2500,
+      buyPct,
+      sellPct: 100 - buyPct,
+      delta: buy - sell,
+      eventsPerSec: conn.messagesPerSec,
+      dataAge: conn.dataAge >= 0 ? conn.dataAge : -1,
+    });
+  }
+  return rows;
+}
+
+/** Real cross-signal pressure/price divergence & confirmation detection. */
+function computePressureDivergences(cvd: number, liqs: LiquidationState, stats30: { priceDeltaPct: number; cvdDelta: number | null; score: number }): PressureDivergence[] {
+  const out: PressureDivergence[] = [];
+  const { priceDeltaPct, cvdDelta, score } = stats30;
+
+  const push = (id: string, title: string, bullish: boolean | null, severity: PressureDivergence["severity"], detail: string) =>
+    out.push({ id, title, detail, bullish, severity });
+
+  // Price ↑ / ↓ over the primary window with pressure on the OPPOSITE side.
+  if (priceDeltaPct > 0.02 && score < -8) {
+    push("bearish_vs_price", "Bearish Divergence", false, "moderate",
+      `Price +${priceDeltaPct.toFixed(2)}% while BUY pressure is negative (${score > 0 ? "+" : ""}${score.toFixed(0)}). Aggressive sellers pressing into the rise.`);
+  } else if (priceDeltaPct < -0.02 && score > 8) {
+    push("bullish_vs_price", "Bullish Divergence", true, "moderate",
+      `Price ${priceDeltaPct.toFixed(2)}% while BUY pressure is positive (+${score.toFixed(0)}). Buyers accumulating into the dip.`);
+  }
+
+  // CVD vs price (aggressive delta direction vs price direction).
+  if (cvdDelta != null) {
+    if (priceDeltaPct > 0.02 && cvdDelta < 0) {
+      push("selling_into_rally", "Selling Into Rally", false, "moderate",
+        `Price +${priceDeltaPct.toFixed(2)}% yet CVD is ${cvdDelta.toFixed(0)} USD — net sellers absorbing the rally.`);
+    } else if (priceDeltaPct < -0.02 && cvdDelta > 0) {
+      push("buying_into_drop", "Buying Into Drop", true, "moderate",
+        `Price ${priceDeltaPct.toFixed(2)}% yet CVD is +${cvdDelta.toFixed(0)} USD — net buyers stepping into the drop.`);
+    }
+  }
+
+  // Aggressive-flow / price agreement => confirmation (no divergence).
+  if (priceDeltaPct > 0.02 && score > 8) {
+    push("confirm_up", "Price Confirm Upside", true, "low",
+      `Price +${priceDeltaPct.toFixed(2)}% with positive BUY pressure (+${score.toFixed(0)}) — buying pressure and price agree.`);
+  } else if (priceDeltaPct < -0.02 && score < -8) {
+    push("confirm_down", "Price Confirm Downside", false, "low",
+      `Price ${priceDeltaPct.toFixed(2)}% with negative pressure (${score.toFixed(0)}) — selling pressure and price agree.`);
+  }
+
+  // Liquidation-driven signals (real long/short liquidation asymmetry).
+  if (liqs.velocity > 0) {
+    if (liqs.longVolume > liqs.shortVolume && liqs.velocity > 150_000) {
+      push("long_liq_pressure", "Long Liquidation Pressure", false, "moderate",
+        `Long liquidations dominate (${usdShort(liqs.longVolume)}) at ${usdShort(liqs.velocity)}/s — flushing longs, downside risk if price drops.`);
+    } else if (liqs.shortVolume > liqs.longVolume && liqs.velocity > 150_000) {
+      push("short_liq_pressure", "Short Squeeze Pressure", true, "moderate",
+        `Short liquidations dominate (${usdShort(liqs.shortVolume)}) at ${usdShort(liqs.velocity)}/s — shorts squeezing, upside risk if price rises.`);
+    }
+  }
+
+  return out;
+}
+
+/** USD short-format for messages (K/M, no decimals). */
+function usdShort(v: number): string {
+  const a = Math.abs(v);
+  if (a >= 1_000_000) return `${(a / 1_000_000).toFixed(2)}M`;
+  if (a >= 1_000) return `${(a / 1_000).toFixed(1)}K`;
+  return a.toFixed(0);
+}
+
+/**
+ * Compute the full composite pressure model from REAL trade data only. Order
+ * book / OI / funding are genuinely unavailable (no such stream) and are
+ * reported UNAVAILABLE, never fabricated.
+ */
+function computePressure(): PressureState {
+  const now = Date.now();
+  const windows = computeFlowWindows();
+  const cvd = computeCvd();
+  const liquidations = computeLiquidations();
+
+  const bySeconds = new Map(windows.map((w) => [w.seconds, w]));
+
+  // Build each timeframe, sorted short → long.
+  const tfs: TfPressure[] = [];
+  for (const sec of PRESSURE_TFS) {
+    const w = bySeconds.get(sec);
+    if (!w) continue;
+    tfs.push(buildTfPressure(w, cvd.cvd, largeCountsInWindow(sec, now), now));
+  }
+
+  const primary = bySeconds.get(pressurePrimarySeconds) ?? bySeconds.get(60);
+  const primaryIdx = tfs.findIndex((t) => t.seconds === (primary?.seconds ?? 60));
+  const primaryTf = primaryIdx >= 0 ? tfs[primaryIdx] : null;
+
+  // Pressure score + acceleration (2nd difference of score across timeframes).
+  const score = primaryTf?.score ?? 50;
+  const shorter = primaryIdx > 0 ? tfs[primaryIdx - 1] : null;
+  const shorter2 = primaryIdx > 1 ? tfs[primaryIdx - 2] : null;
+  const acceleration =
+    shorter && shorter2
+      ? (primaryTf!.score - shorter.score) - (shorter.score - shorter2.score)
+      : (shorter ? primaryTf!.score - shorter.score : 0);
+
+  const dominant = dirOf(score);
+  const momentum = momentumOf(score, shorter?.score ?? score);
+
+  // Confidence: fraction of usable timeframes that agree with the dominant side.
+  const agreeing = tfs.filter((t) => dirOf(t.score) === dominant || t.score === 0 || termAgrees(t.score, dominant));
+  const confidence =
+    tfs.length > 0 ? Math.round((agreeing.length / tfs.length) * 100) : 0;
+
+  // Price delta over the primary window (for divergence detection).
+  let priceDeltaPct = 0;
+  const cutoff = now - (primary?.seconds ?? 30) * 1000;
+  const oldest = priceHistory.find((p) => p.time >= cutoff);
+  const lastPrice = priceHistory.length > 0 ? priceHistory[priceHistory.length - 1].price : 0;
+  if (oldest && oldest.price > 0) priceDeltaPct = ((lastPrice - oldest.price) / oldest.price) * 100;
+
+  const breakdown: PressureBreakdown = {
+    aggressiveFlow: {
+      buyVolume: primaryTf?.buyVolume ?? 0,
+      sellVolume: primaryTf?.sellVolume ?? 0,
+      ratio: (primaryTf?.sellVolume ?? 0) > 0 ? (primaryTf?.buyVolume ?? 0) / Math.max(0.0001, primaryTf?.sellVolume ?? 0) : 0,
+      delta: primaryTf?.delta ?? 0,
+      status: primaryTf && primaryTf.tradeCount > 0 ? "LIVE" : "DEGRADED",
+    },
+    volumeDelta: {
+      value: primaryTf?.delta ?? 0,
+      status: primaryTf && primaryTf.tradeCount > 0 ? "LIVE" : "DEGRADED",
+      source: primaryTf?.tradeCount ? "aggr" : null,
+      ageMs: primaryTf && primaryTf.tradeCount > 0 ? primaryTf.ageMs : null,
+    },
+    cvd: { value: cvd.cvd, cvdVelocity: cvd.cvdDelta5s ?? 0, status: cvd.cvdDelta5s != null ? "LIVE" : "DEGRADED" },
+    orderBook: { status: "UNAVAILABLE", note: "أوامر دفتر الطلبات غير متوفرة عبر بثّ الصفقات — تتطلب بثّ Order Book منفصل" },
+    tradeActivity: {
+      tradesPerSec: primaryTf?.tradesPerSec ?? 0,
+      buyTradesPerSec: primaryTf?.buyTradesPerSec ?? 0,
+      sellTradesPerSec: primaryTf?.sellTradesPerSec ?? 0,
+      avgTradeSize: primaryTf?.avgTradeSize ?? 0,
+      largeBuys: primaryTf?.largeBuys ?? 0,
+      largeSells: primaryTf?.largeSells ?? 0,
+      status: primaryTf && primaryTf.tradeCount > 0 ? "LIVE" : "DEGRADED",
+    },
+    futures: { status: "UNAVAILABLE", note: "OI والفاندينغ غير متوفرين عبر بثّ الصفقات العام — يتطلب بثّ مستقل" },
+    liquidations: {
+      longNotional10s: longNotional10s(),
+      shortNotional10s: shortNotional10s(),
+      velocity: liquidations.velocity,
+      burst: liquidations.burst,
+      status: liquidations.totalVolume > 0 || liquidations.velocity > 0 ? "LIVE" : "DEGRADED",
+    },
+  };
+
+  const exchanges = computeExchangePressure(primary?.seconds ?? 60, now);
+  const globalLiveCount = exchanges.filter((e) => e.contributing).length;
+
+  const divergences = computePressureDivergences(cvd.cvd, liquidations, {
+    priceDeltaPct,
+    cvdDelta: primaryTf?.cvdDelta ?? null,
+    score,
+  });
+
+  const buyPct = primaryTf?.buyPct ?? 50;
+
+  return {
+    dominant,
+    buyPct,
+    score,
+    strength: strengthOf(score),
+    momentum,
+    acceleration,
+    confidence,
+    primarySeconds: primary?.seconds ?? 60,
+    timeframes: tfs,
+    breakdown,
+    exchanges,
+    globalLiveCount,
+    totalCount: adapters.length,
+    divergences,
+  };
+}
+
+/** Long-liquidation notional printed in the last 10s (real, windowed). */
+function longNotional10s(): number {
+  const cutoff = Date.now() - 10_000;
+  let s = 0;
+  for (const e of liqEvents) if (e.ts > cutoff && e.side === "buy") s += e.notional;
+  return s;
+}
+/** Short-liquidation notional printed in the last 10s (real, windowed). */
+function shortNotional10s(): number {
+  const cutoff = Date.now() - 10_000;
+  let s = 0;
+  for (const e of liqEvents) if (e.ts > cutoff && e.side === "sell") s += e.notional;
+  return s;
+}
+
+/** Whether a timeframe's score agrees with the dominant direction. */
+function termAgrees(score: number, dominant: PressureDirection): boolean {
+  if (dominant === "BUY") return score > 0;
+  if (dominant === "SELL") return score < 0;
+  return score === 0;
+}
+
 // ─── Snapshot Publication ───────────────────────────────────────────
 
 function publishSnapshot(): void {
@@ -981,6 +1314,7 @@ function publishSnapshot(): void {
   const composite = computeComposite();
   const divergence = computeDivergence(composite);
   const global = computeGlobalMetrics();
+  const pressure = computePressure();
 
   const currentPrice = priceHistory.length > 0 ? priceHistory[priceHistory.length - 1].price : 0;
   const lastTrade = rawTradeRing.peekLatest();
@@ -999,6 +1333,7 @@ function publishSnapshot(): void {
     composite,
     divergence,
     global,
+    pressure,
     currentPrice,
     lastTradePrice: lastTrade?.price ?? 0,
   };

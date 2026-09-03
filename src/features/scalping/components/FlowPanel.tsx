@@ -16,6 +16,7 @@ import {
 } from "./terminal/TradingPrimitives";
 import { ThemeGate } from "@/components/ui/mui-theme";
 import { Tip } from "./terminal/TerminalTip";
+import { PressurePanel as TradePressurePanel } from "./PressurePanel";
 
 /**
  * Real-Time AGGR Flow Window — matches the terminal's shared presentation
@@ -334,50 +335,8 @@ function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
 }
 
 // ─── 02 · Buy / Sell pressure ───────────────────────────────────────
-
-function PressurePanel({ snap }: { snap: FlowSnapshot }) {
-  const w = snap.state.windows.find((x) => x.seconds === 60);
-  if (!w) return null;
-  const buy = w.buyNotional;
-  const sell = w.sellNotional;
-  const total = buy + sell;
-  const buyP = total > 0 ? pct(buy, total) : 0;
-  return (
-    <Section
-      title="ضغط الشراء / البيع"
-     
-      collapsible
-      actions={<Tag tone="neutral">60 ثانية</Tag>}
-      snippet={
-        <SnippetRow label="الضغط">
-          <span className={`text-xs font-bold ${total > 0 ? (buyP >= 50 ? "text-up-fg" : "text-down-fg") : "text-zinc-300"}`} dir="ltr" style={mono}>
-            بيع {sell > 0 ? ((sell / total) * 100).toFixed(0) : "0"}% / شراء {buyP.toFixed(0)}%
-          </span>
-        </SnippetRow>
-      }
-    >
-      <SplitBar buy={buy} sell={sell} />
-      <div className="mt-2 grid grid-cols-2 gap-2">
-        <div className="rounded-panel border border-line bg-surface-1/30 px-2 py-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-3xs text-muted">شراء</span>
-            <Dot tone="long" />
-          </div>
-          <div className="text-base font-extrabold leading-none text-up-fg" dir="ltr" style={mono}>{usd(buy)}</div>
-          <div className="text-3xs text-up-fg" dir="ltr" style={mono}>{buyP.toFixed(0)}%</div>
-        </div>
-        <div className="rounded-panel border border-line bg-surface-1/30 px-2 py-1.5">
-          <div className="flex items-center justify-between">
-            <span className="text-3xs text-muted">بيع</span>
-            <Dot tone="short" />
-          </div>
-          <div className="text-base font-extrabold leading-none text-down-fg" dir="ltr" style={mono}>{usd(sell)}</div>
-          <div className="text-3xs text-down-fg" dir="ltr" style={mono}>{total > 0 ? (100 - buyP).toFixed(0) : "0"}%</div>
-        </div>
-      </div>
-    </Section>
-  );
-}
+// PressurePanel (Premium Trading Command Center) lives in ./PressurePanel.tsx
+// and is rendered from the panel tree below as <TradePressurePanel/>.
 
 // ─── 03 · Net flow ──────────────────────────────────────────────────
 
@@ -727,7 +686,7 @@ export function FlowPanel({ snap }: { snap: FlowSnapshot | null | undefined }) {
     <ThemeGate>
       <div className="space-y-3">
         <LiveFlowHeader snap={snap} />
-        <PressurePanel snap={snap} />
+        <TradePressurePanel snap={snap} />
         <NetFlowPanel snap={snap} />
         <TapePanel snap={snap} />
         <LargeTrades snap={snap} />
