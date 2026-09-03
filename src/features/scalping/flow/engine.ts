@@ -479,8 +479,8 @@ function computeCvd(): CvdState {
 
 // ─── Flow Velocity Computation ──────────────────────────────────────
 
-function computeVelocity(): FlowVelocity {
-  const window1s = computeFlowWindows().find((w) => w.seconds === 1);
+function computeVelocity(windows: FlowWindow[]): FlowVelocity {
+  const window1s = windows.find((w) => w.seconds === 1);
 
   const buyPerSec = window1s ? window1s.buyNotional : 0;
   const sellPerSec = window1s ? window1s.sellNotional : 0;
@@ -569,7 +569,7 @@ function computeExchangeFlows(): ExchangeFlow[] {
 
 // ─── Flow × Price Analysis ──────────────────────────────────────────
 
-function computeFlowPriceAnalysis(): FlowPriceAnalysis {
+function computeFlowPriceAnalysis(windows: FlowWindow[]): FlowPriceAnalysis {
   const now = Date.now();
 
   // Price change over last 5s
@@ -581,7 +581,7 @@ function computeFlowPriceAnalysis(): FlowPriceAnalysis {
   const priceVelocity = price5sAgo ? priceDelta / 5 : 0;
 
   // Flow delta (net flow in last 5s)
-  const window5s = computeFlowWindows().find((w) => w.seconds === 5);
+  const window5s = windows.find((w) => w.seconds === 5);
   const flowDelta = window5s ? window5s.netFlow : 0;
 
   // Price response classification
@@ -601,7 +601,7 @@ function computeFlowPriceAnalysis(): FlowPriceAnalysis {
 
   // Exhaustion: diminishing flow response
   let exhaustion: FlowPriceAnalysis["exhaustion"] = "none";
-  const window1m = computeFlowWindows().find((w) => w.seconds === 60);
+  const window1m = windows.find((w) => w.seconds === 60);
   if (window1m && window5s) {
     const ratio = window5s.tradeCount > 0 ? (window5s.buyNotional + window5s.sellNotional) / (window1m.buyNotional + window1m.sellNotional) : 0;
     if (ratio > 0.15 && Math.abs(priceDelta) < 0.01) {
@@ -1117,16 +1117,23 @@ function buildTfPressure(w: FlowWindow, cvd: number, large: { buys: number; sell
 /** Per-exchange pressure over the primary window (real trades per venue). */
 function computeExchangePressure(primarySeconds: number, now: number): ExchangePressure[] {
   const cutoff = now - primarySeconds * 1000;
+  // Single pass over the ring: accumulate per-exchange buy/sell notional ONCE
+  // instead of copying the full ring (toArray) once per exchange (16× full
+  // array copies per snapshot tick — the heaviest hot-path allocation). The
+  // resulting rows are identical; only the algorithm is O(n) instead of O(n·16).
+  const acc = new Map<string, { buy: number; sell: number }>();
+  const trades = rawTradeRing.since(cutoff, (t) => t.receivedAt);
+  for (const t of trades) {
+    const cur = acc.get(t.exchange) ?? { buy: 0, sell: 0 };
+    if (t.side === "buy") cur.buy += t.notional;
+    else cur.sell += t.notional;
+    acc.set(t.exchange, cur);
+  }
   const rows: ExchangePressure[] = [];
   for (const adapter of adapters) {
     const conn = adapter.getHealth();
-    let buy = 0;
-    let sell = 0;
-    for (const t of rawTradeRing.toArray()) {
-      if (t.receivedAt < cutoff || t.exchange !== adapter.id) continue;
-      if (t.side === "buy") buy += t.notional;
-      else sell += t.notional;
-    }
+    const buy = acc.get(adapter.id)?.buy ?? 0;
+    const sell = acc.get(adapter.id)?.sell ?? 0;
     const buyPct = pctOf(buy, sell);
     rows.push({
       exchange: adapter.id,
@@ -1207,9 +1214,8 @@ function usdShort(v: number): string {
  * book / OI / funding are genuinely unavailable (no such stream) and are
  * reported UNAVAILABLE, never fabricated.
  */
-function computePressure(): PressureState {
+function computePressure(windows: FlowWindow[]): PressureState {
   const now = Date.now();
-  const windows = computeFlowWindows();
   const cvd = computeCvd();
   const liquidations = computeLiquidations();
 
@@ -1345,16 +1351,16 @@ function publishSnapshot(): void {
   const now = Date.now();
   const windows = computeFlowWindows();
   const cvd = computeCvd();
-  const velocity = computeVelocity();
+  const velocity = computeVelocity(windows);
   const liquidations = computeLiquidations();
   const exchangeFlows = computeExchangeFlows();
-  const analysis = computeFlowPriceAnalysis();
+  const analysis = computeFlowPriceAnalysis(windows);
   const quality = computeDataQuality();
   const composite = computeComposite();
   const divergence = computeDivergence(composite);
   const global = computeGlobalMetrics();
   const startup = computeStartupMetrics();
-  const pressure = computePressure();
+  const pressure = computePressure(windows);
 
   const currentPrice = priceHistory.length > 0 ? priceHistory[priceHistory.length - 1].price : 0;
   const lastTrade = rawTradeRing.peekLatest();

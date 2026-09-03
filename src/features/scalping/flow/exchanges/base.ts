@@ -587,7 +587,10 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
       }
       // Blob/ArrayBuffer/view frames (e.g. Upbit binary) need async decode;
       // each is still independent so one slow decode never blocks the others.
-      void this.dispatchAsyncFrame(data);
+      // The generation is captured here and re-checked after `await` (inside
+      // dispatchAsyncFrame) so a frame decoded after a reconnect can never be
+      // ingested as fresh data from the old socket.
+      void this.dispatchAsyncFrame(data, gen);
     };
 
     ws.onerror = (event) => {
@@ -631,12 +634,28 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
     this.recordMessage();
   }
 
-  /** Decode+dispatch an async frame (Blob/ArrayBuffer/view). Independent per frame. */
-  private async dispatchAsyncFrame(data: unknown): Promise<void> {
+  /** Decode+dispatch an async frame (Blob/ArrayBuffer/view). Independent per
+   * frame. `gen` is the socket generation captured at dispatch: it must be
+   * re-checked after `await decodeFrame` resolves, because the string fast-path
+   * checks the generation synchronously in onmessage but the async path yields
+   * control and a reconnect may have happened while the frame was decoding. */
+  private async dispatchAsyncFrame(data: unknown, gen: number): Promise<void> {
+    let parsed: unknown;
     try {
-      this.handleMessage(await decodeFrame(data));
+      parsed = await decodeFrame(data);
     } catch {
       // Malformed / non-JSON / unsupported frame — ignore.
+      this.recordMessage();
+      return;
+    }
+    // Stale-socket guard: only ingest if this socket's generation is still the
+    // current one AND the adapter is not disposed. Prevents a slow-decoded
+    // frame from an old socket entering the pipeline after a reconnect.
+    if (this.disposed || gen !== this.wsGeneration) return;
+    try {
+      this.handleMessage(parsed);
+    } catch {
+      // A parser throw from this one venue must never take down the pipeline.
     }
     this.recordMessage();
   }
@@ -777,7 +796,7 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
     if (t.side !== "buy" && t.side !== "sell") return false;
     if (!Number.isFinite(t.timestamp) || t.timestamp <= 0) return false;
     if (!Number.isFinite(t.receivedAt) || t.receivedAt <= 0) return false;
-    if (!Number.isFinite(t.exchange) && typeof t.exchange !== "string") return false;
+    if (typeof t.exchange !== "string" || t.exchange.length === 0) return false;
     return true;
   }
 }
