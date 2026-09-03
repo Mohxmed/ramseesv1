@@ -324,6 +324,40 @@ function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
         ))}
       </div>
 
+      {/* Startup / parallelism — real wall-clock spread of the 16 connects.
+          connectStartSpreadMs is ~0 because every adapter starts in the same
+          synchronous init tick (parallel), while firstEventSpreadMs shows how
+          independently each venue finishes its own handshake. Both are real
+          live measurements, never fabricated. */}
+      <div
+        className="mt-2 flex items-center justify-between gap-2 rounded-chip border border-line/60 bg-surface-1/20 px-2 py-1 text-2xs text-muted"
+        dir="rtl"
+        title={
+          state.startup.connectStartSpreadMs != null
+            ? `فارق زمن انطلاق 16 منصّة: ${state.startup.connectStartSpreadMs}ms ≈ 0 = اتصال متوازٍ حقيقي (لا انتظار متسلسل)`
+            : "لا يزال الانطلاق جارياً — سجّل أول اتصال"
+        }
+      >
+        <span>
+          بدء متوازٍ · <span dir="ltr" style={mono}>{state.startup.startedCount}/{state.startup.totalCount}</span> منصّة
+          <span
+            className={state.startup.connectStartSpreadMs != null && state.startup.connectStartSpreadMs <= 150 ? "text-emerald-300/90" : "text-warn-fg"}
+            dir="ltr"
+            style={mono}
+          >
+            {" "}انطلاق {state.startup.connectStartSpreadMs ?? "…"}ms
+          </span>
+        </span>
+        <span>
+          مباشر <span dir="ltr" style={mono}>{state.startup.liveCount}</span>
+          {state.startup.firstEventSpreadMs != null && (
+            <span className="text-zinc-400" dir="ltr" style={mono}>
+              {" "}· أول حدث ±{state.startup.firstEventSpreadMs}ms
+            </span>
+          )}
+        </span>
+      </div>
+
       {/* Gateways — fixed 2-col grid, no scroll: brand logo right / response speed left */}
       <div className="mt-3 grid grid-cols-2 gap-1.5">
         {connections.map((c) => (

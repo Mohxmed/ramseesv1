@@ -160,7 +160,35 @@ export type GlobalMetrics = {
   healthyCount: number;
 };
 
-// ─── Exchange Connection State ───────────────────────────────────────
+// ─── Startup / Parallelism Metrics ──────────────────────────────────
+
+/**
+ * True end-to-end startup timing across all exchanges, measured on real
+ * wall-clock timestamps captured per lifecycle transition. `connectStartSpreadMs`
+ * is the spread of connect() start times across all exchanges — if the adapters
+ * start in parallel (same synchronous init tick) it is ≈0, NOT the sum of
+ * per-exchange connect times. `firstEventSpreadMs` is the spread of each
+ * exchange's FIRST valid trade — how independently the venues finish their own
+ * handshake/connect/subscribe. All values are real measurements, never mocked.
+ */
+export type StartupMetrics = {
+  /** Total adapters participating. */
+  totalCount: number;
+  /** Adapters that have opened a socket at least once. */
+  startedCount: number;
+  /** Adapters currently with an OPEN socket. */
+  connectedCount: number;
+  /** Adapters currently delivering fresh live data. */
+  liveCount: number;
+  /** max(connectStart) − min(connectStart) ms across exchanges (≈0 = parallel). */
+  connectStartSpreadMs: number | null;
+  /** max(firstEvent) − min(firstEvent) ms across exchanges (null until ≥2 events). */
+  firstEventSpreadMs: number | null;
+  /** ms since the first exchange went live (0 = none live yet). */
+  liveTimeMs: number | null;
+};
+
+// ─── Exchange Connection State ──────────────────────────────────────
 
 export type ExchangeConnection = {
   exchange: string;
@@ -235,6 +263,19 @@ export type ExchangeConnection = {
   lastReconnectAt: number;
   /** Duration (ms) of the most recent transport outage (0 = none yet). */
   reconnectGapMs: number;
+  /** Current connection session id — incremented on every (re)connect. Events
+   * carrying an older session id are discarded (stale-socket isolation), so a
+   * reconnect can never let a dead socket's events through. 0 = never opened. */
+  sessionId: number;
+  /** Ms epoch when connect() was first called (all exchanges share the same
+   * init tick — near-zero spread between them proves parallel startup). */
+  connectStartedAt: number;
+  /** Ms epoch when the socket reached OPEN (0 = not yet). */
+  connectedAt: number;
+  /** Ms epoch when the subscription was accepted (0 = not yet). */
+  subscribedAt: number;
+  /** Ms epoch of the first valid live trade on this adapter (0 = none yet). */
+  firstEventAt: number;
 };
 
 // ─── Flow Windows ───────────────────────────────────────────────────
@@ -541,6 +582,9 @@ export type MarketFlowState = {
 
   // Global metrics from the HEALTHY/LIVE exchange set only (median/P95/min/max)
   global: GlobalMetrics;
+
+  // Startup / parallelism metrics across all exchanges
+  startup: StartupMetrics;
 
   // Current price (from flow data)
   currentPrice: number;

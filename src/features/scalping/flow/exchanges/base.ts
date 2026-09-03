@@ -94,6 +94,29 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
   /** Set by disconnect() to gate all reconnect/watchdog/timer activity. */
   protected disposed = false;
 
+  // Per-exchange lifecycle timing (wall-clock, captured independently per venue).
+  // connectStartedAt is set in createWs (all 16 adapters share the same init
+  // tick, so these are near-identical across exchanges = proof of parallelism).
+  protected connectStartedAt = 0;
+  protected connectedAt = 0;
+  protected subscribedAt = 0;
+  protected firstEventAt = 0;
+
+  /**
+   * Emit a single per-exchange startup/lifecycle line, e.g.
+   *   [Binance] CONNECTING +0ms
+   *   [OKX] CONNECTED     +23ms
+   *   [Bybit] LIVE        +58ms
+   * The elapsed time is relative to THIS exchange's own connect start, so every
+   * venue's CONNECTING fires in the same sync tick and each transitions on its
+   * own independent schedule. Kept minimal to avoid noise on reconnect loops.
+   */
+  protected logLifecycle(kind: string): void {
+    const base = this.connectStartedAt > 0 ? this.connectStartedAt : Date.now();
+    const elapsed = Math.max(0, Date.now() - base);
+    console.log(`[${this.id}] ${kind} +${elapsed}ms`);
+  }
+
   // Diagnostics / health
   protected lastValidAt = 0; // receivedAt of last valid trade (0 = none)
   protected lastEventTs = 0; // exchange timestamp of last valid trade (0 = none)
@@ -297,6 +320,11 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
     this.lastProcessedAt = processed;
     this.lastError = "";
 
+    if (this.firstEventAt === 0) {
+      this.firstEventAt = now;
+      this.logLifecycle("LIVE");
+    }
+
     if (Number.isFinite(trade.timestamp) && trade.timestamp > 0) {
       // Out-of-order / sequence detection: an event whose exchange timestamp is
       // meaningfully older than the newest already seen is out of order (or a
@@ -412,6 +440,13 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
       rttMs: this.rttMs, // heartbeat ping→pong, THIS venue only
       lastEventAgeMs: this.lastValidAt > 0 ? now - this.lastValidAt : -1, // since last delivery
       connectionAgeMs: this.socketOpenedAt > 0 ? now - this.socketOpenedAt : 0, // socket uptime
+      // Lifecycle timestamps (wall-clock, per-exchange) — used to compute the
+      // real `startup` metrics (parallel-start spread, live spread, etc.).
+      sessionId: this.wsGeneration,
+      connectStartedAt: this.connectStartedAt,
+      connectedAt: this.connectedAt,
+      subscribedAt: this.subscribedAt,
+      firstEventAt: this.firstEventAt,
     };
   }
 
@@ -456,6 +491,10 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
   /** Record the subscription was accepted by the exchange (optional, improves diagnostics). */
   protected confirmSubscription(): void {
     this.subscription = "subscribed";
+    if (this.subscribedAt === 0) {
+      this.subscribedAt = Date.now();
+      this.logLifecycle("SUBSCRIBED");
+    }
   }
 
   /** Record a real upstream subscription/connection error message. */
@@ -475,6 +514,10 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
     if (this.disposed) return;
     if (this.ws) return; // never open two sockets for one adapter
     const gen = ++this.wsGeneration;
+    if (this.connectStartedAt === 0) {
+      this.connectStartedAt = Date.now();
+      this.logLifecycle("CONNECTING");
+    }
     let ws: WebSocket;
     try {
       ws = new WebSocket(this.getWsUrl());
@@ -511,6 +554,10 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
       this.wsOpen = true;
       this.wsEverOpened = true;
       this.socketOpenedAt = Date.now();
+      if (this.connectedAt === 0) {
+        this.connectedAt = Date.now();
+        this.logLifecycle("CONNECTED");
+      }
       this.lastPong = Date.now();
       this.lastError = "";
       this.subscription = "pending";
