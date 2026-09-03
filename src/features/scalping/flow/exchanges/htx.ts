@@ -16,10 +16,11 @@ import { BaseExchangeAdapter } from "./base";
 
 /**
  * HTX serves its public WebSocket as GZIP-compressed binary frames that a
- * browser cannot inflate. The unified custom server (server.mjs) therefore
- * hosts an inflate WebSocket proxy on the SAME origin at /htx-ws: it connects
- * upstream to api.huobi.pro, inflates each gzip frame, and forwards plain-text
- * JSON. We connect to that same-origin proxy path, so no extra port is needed.
+ * browser cannot inflate. We therefore reach HTX through an inflate proxy:
+ *  - Vercel (default): the same-origin serverless WS route `/api/htx`
+ *    (src/app/api/htx/route.ts) inflates upstream and forwards plain JSON.
+ *  - Self-hosted: `server.mjs` mounts the `/htx-ws` inflate proxy; point the
+ *    adapter there by setting `NEXT_PUBLIC_HTX_WS_URL=/htx-ws`.
  */
 const PING_INTERVAL = 15_000;
 
@@ -33,15 +34,17 @@ export class HtxAdapter extends BaseExchangeAdapter {
   }
 
   protected getWsUrl(): string {
-    // The inflate proxy is mounted on the SAME origin/port as the page
-    // (/htx-ws), so derive it from window.location — works locally and on a
-    // VPS with zero extra configuration. Fall back to a relative same-host URL
-    // when window isn't available (SSR/tests).
+    // Default to the same-origin serverless WS route (/api/htx) which works on
+    // Vercel. Self-hosted (node server.mjs) instead exposes the /htx-ws inflate
+    // proxy — override the default by setting NEXT_PUBLIC_HTX_WS_URL=/htx-ws.
+    const base =
+      (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_HTX_WS_URL) ||
+      "/api/htx";
     if (typeof window !== "undefined" && window.location?.protocol) {
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      return `${protocol}//${window.location.host}/htx-ws`;
+      return `${protocol}//${window.location.host}${base}`;
     }
-    return `ws://localhost:3000/htx-ws`;
+    return `ws://localhost:3000${base}`;
   }
 
   protected getSubscribeMsg(symbol: string): unknown {
