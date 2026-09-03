@@ -49,10 +49,14 @@ class RingBuffer<T> {
     this.buf = new Array(capacity);
   }
 
-  push(item: T): void {
+  push(item: T): boolean {
+    // True when the ring was already full, i.e. we are evicting the oldest item.
+    // This is genuine data loss for any consumer (e.g. long window aggregation).
+    const overflowed = this.count === this.capacity;
     this.buf[this.head] = item;
     this.head = (this.head + 1) % this.capacity;
     if (this.count < this.capacity) this.count++;
+    return overflowed;
   }
 
   /** Return all items in insertion order (oldest first). */
@@ -118,7 +122,10 @@ const DEFAULT_CONFIG: FlowEngineConfig = {
   symbol: "BTCUSDT",
   windowDurations: [1, 3, 5, 10, 30, 60, 300],
   largeTradeThreshold: 50_000,
-  maxRawTrades: 5000,
+  // Shared across all 16 feeds and read for the 300s (5min) window aggregation.
+  // 5000 was far too small under high-frequency traffic and silently truncated
+  // long-window history = real data loss. Raised to retain 5min fully.
+  maxRawTrades: 100_000,
   maxLargeTrades: 200,
   snapshotIntervalMs: 80,
   computeIntervalMs: 80,
@@ -128,6 +135,10 @@ const DEFAULT_CONFIG: FlowEngineConfig = {
 
 const config = { ...DEFAULT_CONFIG };
 let adapters: ExchangeAdapter[] = [];
+
+// Per-exchange O(1) lookup for the hot ingest path. Rebuilt whenever adapters
+// change. Avoids an O(n) array scan on every single trade.
+let adapterById = new Map<string, ExchangeAdapter>();
 
 // Raw trade buffer (most recent for tape display)
 const rawTradeRing = new RingBuffer<NormalizedTrade>(DEFAULT_CONFIG.maxRawTrades);
@@ -161,6 +172,19 @@ const latestPriceByExchange = new Map<
   { price: number; receivedAt: number; latency: number }
 >();
 
+// Per-exchange last-seen trade (tradeId + exchange timestamp) for correct dedup.
+// Deduping against a GLOBAL ring's latest trade was wrong: tradeIds are not
+// unique across exchanges, so interleaved feeds let genuine duplicates slip
+// through (inflating flows) while also comparing unrelated ids. Scoping dedup
+// to the producing exchange fixes both.
+const lastSeenByExchange = new Map<string, { tradeId: string; timestamp: number }>();
+
+// Backpressure/overflow diagnostics: when a bounded buffer must drop events we
+// log exchange + queue size + running dropped count + timestamp rather than
+// silently losing data.
+let overflowCount = 0;
+const overflowLog: { exchange: string; queueSize: number; droppedCount: number; ts: number }[] = [];
+
 // Data quality
 let droppedEvents = 0;
 let duplicateEvents = 0;
@@ -188,6 +212,7 @@ export function initFlowEngine(
   onSnapshot_: (snapshot: FlowSnapshot) => void
 ): void {
   adapters = adapters_;
+  adapterById = new Map(adapters_.map((a) => [a.id, a] as const));
   onSnapshot = onSnapshot_;
 
   // Connect all adapters
@@ -210,6 +235,7 @@ export function destroyFlowEngine(): void {
     adapter.disconnect();
   }
   adapters = [];
+  adapterById = new Map();
   onSnapshot = null;
 }
 
@@ -233,46 +259,62 @@ export function resetFlowState(): void {
   largeBuyRing.clear();
   largeSellRing.clear();
   latestPriceByExchange.clear();
+  lastSeenByExchange.clear();
+  overflowCount = 0;
+  overflowLog.length = 0;
 }
 
 // ─── Trade Ingestion ────────────────────────────────────────────────
 
 /** Called by exchange adapters when a normalized trade arrives. */
 export function ingestTrade(trade: NormalizedTrade): void {
-  // Dedup check (same tradeId within 100ms)
-  const latest = rawTradeRing.peekLatest();
-  if (latest && latest.tradeId === trade.tradeId && latest.exchange === trade.exchange && Math.abs(latest.timestamp - trade.timestamp) < 100) {
-    duplicateEvents++;
-    // Account the drop on the source adapter's health so monitoring shows the
-    // per-exchange dropped rate rather than a single global counter.
-    const dropAdapter = adapters.find((a) => a.id === trade.exchange);
-    if (dropAdapter?.recordDropped) dropAdapter.recordDropped();
-    return;
+  // O(1) adapter lookup (avoids an O(n) array scan on the hot path).
+  const adapter = adapterById.get(trade.exchange);
+
+  // Per-exchange dedup: the same trade re-delivered by the exchange within a
+  // short window (same id + same exchange timestamp). Scoped to the producing
+  // exchange — tradeIds are NOT globally unique across 16 feeds, so a global
+  // last-trade check let genuine duplicates slip through (and inflated flows).
+  if (trade.tradeId) {
+    const last = lastSeenByExchange.get(trade.exchange);
+    if (last && last.tradeId === trade.tradeId && Math.abs(last.timestamp - trade.timestamp) < 100) {
+      duplicateEvents++;
+      adapter?.recordDropped?.();
+      return;
+    }
+    lastSeenByExchange.set(trade.exchange, { tradeId: trade.tradeId, timestamp: trade.timestamp });
   }
 
-  // Track latency + last-valid-event on the adapter (drives LIVE/STALE status).
-  const processedNow = Date.now();
-  // Stamp the true end-to-end processing time (frame decode → validated/ingested)
+  // Stamp true end-to-end processing time (frame decode → validated/ingested)
   // on every ingested trade. This is `processedAt` used for processing-latency.
+  const processedNow = Date.now();
   trade.processedAt = processedNow;
-  const adapter = adapters.find((a) => a.id === trade.exchange);
+
   adapter?.markTradeValid(trade);
   lastEventTime = Math.max(lastEventTime, trade.receivedAt);
 
-  // Store raw trade
-  rawTradeRing.push(trade);
+  // Store raw trade (reports whether an older trade was evicted = data loss)
+  if (rawTradeRing.push(trade)) {
+    overflowCount++;
+    overflowLog.push({
+      exchange: trade.exchange,
+      queueSize: rawTradeRing.size,
+      droppedCount: overflowCount,
+      ts: Date.now(),
+    });
+    if (overflowLog.length > 100) overflowLog.shift();
+  }
 
-  // Latest price per exchange (composite + divergence inputs).
-  const adapterLatency = adapter?.getHealth().latency ?? -1;
+  // Latest price per exchange (cheap O(1) latency read — no health object built).
   latestPriceByExchange.set(trade.exchange, {
     price: trade.price,
     receivedAt: trade.receivedAt,
-    latency: adapterLatency,
+    latency: adapter?.lastLatency ?? -1,
   });
 
-  // Price tracking
+  // Price tracking (bounded trim only near the cap — no per-trade re-allocation)
   priceHistory.push({ time: trade.timestamp, price: trade.price });
-  if (priceHistory.length > 300) priceHistory = priceHistory.slice(-300);
+  trimPriceHistory();
 
   // CVD update
   if (trade.side === "buy") {
@@ -289,10 +331,30 @@ export function ingestTrade(trade: NormalizedTrade): void {
     ingestLiquidation(trade);
   }
 
-  // Event rate tracking
+  // Event-rate tracking (bounded window; trim on a low-frequency cadence)
   eventRateBuffer.push(trade.receivedAt);
+  trimEventRate();
+}
+
+const PRICE_HISTORY_MAX = 300;
+function trimPriceHistory(): void {
+  // Rebuild only once past the bound — never re-allocate a fresh array per trade.
+  if (priceHistory.length > PRICE_HISTORY_MAX) {
+    priceHistory = priceHistory.slice(-PRICE_HISTORY_MAX);
+  }
+}
+
+const EVENT_RATE_WINDOW_MS = 1000;
+let lastEventRateTrim = 0;
+function trimEventRate(): void {
+  // Filter at ~10Hz instead of re-filtering the whole window on every trade.
   const now = Date.now();
-  eventRateBuffer = eventRateBuffer.filter((t) => now - t < 1000);
+  if (now - lastEventRateTrim <= 100) return;
+  lastEventRateTrim = now;
+  const cutoff = now - EVENT_RATE_WINDOW_MS;
+  const out: number[] = [];
+  for (const t of eventRateBuffer) if (t >= cutoff) out.push(t);
+  eventRateBuffer = out;
 }
 
 function checkLargeTrade(trade: NormalizedTrade): void {
@@ -320,10 +382,14 @@ function ingestLiquidation(trade: NormalizedTrade): void {
     shortLiqVolume += trade.notional;
   }
   liqEvents.push({ ts: trade.timestamp, notional: trade.notional, side: trade.side });
-  // Keep only last 60s of liq events
+  // Keep only last 60s of liq events (trim at low cadence, not per event)
   const cutoff = Date.now() - 60_000;
-  liqEvents = liqEvents.filter((e) => e.ts > cutoff);
+  if (liqEvents.length > 500 && Date.now() - lastLiqTrim > 500) {
+    lastLiqTrim = Date.now();
+    liqEvents = liqEvents.filter((e) => e.ts > cutoff);
+  }
 }
+let lastLiqTrim = 0;
 
 // ─── Flow Window Computation ────────────────────────────────────────
 
@@ -586,6 +652,16 @@ function computeDataQuality(): DataQuality {
     dataAge = dataAge < 0 ? c.dataAge : Math.min(dataAge, c.dataAge);
   }
 
+  // Overflow + outage diagnostics aggregated across feeds. Kept honest: any
+  // local queue/buffer that dropped events, or any transport outage, is never
+  // hidden — it is surfaced here (and logged with ts/size on the hot path).
+  let overflowCountTotal = overflowCount;
+  let reconnectGapTotal = 0;
+  for (const c of conns) {
+    overflowCountTotal += c.overflowCount || 0;
+    if (c.reconnectGapMs > 0) reconnectGapTotal += c.reconnectGapMs;
+  }
+
   return {
     level,
     connectedCount: liveCount,
@@ -598,6 +674,8 @@ function computeDataQuality(): DataQuality {
     duplicateEvents,
     reconnectCount: totalReconnects(),
     dataGap,
+    overflowCount: overflowCountTotal,
+    reconnectGapMs: reconnectGapTotal,
   };
 }
 

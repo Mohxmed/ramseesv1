@@ -65,6 +65,12 @@ export type ExchangeAdapter = {
    */
   markTradeValid(trade: NormalizedTrade): void;
 
+  /**
+   * Cheap hot-path latency read (ms, -1 = N/A). Must NOT build the full
+   * getHealth() object — this is read on every ingested trade.
+   */
+  readonly lastLatency: number;
+
   /** Record a locally-dropped (duplicate/stale) event for per-exchange monitoring. */
   recordDropped?(): void;
 
@@ -174,6 +180,14 @@ export type ExchangeConnection = {
   droppedEvents: number;
   /** Detected sequence gaps in the ingested trade stream for this exchange. */
   sequenceGaps: number;
+  /** Events whose exchange timestamp was out-of-order vs the newest seen. */
+  outOfOrderEvents: number;
+  /** Times the local ingest/queue path overflowed and dropped for this feed. */
+  overflowCount: number;
+  /** Ms epoch of the most recent transport reconnect (0 = none yet). */
+  lastReconnectAt: number;
+  /** Duration (ms) of the most recent transport outage (0 = none yet). */
+  reconnectGapMs: number;
 };
 
 // ─── Flow Windows ───────────────────────────────────────────────────
@@ -288,6 +302,10 @@ export type DataQuality = {
   duplicateEvents: number;
   reconnectCount: number;
   dataGap: boolean;
+  /** Times any local queue overflowed and dropped events (backpressure loss). */
+  overflowCount: number;
+  /** Total estimated outage time across exchanges (ms) that gaps data. */
+  reconnectGapMs: number;
 };
 
 // ─── Market Flow State (Single Source of Truth) ─────────────────────
@@ -385,4 +403,10 @@ export type FlowSnapshot = {
   state: MarketFlowState;
   recentTrades: NormalizedTrade[]; // last N for tape display
   connections: ExchangeConnection[];
+  /**
+   * Ms epoch when the snapshot was published to consumers (set at the engine's
+   * snap/fcompose tick). Stamped by useFlowEngine on publish to let the UI
+   * measure the engine→publish→render delay. 0 = not yet published.
+   */
+  publishedAt?: number;
 };

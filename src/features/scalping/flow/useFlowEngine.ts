@@ -86,7 +86,12 @@ export function useFlowEngine(options: UseFlowEngineOptions = {}) {
 
     // Throttled UI state update.
     const interval = setInterval(() => {
-      if (latestRef.current) setFlow({ ...latestRef.current });
+      if (latestRef.current) {
+        // Stamp the publish time so the UI can measure engine→publish→render delay.
+        const snap: FlowSnapshot = { ...latestRef.current, publishedAt: Date.now() };
+        latestRef.current = snap;
+        setFlow(snap);
+      }
     }, snapshotIntervalMs);
 
     return () => {

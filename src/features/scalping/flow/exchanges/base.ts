@@ -38,6 +38,14 @@ export const WATCHDOG_INTERVAL_MS = 5_000;
 export const MAX_RECONNECT_DELAY_MS = 30_000;
 
 /**
+ * Recompute the clock-skew median only every N valid trades (warmup included)
+ * instead of sorting the full sample window on EVERY trade. Skew drifts slowly,
+ * so batching the median cuts per-trade allocation/sort churn on the hot path
+ * with no meaningful accuracy loss.
+ */
+const SKEW_RECOMPUTE_EVERY = 32;
+
+/**
  * Decode an inbound WebSocket frame into a parsed JSON value. Exchange feeds are
  * inconsistent about wire encoding: Upbit ships binary Blob/ArrayBuffer frames
  * containing JSON text, HTX's proxy sends plain-text JSON, and Node buffers
@@ -89,6 +97,15 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
   protected subscription: SubscriptionStatus = "pending";
   protected lastError = "";
   protected wsEverOpened = false;
+
+  // Reconnect-gap diagnostics: a reconnect means in-flight events during the
+  // outage were NOT replayed by the exchange (none of our 16 offer rollback
+  // replay on the public trade stream), so metrics crossing the gap are known
+  // to be incomplete until the window rolls past it. Track when it happened.
+  protected lastReconnectMs = 0;
+  protected lastDisconnectAt = 0;
+  protected reconnectGapMs = 0; // duration of the most recent outage
+  protected overflowCount = 0; // times the ingest/queue path overflowed locally
 
   // Per-exchange monitoring: rolling msg rate, dropped-event and sequence-gap
   // counters. Dropped/duplicate events are bumped by the engine (the only place
@@ -244,25 +261,17 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
       if (trade.timestamp > this.lastSeqTs) this.lastSeqTs = trade.timestamp;
 
       // Estimate clock skew: how far the exchange clock leads this host's
-      // clock, approximated by (timestamp - receivedAt) samples.
+      // clock, approximated by (timestamp - receivedAt) samples. The median is
+      // robust to a single out-of-band stale/backfilled/REST-glitch sample that
+      // would otherwise inflate `max` and drag reported latency up for the
+      // whole window (e.g. an 18-second false reading that persists).
       this.skewSamples.push(trade.timestamp - received);
-      if (this.skewSamples.length > BaseExchangeAdapter.SKEW_WINDOW) {
-        this.skewSamples = this.skewSamples.slice(-BaseExchangeAdapter.SKEW_WINDOW);
+      this.trimSkewSamples();
+      // Recompute the median on a sample basis, not on every trade (warmup
+      // recomputes through the first window so early latency stays accurate).
+      if (this.eventCount <= BaseExchangeAdapter.SKEW_WINDOW || this.eventCount % SKEW_RECOMPUTE_EVERY === 0) {
+        this.recomputeSkew();
       }
-      // Use the MEDIAN, not the max. Independent exchanges timestamp in real
-      // time that can be slightly ahead of this host, but a single out-of-band
-      // sample (a stale/backfilled REST trade, or a malformed/timestamp-unit
-      // glitch) would otherwise shift `max` far forward and inflate reported
-      // latency for the entire window (e.g. an 18-second false reading that
-      // persists and makes the platform appear to "switch" between good and
-      // huge latency). The median is robust to such outliers while still
-      // tracking real sustained clock offset on clean feeds.
-      const idx = this.skewSamples.length >> 1;
-      const sorted = [...this.skewSamples].sort((a, b) => a - b);
-      this.skewOffset =
-        this.skewSamples.length % 2 === 1
-          ? sorted[idx]
-          : (sorted[idx - 1] + sorted[idx]) / 2;
 
       // Corrected network latency = (receivedAt - timestamp) + skewOffset.
       // Floor to a whole millisecond so the displayed latency reads clean.
@@ -283,6 +292,38 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
       const proc = processed - received;
       if (Number.isFinite(proc) && proc >= 0) this.processingLatency = proc;
     }
+  }
+
+  /** Trim the skew-sample window to the bound (no allocation when under it). */
+  private trimSkewSamples(): void {
+    if (this.skewSamples.length > BaseExchangeAdapter.SKEW_WINDOW) {
+      this.skewSamples = this.skewSamples.slice(-BaseExchangeAdapter.SKEW_WINDOW);
+    }
+  }
+
+  /** Recompute the median clock-skew offset over the current sample window. */
+  private recomputeSkew(): void {
+    const samples = this.skewSamples;
+    if (samples.length === 0) return;
+    const sorted = samples.slice().sort((a, b) => a - b);
+    const mid = sorted.length >> 1;
+    this.skewOffset =
+      sorted.length % 2 === 1
+        ? sorted[mid]
+        : (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+
+  /** Record a local backpressure/ingest overflow (called by the engine queue). */
+  recordOverflow(): void {
+    this.overflowCount++;
+  }
+
+  /** Mark a transport reconnect so downstream metrics can flag the data gap. */
+  markReconnect(outageMs: number): void {
+    this.lastReconnectMs = Date.now();
+    if (outageMs > 0) this.reconnectGapMs = Math.max(this.reconnectGapMs, outageMs);
+    // A reconnect starts a fresh sequence — the old socket's sequence is void.
+    this.lastSeqTs = 0;
   }
 
   getHealth(): ExchangeConnection {
@@ -314,7 +355,16 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
       messagesPerSec: this.messagesPerSec(),
       droppedEvents: this.droppedCount,
       sequenceGaps: this.gapCount,
+      outOfOrderEvents: this.outOfOrderCount,
+      overflowCount: this.overflowCount,
+      lastReconnectAt: this.lastReconnectMs,
+      reconnectGapMs: this.reconnectGapMs,
     };
+  }
+
+  /** Cheap hot-path latency read — avoids building the full health object. */
+  get lastLatency(): number {
+    return this.latency;
   }
 
   protected computeStatus(now: number): ExchangeStatus {
@@ -409,6 +459,7 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
       this.lastPong = Date.now();
       this.lastError = "";
       this.subscription = "pending";
+      this.markReconnect(this.lastDisconnectAt > 0 ? Date.now() - this.lastDisconnectAt : 0);
       // Resubscribe every requested symbol on (re)connect.
       for (const symbol of this.subscribedSymbols) {
         this.send(this.getSubscribeMsg(symbol));
@@ -417,19 +468,24 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
       this.startPing();
     };
 
-    ws.onmessage = async (event) => {
+    ws.onmessage = (event) => {
       if (gen !== this.wsGeneration || this.disposed) {
         // Clear the connect timeout for a stale frame too.
         clearTimeout(connectTimer);
         return;
       }
       this.lastPong = Date.now();
-      try {
-        this.handleMessage(await decodeFrame(event.data));
-      } catch {
-        // Malformed / non-JSON / unsupported frame — ignore.
+      const { data } = event;
+      // Fast path: string frames (the common case, incl. the HTX inflate proxy)
+      // parse and dispatch synchronously — no `await`/microtask hop that would
+      // add per-frame latency and let messages batch up behind slow frames.
+      if (typeof data === "string") {
+        this.dispatchFrame(() => JSON.parse(data));
+        return;
       }
-      this.recordMessage();
+      // Blob/ArrayBuffer/view frames (e.g. Upbit binary) need async decode;
+      // each is still independent so one slow decode never blocks the others.
+      void this.dispatchAsyncFrame(data);
     };
 
     ws.onerror = (event) => {
@@ -453,6 +509,7 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
       const codeText = code != null ? ` code=${code}` : "";
       this.recordError(`connection closed${codeText}${reasonText}`);
       this.wsOpen = false;
+      this.lastDisconnectAt = Date.now();
       if (this.ws === ws) this.ws = null;
       this.stopPing();
       this.stopWatchdog();
@@ -460,6 +517,26 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
     };
 
     this.ws = ws;
+  }
+
+  /** Decode+dispatch a frame whose parse is synchronous (fast path). */
+  private dispatchFrame(parse: () => unknown): void {
+    try {
+      this.handleMessage(parse());
+    } catch {
+      // Malformed / non-JSON / unsupported frame — ignore.
+    }
+    this.recordMessage();
+  }
+
+  /** Decode+dispatch an async frame (Blob/ArrayBuffer/view). Independent per frame. */
+  private async dispatchAsyncFrame(data: unknown): Promise<void> {
+    try {
+      this.handleMessage(await decodeFrame(data));
+    } catch {
+      // Malformed / non-JSON / unsupported frame — ignore.
+    }
+    this.recordMessage();
   }
 
   protected send(msg: unknown): void {
