@@ -251,6 +251,10 @@ export function ingestTrade(trade: NormalizedTrade): void {
   }
 
   // Track latency + last-valid-event on the adapter (drives LIVE/STALE status).
+  const processedNow = Date.now();
+  // Stamp the true end-to-end processing time (frame decode → validated/ingested)
+  // on every ingested trade. This is `processedAt` used for processing-latency.
+  trade.processedAt = processedNow;
   const adapter = adapters.find((a) => a.id === trade.exchange);
   adapter?.markTradeValid(trade);
   lastEventTime = Math.max(lastEventTime, trade.receivedAt);
@@ -574,12 +578,21 @@ function computeDataQuality(): DataQuality {
   else if (liveCount < totalCount / 2) level = "partial";
   else if (stale) level = "stale";
 
+  // Data age = age of the freshest LIVE supporting source (fault-isolated best
+  // of, never the mean). `-1` when no source is live yet → rendered N/A.
+  let dataAge = -1;
+  for (const c of conns) {
+    if (c.status !== "LIVE" || c.dataAge < 0) continue;
+    dataAge = dataAge < 0 ? c.dataAge : Math.min(dataAge, c.dataAge);
+  }
+
   return {
     level,
     connectedCount: liveCount,
     totalCount,
     coverage,
     latency,
+    dataAge,
     eventRate,
     droppedEvents,
     duplicateEvents,

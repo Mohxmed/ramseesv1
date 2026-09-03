@@ -128,6 +128,9 @@ function SplitBar({ buy, sell, buyPctFill = "bg-up", sellPctFill = "bg-down", he
 
 const STATUS_META: Record<string, { label: string; tone: Tone }> = {
   LIVE: { label: "مباشر", tone: "good" },
+  CONNECTED: { label: "متصل", tone: "warn" },
+  SUBSCRIBING: { label: "جارٍ الاشتراك", tone: "warn" },
+  DEGRADED: { label: "متدهور", tone: "warn" },
   STALE: { label: "متأخر", tone: "warn" },
   CONNECTING: { label: "يتصل", tone: "warn" },
   DISCONNECTED: { label: "مقطوع", tone: "quiet" },
@@ -185,6 +188,9 @@ function GatewayRow({ conn }: { conn: ExchangeConnection }) {
         <span className="font-medium normal-case text-muted">{meta.label}</span>
       </span>
       <TipRow label="الاستجابة" value={conn.latency >= 0 ? `${conn.latency}ms` : "N/A"} />
+      <TipRow label="عمر البيانات" value={conn.dataAge >= 0 ? `${conn.dataAge}ms` : "N/A"} />
+      <TipRow label="زمن النقل" value={conn.transportLatency >= 0 ? `${conn.transportLatency}ms` : "N/A"} />
+      <TipRow label="زمن المعالجة" value={conn.processingLatency >= 0 ? `${conn.processingLatency}ms` : "N/A"} />
       <TipRow label="آخر تحديث" value={conn.receivedAt ? hhmmss(conn.receivedAt) : "N/A"} />
       <TipRow label="حدث/ث" value={String(conn.messagesPerSec)} />
       <TipRow label="أحداث" value={String(conn.eventCount)} />
@@ -232,6 +238,12 @@ function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
   const avgLatency = healthyLat.length > 0 ? Math.min(...healthyLat) : null;
   const overallTone: Tone = live.length > 0 ? "good" : "warn";
 
+  // Freshness (fault-isolated best-of): age of the freshest LIVE source's data.
+  const liveAges = live
+    .filter((c) => Number.isFinite(c.dataAge) && c.dataAge >= 0)
+    .map((c) => c.dataAge);
+  const dataAge = liveAges.length > 0 ? Math.min(...liveAges) : null;
+
   const tiles: { label: string; tip: string; value: string; tone: Tone }[] = [
     {
       label: "المتصل",
@@ -244,6 +256,12 @@ function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
       tip: "زمن استجابة أسرع مصدر حي سليم (Fault-Isolated) — يستبعد المصادر البطيئة/المجمدة حتى لا تسحب أوقات استجابة المنصات السريعة — يظهر N/A عند عدم وجود مصدر حي",
       value: avgLatency !== null ? `${avgLatency}ms` : "N/A",
       tone: live.length > 0 ? "good" : "neutral",
+    },
+    {
+      label: "عمر البيانات",
+      tip: "أحدث عمر لبيانات أسرع مصدر حي (Fault-Isolated) — يقيس طراوة القراءة اللحظية بغضّ النظر عن زمن النقل — يظهر N/A عند عدم وجود مصدر حي",
+      value: dataAge !== null ? `${dataAge}ms` : "N/A",
+      tone: dataAge !== null && dataAge <= 5000 ? "good" : "neutral",
     },
     {
       label: "حدث/ث",

@@ -14,8 +14,12 @@ export type NormalizedTrade = {
   exchange: string;
   market: "spot" | "perpetual" | "futures";
   symbol: string;
-  timestamp: number; // ms epoch (exchange event time)
-  receivedAt: number; // ms epoch (local receipt time)
+  /** ms epoch of the exchange event (exchange clock). */
+  timestamp: number;
+  /** ms epoch of local arrival at the adapter's frame decode (transport receipt). */
+  receivedAt: number;
+  /** ms epoch of local completion of validation+normalization+ingestion (added by the engine). */
+  processedAt?: number;
   price: number;
   quantity: number; // base currency
   notional: number; // price × quantity (quote)
@@ -26,7 +30,15 @@ export type NormalizedTrade = {
 
 // ─── Exchange Adapter ────────────────────────────────────────────────
 
-export type ExchangeStatus = "CONNECTING" | "LIVE" | "STALE" | "DISCONNECTED" | "ERROR";
+export type ExchangeStatus =
+  | "CONNECTING" // transport not yet open / not yet attempted
+  | "CONNECTED" // transport open, but no market data received yet on this socket
+  | "SUBSCRIBING" // socket open + subscription requested, awaiting acks/data
+  | "LIVE" // socket open + valid fresh market data received recently
+  | "DEGRADED" // socket open but data has gone stale / is latent (non-fresh)
+  | "STALE" // connection lost but a valid event is recent enough to show stale
+  | "DISCONNECTED" // connection lost / never connected
+  | "ERROR"; // unrecovered WS error
 
 export type SubscriptionStatus = "pending" | "subscribed" | "failed" | "none";
 
@@ -126,10 +138,27 @@ export type ExchangeConnection = {
   status: ExchangeStatus;
   /** Latency (ms) of the last valid event. `-1` means N/A (no valid event yet). */
   latency: number;
+  /**
+   * Transport latency (ms): exchange-timestamp → local receipt, skew-corrected.
+   * Network wire + decode time only. `-1` = N/A.
+   */
+  transportLatency: number;
+  /**
+   * Processing latency (ms): local receipt → validated/ingested (`processedAt`).
+   * `-1` = N/A.
+   */
+  processingLatency: number;
+  /**
+   * Data age (ms): now − exchange timestamp of the last valid event. Reflects
+   * how stale the underlying market reading is. `-1` = N/A (no event yet).
+   */
+  dataAge: number;
   /** ms epoch of the last valid trade's exchange timestamp (0 = none). */
   lastEvent: number;
   /** ms epoch of the last valid trade's local receipt time (0 = none). */
   receivedAt: number;
+  /** ms epoch of the last valid trade's processed (validated/ingested) time (0 = none). */
+  processedAt: number;
   /** Count of valid (non-duplicate) real trades ingested. */
   eventCount: number;
   subscription: SubscriptionStatus;
@@ -252,6 +281,8 @@ export type DataQuality = {
   totalCount: number;
   coverage: string; // "X/Y"
   latency: number; // avg ms
+  /** Data age (ms) of the freshest supporting source; -1 = none live. */
+  dataAge: number;
   eventRate: number; // events/sec
   droppedEvents: number;
   duplicateEvents: number;

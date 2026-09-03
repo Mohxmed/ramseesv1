@@ -80,8 +80,12 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
   // Diagnostics / health
   protected lastValidAt = 0; // receivedAt of last valid trade (0 = none)
   protected lastEventTs = 0; // exchange timestamp of last valid trade (0 = none)
+  protected lastProcessedAt = 0; // processedAt of last valid trade (0 = none)
   protected eventCount = 0;
   protected latency = -1; // -1 = N/A
+  protected transportLatency = -1; // -1 = N/A
+  protected processingLatency = -1; // -1 = N/A
+  protected dataAge = -1; // -1 = N/A
   protected subscription: SubscriptionStatus = "pending";
   protected lastError = "";
   protected wsEverOpened = false;
@@ -92,6 +96,12 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
   protected droppedCount = 0;
   protected gapCount = 0;
   private msgTicks: number[] = []; // timestamps of the last (valid or dropped) WS trades for rate
+
+  // Out-of-order detection: track the exchange timestamps already seen so a
+  // significantly older event arriving after a newer one is flagged (rather
+  // than silently corrupting the flow). Reset on reconnect (new sequence).
+  protected lastSeqTs = 0;
+  protected outOfOrderCount = 0;
 
   // Clock-skew estimation. Independent exchanges timestamp events in true UTC,
   // which may be ahead of this host's local clock (NTP skew). We estimate the
@@ -214,13 +224,25 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
    * it is finite and non-negative (a future/invalid timestamp is never shown).
    */
   markTradeValid(trade: NormalizedTrade): void {
-    const received = Number.isFinite(trade.receivedAt) ? trade.receivedAt : Date.now();
+    const now = Date.now();
+    const received = Number.isFinite(trade.receivedAt) ? trade.receivedAt : now;
+    const pAt = trade.processedAt;
+    const processed = typeof pAt === "number" && Number.isFinite(pAt) ? pAt : now;
     this.eventCount++;
     this.lastEventTs = trade.timestamp;
     this.lastValidAt = received;
+    this.lastProcessedAt = processed;
     this.lastError = "";
 
     if (Number.isFinite(trade.timestamp) && trade.timestamp > 0) {
+      // Out-of-order / sequence detection: an event whose exchange timestamp is
+      // meaningfully older than the newest already seen is out of order (or a
+      // duplicate backfill). Flag it for monitoring; it is not ingested as fresh.
+      if (this.lastSeqTs > 0 && trade.timestamp < this.lastSeqTs - 100) {
+        this.outOfOrderCount++;
+      }
+      if (trade.timestamp > this.lastSeqTs) this.lastSeqTs = trade.timestamp;
+
       // Estimate clock skew: how far the exchange clock leads this host's
       // clock, approximated by (timestamp - receivedAt) samples.
       this.skewSamples.push(trade.timestamp - received);
@@ -248,6 +270,18 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
       if (Number.isFinite(latency) && latency >= 0) {
         this.latency = latency;
       }
+
+      // Data age: how old the underlying market reading is right now. Even for
+      // a low-wire-latency feed, `dataAge` grows as the reading ages — the two
+      // are deliberately kept separate (transport vs. freshness).
+      const age = Math.floor(now - trade.timestamp + this.skewOffset);
+      if (Number.isFinite(age) && age >= 0) this.dataAge = age;
+
+      // Transport latency: exchange timestamp → local receipt (wire + decode).
+      if (Number.isFinite(latency) && latency >= 0) this.transportLatency = latency;
+      // Processing latency: local receipt → validated/ingested.
+      const proc = processed - received;
+      if (Number.isFinite(proc) && proc >= 0) this.processingLatency = proc;
     }
   }
 
@@ -265,8 +299,12 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
       label: this.label,
       status,
       latency: this.latency,
+      transportLatency: this.transportLatency,
+      processingLatency: this.processingLatency,
+      dataAge: this.dataAge,
       lastEvent: this.lastEventTs,
       receivedAt: this.lastValidAt,
+      processedAt: this.lastProcessedAt,
       eventCount: this.eventCount,
       subscription: this.subscription,
       wsOpen: this.wsOpen,
@@ -288,17 +326,26 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
       return "DISCONNECTED";
     }
 
-    // Socket is open.
+    // Socket is open. Report LIVE only when real, fresh data arrived on THIS
+    // socket; a freshly (re)connected socket is never marked LIVE from a prior
+    // socket's health.
+    const dataSinceOpen = this.socketOpenedAt > 0 && this.lastValidAt >= this.socketOpenedAt;
+
     if (this.lastValidAt > 0 && now - this.lastValidAt > STALE_EVENT_THRESHOLD_MS) {
-      return "STALE";
+      // Socket is open but market data has gone quiet/stale → DEGRADED.
+      return "DEGRADED";
     }
-    // Do not report LIVE until real trade data has arrived on THIS socket. A
-    // freshly (re)connected socket that has not delivered any valid trade yet
-    // stays CONNECTING rather than inheriting a previous socket's health.
-    if (this.lastValidAt >= this.socketOpenedAt && this.socketOpenedAt > 0 && this.subscription !== "failed") {
-      return "LIVE";
+
+    if (dataSinceOpen) {
+      if (this.subscription !== "failed") return "LIVE";
+      return "DEGRADED";
     }
-    return "CONNECTING";
+
+    // Never received valid data on this socket yet.
+    if (this.subscribedSymbols.size > 0 && this.subscription !== "none") {
+      return "SUBSCRIBING";
+    }
+    return "CONNECTED";
   }
 
   /** Record the subscription was accepted by the exchange (optional, improves diagnostics). */
