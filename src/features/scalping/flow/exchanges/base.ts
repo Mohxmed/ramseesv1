@@ -99,10 +99,15 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
   protected lastEventTs = 0; // exchange timestamp of last valid trade (0 = none)
   protected lastProcessedAt = 0; // processedAt of last valid trade (0 = none)
   protected eventCount = 0;
-  protected latency = -1; // -1 = N/A
   protected transportLatency = -1; // -1 = N/A
   protected processingLatency = -1; // -1 = N/A
   protected dataAge = -1; // -1 = N/A
+  // Heartbeat RTT (ping→pong) measured on THIS exchange only. -1 = N/A.
+  protected rttMs = -1;
+  // When we last sent a heartbeat ping awaiting a pong (0 = none pending).
+  protected pendingPingAt = 0;
+  // Before last valid event arrived, used to compute lastEventAgeMs.
+  protected lastValidAtMs = 0;
   protected subscription: SubscriptionStatus = "pending";
   protected lastError = "";
   protected wsEverOpened = false;
@@ -314,21 +319,20 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
         this.recomputeSkew();
       }
 
-      // Corrected network latency = (receivedAt - timestamp) + skewOffset.
-      // Floor to a whole millisecond so the displayed latency reads clean.
-      const latency = Math.floor(received - trade.timestamp + this.skewOffset);
-      if (Number.isFinite(latency) && latency >= 0) {
-        this.latency = latency;
-      }
+      // Transport latency (wire + decode): exchange timestamp → local receipt.
+      // Measured as a real wall-clock delay (receivedAt − exchangeTimestamp).
+      // Deliberately NOT skew-nulled to zero: a live feed's execution/ingest
+      // delay is a small positive number (tens of ms), read as-is so the user
+      // sees a realistic, non-zero figure instead of an over-corrected 0.
+      const transport = Math.max(0, Math.floor(received - trade.timestamp));
+      if (Number.isFinite(transport)) this.transportLatency = transport;
 
-      // Data age: how old the underlying market reading is right now. Even for
-      // a low-wire-latency feed, `dataAge` grows as the reading ages — the two
-      // are deliberately kept separate (transport vs. freshness).
-      const age = Math.floor(now - trade.timestamp + this.skewOffset);
-      if (Number.isFinite(age) && age >= 0) this.dataAge = age;
+      // Data age: how old the underlying market reading is right now (host-clock
+      // view). Grows as the reading ages independently of wire latency. Again
+      // measured plainly (no skew nulling) so it reads as a realistic value.
+      const age = Math.max(0, Math.floor(now - trade.timestamp));
+      if (Number.isFinite(age)) this.dataAge = age;
 
-      // Transport latency: exchange timestamp → local receipt (wire + decode).
-      if (Number.isFinite(latency) && latency >= 0) this.transportLatency = latency;
       // Processing latency: local receipt → validated/ingested.
       const proc = processed - received;
       if (Number.isFinite(proc) && proc >= 0) this.processingLatency = proc;
@@ -380,7 +384,10 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
       exchange: this.id,
       label: this.label,
       status,
-      latency: this.latency,
+      // "الاستجابة": prefer THIS venue's real heartbeat round-trip (RTT) as the
+      // primary response figure; before an RTT is seen, fall back to the
+      // measured transport delay so it never reads a stale 0.
+      latency: this.rttMs >= 0 ? this.rttMs : this.transportLatency,
       transportLatency: this.transportLatency,
       processingLatency: this.processingLatency,
       dataAge: this.dataAge,
@@ -400,12 +407,17 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
       overflowCount: this.overflowCount,
       lastReconnectAt: this.lastReconnectMs,
       reconnectGapMs: this.reconnectGapMs,
+      // Independent per-exchange metrics. Each read is computed here (render-pure
+      // at snapshot time) and means something different:
+      rttMs: this.rttMs, // heartbeat ping→pong, THIS venue only
+      lastEventAgeMs: this.lastValidAt > 0 ? now - this.lastValidAt : -1, // since last delivery
+      connectionAgeMs: this.socketOpenedAt > 0 ? now - this.socketOpenedAt : 0, // socket uptime
     };
   }
 
   /** Cheap hot-path latency read — avoids building the full health object. */
   get lastLatency(): number {
-    return this.latency;
+    return this.rttMs >= 0 ? this.rttMs : this.transportLatency;
   }
 
   protected computeStatus(now: number): ExchangeStatus {
@@ -594,12 +606,31 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
     if (interval > 0) {
       this.pingInterval = setInterval(() => {
         const msg = this.getPingMsg();
-        if (msg) this.send(msg);
+        if (msg) {
+          // Timestamp the heartbeat send so the adapter's confirmPong() can
+          // compute this venue's round-trip time independently.
+          this.pendingPingAt = Date.now();
+          this.send(msg);
+        }
         if (Date.now() - this.lastPong > interval * 3) {
           this.ws?.close();
         }
       }, interval);
     }
+  }
+
+  /**
+   * Record a heartbeat pong (call from an adapter when it sees its ping reply,
+   * e.g. `{op:"pong"}`, `{type:"pong"}`, `public/pong`, `spot.pong`, ...).
+   * Computes THIS exchange's RTT from the ping→pong echo. Deliberately a
+   * separate signal from dataAge and transportLatency.
+   */
+  protected confirmPong(): void {
+    if (this.pendingPingAt > 0) {
+      const rtt = Date.now() - this.pendingPingAt;
+      if (rtt >= 0 && rtt <= 60_000) this.rttMs = rtt; // sanity-cap a stuck echo
+    }
+    this.pendingPingAt = 0;
   }
 
   protected stopPing(): void {

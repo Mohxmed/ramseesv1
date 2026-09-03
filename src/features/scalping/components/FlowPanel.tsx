@@ -188,9 +188,12 @@ function GatewayRow({ conn }: { conn: ExchangeConnection }) {
         <span className="font-medium normal-case text-muted">{meta.label}</span>
       </span>
       <TipRow label="الاستجابة" value={conn.latency >= 0 ? `${conn.latency}ms` : "N/A"} />
+      <TipRow label="RTT (نبضة)" value={conn.rttMs >= 0 ? `${conn.rttMs}ms` : "N/A"} />
       <TipRow label="عمر البيانات" value={conn.dataAge >= 0 ? `${conn.dataAge}ms` : "N/A"} />
       <TipRow label="زمن النقل" value={conn.transportLatency >= 0 ? `${conn.transportLatency}ms` : "N/A"} />
       <TipRow label="زمن المعالجة" value={conn.processingLatency >= 0 ? `${conn.processingLatency}ms` : "N/A"} />
+      {conn.lastEventAgeMs >= 0 ? <TipRow label="مضى على آخر حدث" value={`${conn.lastEventAgeMs}ms`} /> : null}
+      {conn.connectionAgeMs > 0 ? <TipRow label="عمر الاتصال" value={`${(conn.connectionAgeMs / 1000).toFixed(0)}ث`} /> : null}
       <TipRow label="آخر تحديث" value={conn.receivedAt ? hhmmss(conn.receivedAt) : "N/A"} />
       <TipRow label="حدث/ث" value={String(conn.messagesPerSec)} />
       <TipRow label="أحداث" value={String(conn.eventCount)} />
@@ -244,7 +247,7 @@ function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
     .map((c) => c.dataAge);
   const dataAge = liveAges.length > 0 ? Math.min(...liveAges) : null;
 
-  const tiles: { label: string; tip: string; value: string; tone: Tone }[] = [
+  const tiles: { label: string; tip: string; value: string; tone: Tone; compact?: boolean }[] = [
     {
       label: "المتصل",
       tip: "عدد المنصات المتصلة الآن من إجمالي المنصات المدعومة",
@@ -272,8 +275,11 @@ function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
     {
       label: "السعر المرجعي",
       tip: "سعر مركب (Composite) من البورصات المباشرة: وسطيات مستبعدة للقيم الشاذّة وموزونة بالطزوجة وخطأ التوازن — يظهر N/A عند عدم وجود مصدر مباشر",
-      value: state.composite.price != null ? state.composite.price.toFixed(2) : "N/A",
+      value: state.composite.price != null ? state.composite.price.toFixed(0) : "N/A",
       tone: state.composite.status === "UNAVAILABLE" ? "quiet" : "neutral",
+      // Compact: a BTC-scaled integer price is too wide at the default tile size
+      // and would bust the 3-col card frame, so render it smaller.
+      compact: true,
     },
     {
       label: "تباعد المنصات",
@@ -303,10 +309,14 @@ function LiveFlowHeader({ snap }: { snap: FlowSnapshot }) {
             key={t.label}
             title={t.tip}
             dir="rtl"
-            className="flex flex-col items-center justify-center gap-1 rounded-panel border border-line bg-surface-1/30 px-2 py-2 text-center"
+            className="flex min-w-0 flex-col items-center justify-center gap-1 rounded-panel border border-line bg-surface-1/30 px-2 py-2 text-center"
           >
             <span className="text-3xs font-semibold text-muted">{t.label}</span>
-            <span className={`text-lg font-extrabold leading-none ${TONE_TEXT[t.tone]}`} dir="ltr" style={mono}>
+            <span
+              className={`min-w-0 max-w-full truncate ${TONE_TEXT[t.tone]} ${t.compact ? "text-[13px] font-bold" : "text-lg font-extrabold"} leading-none`}
+              dir="ltr"
+              style={mono}
+            >
               {t.value}
             </span>
           </div>

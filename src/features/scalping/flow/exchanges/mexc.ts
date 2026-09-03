@@ -40,8 +40,16 @@ export class MexcAdapter extends BaseExchangeAdapter {
   }
 
   protected handleMessage(data: unknown): void {
-    if (data === "pong") return;
+    if (data === "pong") {
+      this.confirmPong();
+      return;
+    }
     const msg = data as { channel?: string; data?: unknown; symbol?: string; code?: number; msg?: string };
+    if (msg.channel === "pong") {
+      // MEXC heartbeat reply is an object payload.
+      this.confirmPong();
+      return;
+    }
     if (msg.channel === "sub.deal" || msg.channel === "unsub.deal") {
       if ((msg as { code?: number }).code === 0) this.confirmSubscription();
       return;

@@ -195,6 +195,11 @@ export class KucoinAdapter extends BaseExchangeAdapter {
       this.confirmSubscription();
       return;
     }
+    if (msg.type === "pong") {
+      // Reply to our 8s heartbeat — measures this venue's round-trip.
+      this.confirmPong();
+      return;
+    }
     if (msg.type !== "message" || msg.subject !== "trade.l3match") return;
     const trades = this.normalizeTrade(msg.data, msg.topic ?? "");
     if (trades.length) this.markWsTrade();

@@ -81,7 +81,13 @@ export class OkxAdapter extends BaseExchangeAdapter {
   protected handleMessage(data: unknown): void {
     // OKX sends "ping" as plain string; must reply "pong"
     if (data === "ping") {
+      // Server-initiated ping → must pong to keep the socket alive.
       this.send("pong");
+      return;
+    }
+    if (data === "pong") {
+      // Reply to our client heartbeat — measure this venue's round-trip.
+      this.confirmPong();
       return;
     }
 

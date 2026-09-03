@@ -60,7 +60,10 @@ export class KrakenAdapter extends BaseExchangeAdapter {
       if (msg.success) this.confirmSubscription();
       return;
     }
-    if (msg.method === "pong") return;
+    if (msg.method === "pong") {
+      this.confirmPong();
+      return;
+    }
     if (msg.channel !== "trade" || msg.type !== "update") return;
     const trades = this.normalizeTrade(msg.data);
     if (trades.length) this.markWsTrade();

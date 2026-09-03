@@ -136,6 +136,30 @@ export type ExchangeDivergence = {
   status: DataQualityStatus;
 };
 
+/**
+ * Cross-exchange (global) metrics computed ONLY from the currently
+ * HEALTHY/LIVE exchange set. No average is ever used as a substitute for the
+ * actual per-exchange metric, and stale/disconnected exchanges are excluded.
+ * Each field is the true median/P95/min/max across the LIVE set; `null` when
+ * there is no healthy exchange with a measurement for that quantity.
+ */
+export type GlobalMetrics = {
+  /** Median market-data age (ms) across LIVE exchanges. Null if none live. */
+  medianDataAgeMs: number | null;
+  /** 95th-percentile data age (ms) across LIVE exchanges. Null if none live. */
+  p95DataAgeMs: number | null;
+  /** Minimum data age (ms) across LIVE exchanges. Null if none live. */
+  minDataAgeMs: number | null;
+  /** Maximum data age (ms) across LIVE exchanges. Null if none live. */
+  maxDataAgeMs: number | null;
+  /** Median heartbeat RTT (ms) across LIVE exchanges with an RTT reading. */
+  medianRttMs: number | null;
+  /** 95th-percentile heartbeat RTT (ms) across LIVE exchanges with one. */
+  p95RttMs: number | null;
+  /** Number of exchanges contributing (i.e. healthy/live with a data age). */
+  healthyCount: number;
+};
+
 // ─── Exchange Connection State ───────────────────────────────────────
 
 export type ExchangeConnection = {
@@ -157,8 +181,31 @@ export type ExchangeConnection = {
   /**
    * Data age (ms): now − exchange timestamp of the last valid event. Reflects
    * how stale the underlying market reading is. `-1` = N/A (no event yet).
+   * NOTE: this is NOT network latency and NOT RTT — it measures market-data
+   * freshness (local receive minus exchange event timestamp). Only comparable
+   * across exchanges using the same timestamp semantics (ms since epoch).
    */
   dataAge: number;
+  /**
+   * Round-trip time (ms) of THIS exchange's heartbeat ping→pong, measured on
+   * this venue independently. `-1` = N/A (no heartbeat measurement yet, or the
+   * venue uses no client heartbeat). Deliberately distinct from dataAge
+   * (freshness) and transportLatency (skew-corrected wire time): RTT is the raw
+   * heartbeat echo time and is not comparable across venues with different
+   * heartbeat protocols.
+   */
+  rttMs: number;
+  /**
+   * Last-event age (ms): now − local receive time of the last valid event.
+   * How long ago this feed LAST delivered anything. `-1` = N/A (no event yet).
+   * Distinct from dataAge (which measures the age of the reading itself).
+   */
+  lastEventAgeMs: number;
+  /**
+   * Connection age (ms): how long THIS socket has been open (0 = not open).
+   * Helps spot short-lived churn on reconnect-prone venues.
+   */
+  connectionAgeMs: number;
   /** ms epoch of the last valid trade's exchange timestamp (0 = none). */
   lastEvent: number;
   /** ms epoch of the last valid trade's local receipt time (0 = none). */
@@ -341,6 +388,9 @@ export type MarketFlowState = {
   // Composite price + cross-exchange divergence
   composite: CompositePrice;
   divergence: ExchangeDivergence;
+
+  // Global metrics from the HEALTHY/LIVE exchange set only (median/P95/min/max)
+  global: GlobalMetrics;
 
   // Current price (from flow data)
   currentPrice: number;

@@ -17,6 +17,13 @@ import { colors, radius } from "./design-tokens";
  * zinc house style so the two stacks blend seamlessly.
  */
 export const muiTheme: Theme = createTheme({
+  // Match the app's system-UI font stack so MUI surfaces (Tooltip, Popover,
+  // Tabs, …) render in the same typeface as the rest of the terminal instead
+  // of MUI's default Roboto, which made tooltip text look inconsistently heavy.
+  typography: {
+    fontFamily:
+      "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Noto Kufi Arabic', sans-serif",
+  },
   palette: {
     mode: "dark",
     primary: { main: colors.accent },

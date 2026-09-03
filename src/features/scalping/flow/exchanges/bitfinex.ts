@@ -54,8 +54,11 @@ export class BitfinexAdapter extends BaseExchangeAdapter {
     // Control events are objects.
     if (data && typeof data === "object" && !Array.isArray(data)) {
       const ev = data as { event?: string; channel?: string; symbol?: string };
-      // "pong" replies to our keepalive — nothing to do, it already refreshed
-      // the watchdog via onmessage.
+      // "pong" replies to our keepalive, measuring this venue's round-trip.
+      if (ev.event === "pong") {
+        this.confirmPong();
+        return;
+      }
       if (ev.event === "subscribed" || ev.event === "info" || ev.event === "conf") {
         this.confirmSubscription();
       }

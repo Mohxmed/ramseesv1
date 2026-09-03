@@ -61,6 +61,11 @@ export class CoinbaseAdapter extends BaseExchangeAdapter {
       this.setError(msg.message || "Coinbase error");
       return;
     }
+    if (msg.type === "pong") {
+      // Reply to our keepalive — measures this venue's round-trip.
+      this.confirmPong();
+      return;
+    }
     if (msg.channel !== "market_trades") return;
 
     for (const event of msg.events ?? []) {

@@ -34,6 +34,7 @@ import type {
   CompositePrice,
   ExchangeDivergence,
   DataQualityStatus,
+  GlobalMetrics,
 } from "./types";
 
 // ─── Ring Buffer (generic) ──────────────────────────────────────────
@@ -680,7 +681,6 @@ function computeDataQuality(): DataQuality {
 }
 
 // ─── Composite Price + Cross-Exchange Divergence ────────────────────
-
 /**
  * Build the composite price from all LIVE exchanges.
  *
@@ -694,6 +694,54 @@ function computeDataQuality(): DataQuality {
  * into a USD price with a different currency.
  */
 const NON_USD_QUOTED = new Set(["upbit"]);
+
+/**
+ * Percentile helper over a sorted numeric array (0-100). Returns null on empty.
+ */
+function percentile(sorted: number[], p: number): number {
+  if (sorted.length === 0) return NaN;
+  const idx = Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1));
+  return sorted[idx];
+}
+
+/**
+ * Global metrics computed ONLY from the currently HEALTHY/LIVE exchange set.
+ * Deliberately not an average: true median/P95/min/max over the live feeds so a
+ * single slow/outlier venue never drags the number for everyone. Each quantity
+ * is a DIFFERENT signal (freshness vs. heartbeat RTT), never conflated. Stale /
+ * disconnected exchanges are excluded entirely.
+ */
+function computeGlobalMetrics(): GlobalMetrics {
+  const dataAges: number[] = [];
+  const rtts: number[] = [];
+  for (const adapter of adapters) {
+    const conn = adapter.getHealth();
+    if (conn.status !== "LIVE") continue; // only healthy/live contribute
+    // Data age must reflect a genuinely fresh reading on an open socket.
+    if (Number.isFinite(conn.dataAge) && conn.dataAge >= 0 && conn.wsOpen) {
+      dataAges.push(conn.dataAge);
+    }
+    if (Number.isFinite(conn.rttMs) && conn.rttMs >= 0) {
+      rtts.push(conn.rttMs);
+    }
+  }
+
+  const dSorted = [...dataAges].sort((a, b) => a - b);
+  const rSorted = [...rtts].sort((a, b) => a - b);
+
+  const first = (arr: number[]) => (arr.length > 0 ? arr[0] : null);
+  const last = (arr: number[]) => (arr.length > 0 ? arr[arr.length - 1] : null);
+
+  return {
+    medianDataAgeMs: dSorted.length > 0 ? dSorted[Math.floor(dSorted.length / 2)] : null,
+    p95DataAgeMs: dSorted.length > 0 ? percentile(dSorted, 95) : null,
+    minDataAgeMs: first(dSorted),
+    maxDataAgeMs: last(dSorted),
+    medianRttMs: rSorted.length > 0 ? rSorted[Math.floor(rSorted.length / 2)] : null,
+    p95RttMs: rSorted.length > 0 ? percentile(rSorted, 95) : null,
+    healthyCount: dataAges.length,
+  };
+}
 
 /**
  * Fault isolation for the reference price: a single slow/stale/flatlined
@@ -932,6 +980,7 @@ function publishSnapshot(): void {
   const quality = computeDataQuality();
   const composite = computeComposite();
   const divergence = computeDivergence(composite);
+  const global = computeGlobalMetrics();
 
   const currentPrice = priceHistory.length > 0 ? priceHistory[priceHistory.length - 1].price : 0;
   const lastTrade = rawTradeRing.peekLatest();
@@ -949,6 +998,7 @@ function publishSnapshot(): void {
     quality,
     composite,
     divergence,
+    global,
     currentPrice,
     lastTradePrice: lastTrade?.price ?? 0,
   };

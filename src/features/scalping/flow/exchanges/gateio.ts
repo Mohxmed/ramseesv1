@@ -65,7 +65,11 @@ export class GateioAdapter extends BaseExchangeAdapter {
     const msg = data as { event?: string; channel?: string; result?: unknown };
     // Ack to our spot.ping keepalive — confirms the link is alive. Gate resets
     // its server-side idle timer on each ping; the pong is just confirmation.
-    if (msg.channel === "spot.ping" && msg.event === "pong") return;
+    if (msg.channel === "spot.ping" && msg.event === "pong") {
+      // Ack to our spot.ping keepalive — confirms the link AND measures RTT.
+      this.confirmPong();
+      return;
+    }
     if (msg.event === "subscribe" || msg.event === "unsubscribe") {
       this.confirmSubscription();
       return;

@@ -49,7 +49,10 @@ export class BitgetAdapter extends BaseExchangeAdapter {
   }
 
   protected handleMessage(data: unknown): void {
-    if (data === "pong") return;
+    if (data === "pong") {
+      this.confirmPong();
+      return;
+    }
     const msg = data as { event?: string; arg?: { topic?: string; symbol?: string }; data?: unknown };
     if (msg.event === "subscribe" || msg.event === "unsubscribe") {
       this.confirmSubscription();

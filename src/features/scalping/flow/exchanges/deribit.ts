@@ -78,6 +78,11 @@ export class DeribitAdapter extends BaseExchangeAdapter {
     // Ack for subscribe/unsubscribe carries the echoed channel string as `result`.
     if (typeof (data as { result?: unknown }).result === "string") {
       const result = (data as { result?: string }).result as string;
+      // public/ping heartbeat reply → measure this venue's round-trip.
+      if (result === "pong") {
+        this.confirmPong();
+        return;
+      }
       if (result.startsWith("trades.")) this.confirmSubscription();
     }
   }
