@@ -29,16 +29,16 @@ import type { ExchangeStatus, NormalizedTrade } from "../types";
 import { BaseExchangeAdapter } from "./base";
 
 /** WS silent for this long before REST fallback starts emitting trades again. */
-export const WS_QUIET_FALLBACK_MS = 6000;
+export const WS_QUIET_FALLBACK_MS = 3000;
 
 /** Cadence of the REST fallback poll. */
-export const REST_FALLBACK_INTERVAL_MS = 4000;
+export const REST_FALLBACK_INTERVAL_MS = 2000;
 
 /** No successful REST response within this window → flagged not-connecting via REST. */
 export const REST_FAIL_MS = 15_000;
 
 /** REST fallback trades older than this are treated as stale history and dropped. */
-export const REST_FRESH_MS = 10_000;
+export const REST_FRESH_MS = 8000;
 
 export abstract class HybridExchangeAdapter extends BaseExchangeAdapter {
   /** How often (ms) to poll the trades endpoint as a WS fallback. */

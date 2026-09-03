@@ -6,6 +6,11 @@
  *   POST https://api.kucoin.com/api/v1/bullet-public
  *   → { data: { token, instanceServers: [ { endpoint } ] } }
  *   The connect URL is `${endpoint}?token=${token}`.
+ *   The handshake can be CORS-blocked in a browser. connect() therefore always
+ *   opens the socket and the token URL is warmed/cached in the background, so
+ *   the base reconnect loop self-heals onto the valid endpoint once available.
+ *   The REST histories fallback (time in nanoseconds) is CORS-dependent too, so
+ *   the WebSocket is the reliable data path in a browser.
  *
  *   Subscribe: { id, type: "subscribe", topic: "/market/match:BTC-USDT",
  *                privateChannel: false, response: true }
@@ -54,18 +59,30 @@ export class KucoinAdapter extends HybridExchangeAdapter {
   public override async connect(): Promise<void> {
     if (this.ws) return;
     this.startRestFallback();
-    // Resolve the token endpoint with a hard timeout so a hang never leaves the
-    // adapter suspended. If it fails we still leave the REST fallback running
-    // (data flows) and report the WS as best-effort.
-    let url: string | null = null;
+    // Always create the WebSocket. If the token handshake hasn't resolved yet
+    // (or the browser blocks the CORS token fetch) the base reconnect loop will
+    // retry createWs(), which re-reads getWsUrl() — by then the cached token
+    // URL is normally ready, so the socket self-heals onto the valid endpoint.
+    super.connect();
+    void this.warmEndpoint();
+  }
+
+  /** Fetch + cache the token endpoint (best-effort; browser CORS may block it). */
+  private async warmEndpoint(): Promise<void> {
     try {
-      url = await this.resolveEndpoint();
+      const ep = await this.resolveEndpoint();
+      if (ep && ep !== this.resolvedUrl) {
+        this.resolvedUrl = ep;
+        // Re-open on the freshly resolved URL.
+        if (this.wsOpen) {
+          this.ws?.close();
+        } else {
+          super.connect();
+        }
+      }
     } catch (err) {
       this.recordError(this.handlePollError(err));
-      return; // keep REST fallback, do not spin an invalid socket error-loop
     }
-    if (url) this.resolvedUrl = url;
-    super.connect();
   }
 
   private async resolveEndpoint(): Promise<string | null> {
@@ -189,7 +206,8 @@ export class KucoinAdapter extends HybridExchangeAdapter {
         exchange: this.id,
         market: this.market,
         symbol,
-        timestamp: ts > 1e12 ? ts : ts * 1000,
+        // `histories` returns `time` in nanoseconds (e.g. 1.78e18).
+        timestamp: ts > 1e15 ? Math.floor(ts / 1e6) : ts > 1e12 ? ts : ts * 1000,
         receivedAt: now,
         price,
         quantity: qty,

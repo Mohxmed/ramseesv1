@@ -130,7 +130,8 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
       this.skewOffset = maxSkew;
 
       // Corrected network latency = (receivedAt - timestamp) + skewOffset.
-      const latency = received - trade.timestamp + this.skewOffset;
+      // Floor to a whole millisecond so the displayed latency reads clean.
+      const latency = Math.floor(received - trade.timestamp + this.skewOffset);
       if (Number.isFinite(latency) && latency >= 0) {
         this.latency = latency;
       }
