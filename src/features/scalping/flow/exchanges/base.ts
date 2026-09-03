@@ -117,17 +117,26 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
     this.lastError = "";
 
     if (Number.isFinite(trade.timestamp) && trade.timestamp > 0) {
-      // Estimate clock skew: the most-ahead (timestamp - receivedAt) sample
-      // approximates how far the exchange clock leads this host's clock.
+      // Estimate clock skew: how far the exchange clock leads this host's
+      // clock, approximated by (timestamp - receivedAt) samples.
       this.skewSamples.push(trade.timestamp - received);
       if (this.skewSamples.length > BaseExchangeAdapter.SKEW_WINDOW) {
         this.skewSamples = this.skewSamples.slice(-BaseExchangeAdapter.SKEW_WINDOW);
       }
-      let maxSkew = this.skewSamples[0];
-      for (let i = 1; i < this.skewSamples.length; i++) {
-        if (this.skewSamples[i] > maxSkew) maxSkew = this.skewSamples[i];
-      }
-      this.skewOffset = maxSkew;
+      // Use the MEDIAN, not the max. Independent exchanges timestamp in real
+      // time that can be slightly ahead of this host, but a single out-of-band
+      // sample (a stale/backfilled REST trade, or a malformed/timestamp-unit
+      // glitch) would otherwise shift `max` far forward and inflate reported
+      // latency for the entire window (e.g. an 18-second false reading that
+      // persists and makes the platform appear to "switch" between good and
+      // huge latency). The median is robust to such outliers while still
+      // tracking real sustained clock offset on clean feeds.
+      const idx = this.skewSamples.length >> 1;
+      const sorted = [...this.skewSamples].sort((a, b) => a - b);
+      this.skewOffset =
+        this.skewSamples.length % 2 === 1
+          ? sorted[idx]
+          : (sorted[idx - 1] + sorted[idx]) / 2;
 
       // Corrected network latency = (receivedAt - timestamp) + skewOffset.
       // Floor to a whole millisecond so the displayed latency reads clean.
