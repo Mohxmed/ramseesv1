@@ -31,6 +31,15 @@ export const CONNECT_TIMEOUT_MS = 15_000;
 /** Max time with no inbound WS message (any kind) before a silent socket is dropped. */
 export const MESSAGE_TIMEOUT_MS = 30_000;
 
+/**
+ * Max time an OPEN socket may go without delivering any valid market data while
+ * a subscription is pending. Catches the "silently-dead subscription" failure
+ * where the exchange acks a subscribe (so messages/acks still arrive and the
+ * message-timeout never fires) but never pushes trade frames — e.g. Binance's
+ * aggTrade zero-data regression. A reconnect + resubscribe recovers it.
+ */
+export const DATA_TIMEOUT_MS = 60_000;
+
 /** How often the liveness watchdog evaluates the message-timeout. */
 export const WATCHDOG_INTERVAL_MS = 5_000;
 
@@ -157,6 +166,11 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
   /** Max time with no inbound WS message (any kind) before a silent socket is dropped. */
   protected getMessageTimeoutMs(): number {
     return MESSAGE_TIMEOUT_MS;
+  }
+
+  /** Max time an OPEN socket may go without valid market data before reconnect. */
+  protected getDataTimeoutMs(): number {
+    return DATA_TIMEOUT_MS;
   }
 
   /** How often the liveness watchdog evaluates the message-timeout. */
@@ -605,8 +619,23 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
     this.stopWatchdog();
     this.watchdogInterval = setInterval(() => {
       if (this.disposed) return;
-      if (Date.now() - this.lastPong > this.getMessageTimeoutMs()) {
+      const now = Date.now();
+      // 1) Message liveness: no inbound frame of any kind for too long.
+      if (now - this.lastPong > this.getMessageTimeoutMs()) {
         if (this.ws) this.recordError("no messages received; forcing reconnect");
+        this.ws?.close();
+        return;
+      }
+      // 2) Data liveness: an OPEN socket that never delivers valid market data
+      // (e.g. an acked-but-silent subscription) is declared dead and recreated.
+      // lastValidAt < socketOpenedAt means no data has arrived on THIS socket.
+      if (
+        this.wsOpen &&
+        this.socketOpenedAt > 0 &&
+        this.lastValidAt < this.socketOpenedAt &&
+        now - this.socketOpenedAt > this.getDataTimeoutMs()
+      ) {
+        this.recordError("no market data received; forcing reconnect");
         this.ws?.close();
       }
     }, this.getWatchdogIntervalMs());

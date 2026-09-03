@@ -30,6 +30,8 @@ import { BaseExchangeAdapter } from "./base";
 
 const DEFAULT_WS_URL = "wss://ws-api.kucoin.com";
 const PING_INTERVAL = 8_000;
+/** KuCoin WS tokens are short-lived; re-handshake once they age past this. */
+const KUCOIN_TOKEN_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 
 interface KucoinEndpoint {
   data?: {
@@ -45,6 +47,7 @@ export class KucoinAdapter extends BaseExchangeAdapter {
 
   private resolvedUrl = DEFAULT_WS_URL;
   private hasToken = false;
+  private tokenFetchedAt = 0;
   private resolving = false;
   private msgSeq = 0;
 
@@ -92,6 +95,7 @@ export class KucoinAdapter extends BaseExchangeAdapter {
       }
       this.resolvedUrl = url;
       this.hasToken = true;
+      this.tokenFetchedAt = Date.now();
     }
     if (this.ws || this.disposed) return;
     // Open the socket on the token-carrying URL.
@@ -100,9 +104,14 @@ export class KucoinAdapter extends BaseExchangeAdapter {
 
   /** On close, base schedules createWs() (not connect) — fine, it reuses the cached URL. */
   protected override createWs(): void {
-    // If we somehow still lack a token when asked to (re)connect, go through
-    // the token resolution path instead of opening a doomed tokenless socket.
-    if (!this.hasToken) {
+    // A token is only usable for a limited time. Once it has aged significantly
+    // (or the cached URL has already churned through several failed reconnects,
+    // which strongly implies an expired token), force a fresh handshake instead
+    // of re-dialing the stale one in a dead loop.
+    const tokenAge = this.tokenFetchedAt > 0 ? Date.now() - this.tokenFetchedAt : Number.MAX_SAFE_INTEGER;
+    const churned = this.reconnectCount >= 3;
+    if (!this.hasToken || tokenAge > KUCOIN_TOKEN_MAX_AGE_MS || churned) {
+      this.hasToken = false;
       if (!this.resolving && !this.ws) {
         void this.connectWithToken();
       }
