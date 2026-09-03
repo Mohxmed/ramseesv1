@@ -14,7 +14,13 @@
 import type { NormalizedTrade } from "../types";
 import { BaseExchangeAdapter } from "./base";
 
-const WS_URL = "wss://api.huobi.pro/ws";
+/**
+ * HTX serves its public WebSocket as GZIP-compressed binary frames that a
+ * browser cannot inflate. The unified custom server (server.mjs) therefore
+ * hosts an inflate WebSocket proxy on the SAME origin at /htx-ws: it connects
+ * upstream to api.huobi.pro, inflates each gzip frame, and forwards plain-text
+ * JSON. We connect to that same-origin proxy path, so no extra port is needed.
+ */
 const PING_INTERVAL = 15_000;
 
 export class HtxAdapter extends BaseExchangeAdapter {
@@ -27,7 +33,15 @@ export class HtxAdapter extends BaseExchangeAdapter {
   }
 
   protected getWsUrl(): string {
-    return WS_URL;
+    // The inflate proxy is mounted on the SAME origin/port as the page
+    // (/htx-ws), so derive it from window.location — works locally and on a
+    // VPS with zero extra configuration. Fall back to a relative same-host URL
+    // when window isn't available (SSR/tests).
+    if (typeof window !== "undefined" && window.location?.protocol) {
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      return `${protocol}//${window.location.host}/htx-ws`;
+    }
+    return `ws://localhost:3000/htx-ws`;
   }
 
   protected getSubscribeMsg(symbol: string): unknown {

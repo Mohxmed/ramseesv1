@@ -75,22 +75,30 @@ export class UpbitAdapter extends BaseExchangeAdapter {
     };
     const price = Number(rec.trade_price ?? NaN);
     const qty = Number(rec.trade_volume ?? NaN);
-    const ts = Number(rec.trade_timestamp ?? rec.timestamp ?? 0);
+    // Upbit sends TWO timestamps: `trade_timestamp` is in MICROSECONDS
+    // (~1.7e15) and `timestamp` is in milliseconds (~1.7e12). The old code
+    // treated any value > 1e12 as already-ms, so the µs trade_timestamp was
+    // stored as-is and made latency ~1000x too large (hugely negative → N/A).
+    // Convert to milliseconds correctly:
+    const rawTs = Number(rec.trade_timestamp ?? rec.timestamp ?? 0);
+    let ts = rawTs;
+    if (rawTs > 1e14) ts = rawTs / 1000; // µs → ms
+    else if (rawTs > 1e10) ts = rawTs; // already ms
+    else ts = rawTs * 1000; // seconds → ms
     if (!Number.isFinite(price) || !Number.isFinite(qty) || price <= 0) return [];
     const now = Date.now();
     const symbol = rec.code ?? this.currentSymbol();
-    const finalTs = ts > 1e12 ? ts : ts * 1000;
     return [{
       exchange: this.id,
       market: this.market,
       symbol,
-      timestamp: finalTs,
+      timestamp: ts,
       receivedAt: now,
       price,
       quantity: qty,
       notional: price * qty,
       side: rec.ask_bid === "ASK" ? "sell" : "buy",
-      tradeId: String(rec.sequential_id ?? `${symbol}_${finalTs}`),
+      tradeId: String(rec.sequential_id ?? `${symbol}_${ts}`),
       liquidation: false,
     }];
   }
