@@ -1,5 +1,5 @@
 /**
- * Bitfinex Adapter (WebSocket primary + REST fallback)
+ * Bitfinex Adapter (WebSocket only)
  *
  * WebSocket: wss://api-pub.bitfinex.com/ws/2
  *   Subscribe: { event: "subscribe", channel: "trades", symbol: "tBTCUSD" }
@@ -9,17 +9,15 @@
  *   Heartbeat: [ CHAN_ID, "hb" ]
  *   AMOUNT > 0 => buy, AMOUNT < 0 => sell.
  *
- * REST fallback: GET https://api-pub.bitfinex.com/v2/trades/tBTCUSD/hist?limit=50
- *
  * Uses the USD-quoted BTC pair (tBTCUSD). Labelled spot flow.
  */
 
 import type { NormalizedTrade } from "../types";
-import { HybridExchangeAdapter } from "./hybrid";
+import { BaseExchangeAdapter } from "./base";
 
 const WS_URL = "wss://api-pub.bitfinex.com/ws/2";
 
-export class BitfinexAdapter extends HybridExchangeAdapter {
+export class BitfinexAdapter extends BaseExchangeAdapter {
   readonly id = "bitfinex";
   readonly label = "Bitfinex";
   readonly market = "spot" as const;
@@ -98,39 +96,5 @@ export class BitfinexAdapter extends HybridExchangeAdapter {
 
   normalizeLiquidation(): NormalizedTrade[] {
     return [];
-  }
-
-  // ── REST fallback ─────────────────────────────────────────────────
-
-  protected getTradesUrl(symbol: string): string {
-    return `https://api-pub.bitfinex.com/v2/trades/${this.pairFor(symbol)}/hist?limit=50`;
-  }
-
-  protected parseTrades(json: unknown, symbol: string): NormalizedTrade[] {
-    const rows = Array.isArray(json) ? json : [];
-    const now = Date.now();
-    const out: NormalizedTrade[] = [];
-    for (const r of rows) {
-      if (!Array.isArray(r)) continue;
-      const id = Number(r[0]);
-      const ts = Number(r[1]);
-      const amt = Number(r[2]);
-      const price = Number(r[3]);
-      if (!Number.isFinite(price) || !Number.isFinite(amt) || price <= 0) continue;
-      out.push({
-        exchange: this.id,
-        market: this.market,
-        symbol,
-        timestamp: ts > 1e12 ? ts : ts * 1000,
-        receivedAt: now,
-        price,
-        quantity: Math.abs(amt),
-        notional: price * Math.abs(amt),
-        side: amt > 0 ? "buy" : "sell",
-        tradeId: String(id ?? `${symbol}_${ts}`),
-        liquidation: false,
-      });
-    }
-    return out;
   }
 }

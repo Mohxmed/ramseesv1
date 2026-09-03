@@ -1,5 +1,5 @@
 /**
- * Gate.io Spot Adapter (WebSocket primary + REST fallback)
+ * Gate.io Spot Adapter (WebSocket only)
  *
  * WebSocket: wss://api.gateio.ws/ws/v4/
  *   Subscribe: { time, channel: "spot.trades", event: "subscribe",
@@ -8,20 +8,18 @@
  *   Trade:     { id, create_time(sec), create_time_ms(ms), side, amount, price }
  *   Side reported is the TAKER side.
  *
- * REST fallback: GET https://api.gateio.ws/api/v4/spot/trades?currency_pair=BTC_USDT
- *
  * Gate.io also runs perpetual futures, but this adapter consumes the spot
  * trade stream so the composite includes a spot reference (never assumed to be
  * an institutional/derivative price).
  */
 
 import type { NormalizedTrade } from "../types";
-import { HybridExchangeAdapter } from "./hybrid";
+import { BaseExchangeAdapter } from "./base";
 
 const WS_URL = "wss://api.gateio.ws/ws/v4/";
 const PING_INTERVAL = 20_000;
 
-export class GateioAdapter extends HybridExchangeAdapter {
+export class GateioAdapter extends BaseExchangeAdapter {
   readonly id = "gateio";
   readonly label = "Gate.io";
   readonly market = "spot" as const;
@@ -107,15 +105,5 @@ export class GateioAdapter extends HybridExchangeAdapter {
 
   normalizeLiquidation(): NormalizedTrade[] {
     return []; // spot stream has no liquidations
-  }
-
-  // ── REST fallback ─────────────────────────────────────────────────
-
-  protected getTradesUrl(symbol: string): string {
-    return `https://api.gateio.ws/api/v4/spot/trades?currency_pair=${this.pairFor(symbol)}&limit=100`;
-  }
-
-  protected parseTrades(json: unknown, symbol: string): NormalizedTrade[] {
-    return this.normalizeTrade(json, symbol);
   }
 }

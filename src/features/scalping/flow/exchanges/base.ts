@@ -104,6 +104,21 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
     }
   }
 
+  /** The symbol actually being fed (first subscribed symbol). */
+  protected currentSymbol(): string {
+    return this.subscribedSymbols.size
+      ? Array.from(this.subscribedSymbols)[0]
+      : "";
+  }
+
+  /** Most recent time a valid trade arrived over the WebSocket (0 = none). */
+  protected lastWsTradeAt = 0;
+
+  /** Call from the WS message handler after emitting valid trades. */
+  protected markWsTrade(): void {
+    this.lastWsTradeAt = Date.now();
+  }
+
   /**
    * Called by the engine for every non-duplicate, valid real trade. Updates the
    * last-valid-event clock (source of STALE/LIVE) and stores latency ONLY when

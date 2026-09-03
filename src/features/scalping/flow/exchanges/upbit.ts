@@ -1,5 +1,5 @@
 /**
- * Upbit Spot Adapter (WebSocket primary + REST fallback)
+ * Upbit Spot Adapter (WebSocket only)
  *
  * WebSocket: wss://api.upbit.com/websocket/v1
  *   Subscribe is a JSON *array* (Upbit convention) — the whole array is one
@@ -11,19 +11,17 @@
  *                    sequential_id, trade_timestamp(ms) }
  *   ask_bid "ASK" => sell, "BID" => buy.
  *
- * REST fallback: GET https://api.upbit.com/v1/trades/ticks?market=KRW-BTC&count=50
- *
  * Upbit is a KRW-quoted, SPOT-ONLY venue. The quoted symbol must be mapped to a
  * KRW market (KRW-BTC). This is labelled spot-flow, never treated as an
  * institutional/derivative price.
  */
 
 import type { NormalizedTrade } from "../types";
-import { HybridExchangeAdapter } from "./hybrid";
+import { BaseExchangeAdapter } from "./base";
 
 const WS_URL = "wss://api.upbit.com/websocket/v1";
 
-export class UpbitAdapter extends HybridExchangeAdapter {
+export class UpbitAdapter extends BaseExchangeAdapter {
   readonly id = "upbit";
   readonly label = "Upbit";
   readonly market = "spot" as const;
@@ -99,38 +97,5 @@ export class UpbitAdapter extends HybridExchangeAdapter {
 
   normalizeLiquidation(): NormalizedTrade[] {
     return [];
-  }
-
-  // ── REST fallback ─────────────────────────────────────────────────
-
-  protected getTradesUrl(symbol: string): string {
-    return `https://api.upbit.com/v1/trades/ticks?market=${this.marketFor(symbol)}&count=50`;
-  }
-
-  protected parseTrades(json: unknown, symbol: string): NormalizedTrade[] {
-    const list = Array.isArray(json) ? json : [];
-    const out: NormalizedTrade[] = [];
-    for (const t of list) {
-      const rec = t as { trade_price?: number; trade_volume?: number; timestamp?: number; ask_bid?: string; sequential_id?: string | number };
-      const price = Number(rec.trade_price ?? NaN);
-      const qty = Number(rec.trade_volume ?? NaN);
-      const ts = Number(rec.timestamp ?? 0);
-      if (!Number.isFinite(price) || !Number.isFinite(qty) || price <= 0) continue;
-      const now = Date.now();
-      out.push({
-        exchange: this.id,
-        market: this.market,
-        symbol,
-        timestamp: ts > 1e12 ? ts : ts * 1000,
-        receivedAt: now,
-        price,
-        quantity: qty,
-        notional: price * qty,
-        side: rec.ask_bid === "ASK" ? "sell" : "buy",
-        tradeId: String(rec.sequential_id ?? `${symbol}_${ts}`),
-        liquidation: false,
-      });
-    }
-    return out;
   }
 }

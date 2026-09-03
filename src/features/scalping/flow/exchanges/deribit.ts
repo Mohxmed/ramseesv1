@@ -1,5 +1,5 @@
 /**
- * Deribit Perpetual Adapter (WebSocket primary + REST fallback)
+ * Deribit Perpetual Adapter (WebSocket only)
  *
  * WebSocket: wss://www.deribit.com/ws/api/v2
  *   Subscribe: { jsonrpc: "2.0", id, method: "public/subscribe",
@@ -10,22 +10,18 @@
  *                  price, amount, direction, instrument_name } ] } }
  *   Ping:      { jsonrpc: "2.0", id, method: "public/ping" }
  *
- * REST fallback:
- *   GET https://www.deribit.com/api/v2/public/get_last_trades_by_instrument
- *     ?instrument_name=BTC-PERPETUAL&count=100
- *
  * Deribit is primarily an options venue; its perpetual serves as the trade
  * stream. Options analytics (OI, IV, PCR, skew, strikes, max pain) are handled
  * by the separate options layer in src/features/bitcoin/options/.
  */
 
 import type { NormalizedTrade } from "../types";
-import { HybridExchangeAdapter } from "./hybrid";
+import { BaseExchangeAdapter } from "./base";
 
 const WS_URL = "wss://www.deribit.com/ws/api/v2";
 const PING_INTERVAL = 20_000;
 
-export class DeribitAdapter extends HybridExchangeAdapter {
+export class DeribitAdapter extends BaseExchangeAdapter {
   readonly id = "deribit";
   readonly label = "Deribit";
   readonly market = "perpetual" as const;
@@ -115,30 +111,5 @@ export class DeribitAdapter extends HybridExchangeAdapter {
 
   normalizeLiquidation(): NormalizedTrade[] {
     return [];
-  }
-
-  // ── REST fallback ─────────────────────────────────────────────────
-
-  protected getTradesUrl(symbol: string): string {
-    return `https://www.deribit.com/api/v2/public/get_last_trades_by_instrument?instrument_name=${this.instrumentFor(symbol)}&count=100`;
-  }
-
-  protected parseTrades(json: unknown, symbol: string): NormalizedTrade[] {
-    const body = json as { result?: { trades?: unknown[] } };
-    const list = body?.result?.trades ?? [];
-    const map = list
-      .map((t) => {
-        const rec = t as { trade_id?: string; timestamp?: number; price?: number; amount?: number; direction?: string; side?: string };
-        return {
-          trade_id: rec.trade_id,
-          timestamp: rec.timestamp,
-          price: rec.price,
-          amount: rec.amount,
-          direction: rec.direction,
-          side: rec.side,
-          instrument_name: symbol,
-        };
-      });
-    return this.normalizeTrade(map);
   }
 }

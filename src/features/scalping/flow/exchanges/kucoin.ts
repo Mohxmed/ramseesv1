@@ -1,5 +1,5 @@
 /**
- * KuCoin Spot Adapter (WebSocket primary + REST fallback)
+ * KuCoin Spot Adapter (WebSocket only)
  *
  * WebSocket (public spot):
  *   The socket URL is NOT static — it requires a token handshake via
@@ -11,8 +11,6 @@
  *   client then opens the socket itself. connect() always opens the socket and
  *   the token URL is warmed/cached in the background, so the base reconnect
  *   loop self-heals onto the valid endpoint once available.
- *   The REST histories fallback is also CORS-blocked and is proxied through
- *   /api/kucoin/histories; the WebSocket is the primary data path.
  *
  *   Subscribe: { id, type: "subscribe", topic: "/market/match:BTC-USDT",
  *                privateChannel: false, response: true }
@@ -24,13 +22,11 @@
  *                    data: { sequence, symbol, side, price, size,
  *                            tradeId, time (ns) } }
  *
- * REST fallback: GET https://api.kucoin.com/api/v1/market/histories?symbol=BTC-USDT
- *
  * KuCoin also runs futures, but this adapter consumes the spot trade stream.
  */
 
 import type { NormalizedTrade } from "../types";
-import { HybridExchangeAdapter } from "./hybrid";
+import { BaseExchangeAdapter } from "./base";
 
 const DEFAULT_WS_URL = "wss://ws-api.kucoin.com";
 const PING_INTERVAL = 20_000;
@@ -42,7 +38,7 @@ interface KucoinEndpoint {
   };
 }
 
-export class KucoinAdapter extends HybridExchangeAdapter {
+export class KucoinAdapter extends BaseExchangeAdapter {
   readonly id = "kucoin";
   readonly label = "KuCoin";
   readonly market = "spot" as const;
@@ -60,7 +56,6 @@ export class KucoinAdapter extends HybridExchangeAdapter {
 
   public override async connect(): Promise<void> {
     if (this.ws) return;
-    this.startRestFallback();
     // Always create the WebSocket. If the token handshake hasn't resolved yet
     // (or the browser blocks the CORS token fetch) the base reconnect loop will
     // retry createWs(), which re-reads getWsUrl() — by then the cached token
@@ -83,7 +78,7 @@ export class KucoinAdapter extends HybridExchangeAdapter {
         }
       }
     } catch (err) {
-      this.recordError(this.handlePollError(err));
+      this.recordError(err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -199,42 +194,5 @@ export class KucoinAdapter extends HybridExchangeAdapter {
 
   normalizeLiquidation(): NormalizedTrade[] {
     return [];
-  }
-
-  // ── REST fallback ─────────────────────────────────────────────────
-
-  protected getTradesUrl(symbol: string): string {
-    // Route through the same-origin proxy: KuCoin's histories endpoint is
-    // CORS-blocked in the browser, so the server performs the fetch.
-    return `/api/kucoin/histories?symbol=${this.pairFor(symbol)}`;
-  }
-
-  protected parseTrades(json: unknown, symbol: string): NormalizedTrade[] {
-    const body = json as { data?: unknown };
-    const list = Array.isArray(body?.data) ? body.data : [];
-    const now = Date.now();
-    const out: NormalizedTrade[] = [];
-    for (const t of list) {
-      const rec = t as { sequence?: string; time?: number; side?: string; price?: string; size?: string };
-      const price = parseFloat(String(rec.price ?? NaN));
-      const qty = parseFloat(String(rec.size ?? NaN));
-      const ts = Number(rec.time ?? 0);
-      if (!Number.isFinite(price) || !Number.isFinite(qty) || price <= 0) continue;
-      out.push({
-        exchange: this.id,
-        market: this.market,
-        symbol,
-        // `histories` returns `time` in nanoseconds (e.g. 1.78e18).
-        timestamp: ts > 1e15 ? Math.floor(ts / 1e6) : ts > 1e12 ? ts : ts * 1000,
-        receivedAt: now,
-        price,
-        quantity: qty,
-        notional: price * qty,
-        side: rec.side === "sell" ? "sell" : "buy",
-        tradeId: String(rec.sequence ?? `${symbol}_${ts}`),
-        liquidation: false,
-      });
-    }
-    return out;
   }
 }

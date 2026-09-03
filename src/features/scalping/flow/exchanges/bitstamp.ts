@@ -1,5 +1,5 @@
 /**
- * Bitstamp Spot Adapter (WebSocket primary + REST fallback)
+ * Bitstamp Spot Adapter (WebSocket only)
  *
  * WebSocket: wss://ws.bitstamp.net
  *   Subscribe: { event: "bts:subscribe", data: { channel: "live_trades_btcusd" } }
@@ -8,17 +8,15 @@
  *                data: { id, amount, price, type (0=buy, 1=sell),
  *                        timestamp (sec), microtimestamp } }
  *
- * REST fallback: GET https://www.bitstamp.net/api/v2/transactions/btcusdt/
- *
  * Spot-only venue.
  */
 
 import type { NormalizedTrade } from "../types";
-import { HybridExchangeAdapter } from "./hybrid";
+import { BaseExchangeAdapter } from "./base";
 
 const WS_URL = "wss://ws.bitstamp.net";
 
-export class BitstampAdapter extends HybridExchangeAdapter {
+export class BitstampAdapter extends BaseExchangeAdapter {
   readonly id = "bitstamp";
   readonly label = "Bitstamp";
   readonly market = "spot" as const;
@@ -89,38 +87,5 @@ export class BitstampAdapter extends HybridExchangeAdapter {
 
   normalizeLiquidation(): NormalizedTrade[] {
     return [];
-  }
-
-  // ── REST fallback ─────────────────────────────────────────────────
-
-  protected getTradesUrl(symbol: string): string {
-    return `https://www.bitstamp.net/api/v2/transactions/${this.marketFor(symbol)}/`;
-  }
-
-  protected parseTrades(json: unknown, symbol: string): NormalizedTrade[] {
-    const list = Array.isArray(json) ? json : [];
-    const now = Date.now();
-    const out: NormalizedTrade[] = [];
-    for (const t of list) {
-      const rec = t as { date?: string; tid?: string; price?: string; amount?: string; type?: string };
-      const price = parseFloat(String(rec.price ?? NaN));
-      const qty = parseFloat(String(rec.amount ?? NaN));
-      const tsSec = Number(rec.date ?? 0);
-      if (!Number.isFinite(price) || !Number.isFinite(qty) || price <= 0) continue;
-      out.push({
-        exchange: this.id,
-        market: this.market,
-        symbol,
-        timestamp: tsSec > 1e12 ? tsSec : tsSec * 1000,
-        receivedAt: now,
-        price,
-        quantity: qty,
-        notional: price * qty,
-        side: rec.type === "1" ? "sell" : "buy",
-        tradeId: String(rec.tid ?? `${symbol}_${tsSec}`),
-        liquidation: false,
-      });
-    }
-    return out;
   }
 }
