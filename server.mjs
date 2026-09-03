@@ -36,10 +36,6 @@ const server = http.createServer((req, res) => {
 
 const htxWs = new WebSocketServer({ server, path: "/htx-ws" });
 
-function gunzip(buf) {
-  return zlib.gunzipSync(buf);
-}
-
 /**
  * One upstream HTX socket per browser client, with reconnection + re-subscribe
  * so a dropped upstream never silently stops the trade stream.
@@ -63,15 +59,24 @@ function attachHtxUpstream(client) {
       let json;
       try {
         const raw = ev.data;
-        const buf =
-          typeof raw === "string"
+        const buf = Buffer.isBuffer(raw)
+          ? Buffer.from(raw)
+          : Buffer.isArrayBuffer(raw)
             ? Buffer.from(raw)
-            : Buffer.isBuffer(raw)
-              ? raw
-              : Buffer.from(raw);
-        json = gunzip(buf).toString("utf8");
+            : Buffer.isView(raw)
+              ? Buffer.from(raw.buffer, raw.byteOffset, raw.byteLength)
+              : ArrayBuffer.isView(raw)
+                ? Buffer.from(raw)
+                : Buffer.from(typeof raw === "string" ? raw : "");
+        // HTX compresses every frame with gzip; a handful of frames can arrive
+        // plain-text, so fall back to UTF-8 rather than dropping them.
+        try {
+          json = zlib.gunzipSync(buf).toString("utf8");
+        } catch {
+          json = buf.toString("utf8");
+        }
       } catch {
-        return; // not a readable gzip frame — ignore
+        return; // not a readable frame — ignore
       }
 
       let parsed;

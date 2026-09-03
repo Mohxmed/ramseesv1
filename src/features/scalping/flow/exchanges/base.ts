@@ -25,6 +25,35 @@ import type {
 /** How long after the last valid event before an exchange is marked STALE. */
 export const STALE_EVENT_THRESHOLD_MS = 5000;
 
+/** Max time a socket may spend in CONNECTING before it is torn down & retried. */
+export const CONNECT_TIMEOUT_MS = 15_000;
+
+/** Max time with no inbound WS message (any kind) before a silent socket is dropped. */
+export const MESSAGE_TIMEOUT_MS = 30_000;
+
+/** How often the liveness watchdog evaluates the message-timeout. */
+export const WATCHDOG_INTERVAL_MS = 5_000;
+
+/** Upper bound on the exponential-reconnect delay before jitter is applied. */
+export const MAX_RECONNECT_DELAY_MS = 30_000;
+
+/**
+ * Decode an inbound WebSocket frame into a parsed JSON value. Exchange feeds are
+ * inconsistent about wire encoding: Upbit ships binary Blob/ArrayBuffer frames
+ * containing JSON text, HTX's proxy sends plain-text JSON, and Node buffers
+ * arrive as TextDecoder views. Normalise everything here so concrete adapters
+ * only ever see a parsed object (a malformed frame simply throws → ignored).
+ */
+async function decodeFrame(data: unknown): Promise<unknown> {
+  if (typeof data === "string") return JSON.parse(data);
+  if (data instanceof ArrayBuffer) return JSON.parse(new TextDecoder().decode(data));
+  if (ArrayBuffer.isView(data)) {
+    return JSON.parse(new TextDecoder().decode(data as ArrayBufferView<ArrayBuffer>));
+  }
+  if (data instanceof Blob) return JSON.parse(await data.text());
+  throw new Error("unsupported WebSocket frame type");
+}
+
 export abstract class BaseExchangeAdapter implements ExchangeAdapter {
   abstract readonly id: string;
   abstract readonly label: string;
@@ -35,8 +64,18 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
   protected reconnectCount = 0;
   protected subscribedSymbols = new Set<string>();
   protected pingInterval: ReturnType<typeof setInterval> | null = null;
+  protected watchdogInterval: ReturnType<typeof setInterval> | null = null;
   protected reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   protected lastPong = 0;
+
+  /** Timestamp the currently-open socket was created (0 until it first opens). */
+  protected socketOpenedAt = 0;
+
+  /** Incremented on every (re)connect so stale-socket handlers never fire late. */
+  protected wsGeneration = 0;
+
+  /** Set by disconnect() to gate all reconnect/watchdog/timer activity. */
+  protected disposed = false;
 
   // Diagnostics / health
   protected lastValidAt = 0; // receivedAt of last valid trade (0 = none)
@@ -79,19 +118,30 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
   // ── Lifecycle ──────────────────────────────────────────────────────
 
   connect(): void {
-    if (this.ws) return;
+    if (this.ws) return; // duplicate-connection guard
+    this.disposed = false;
     this.createWs();
   }
 
   disconnect(): void {
+    this.disposed = true;
+    this.wsGeneration++; // invalidate any stale-socket handlers
     this.clearTimers();
+    this.stopWatchdog();
     if (this.ws) {
-      this.ws.onclose = null;
-      this.ws.onerror = null;
-      this.ws.close();
+      const w = this.ws;
       this.ws = null;
+      this.wsOpen = false;
+      w.onopen = null;
+      w.onmessage = null;
+      w.onerror = null;
+      w.onclose = null;
+      try {
+        w.close();
+      } catch {
+        /* ignore */
+      }
     }
-    this.wsOpen = false;
   }
 
   subscribe(symbol: string): void {
@@ -242,7 +292,10 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
     if (this.lastValidAt > 0 && now - this.lastValidAt > STALE_EVENT_THRESHOLD_MS) {
       return "STALE";
     }
-    if (this.lastValidAt > 0 && this.subscription !== "failed") {
+    // Do not report LIVE until real trade data has arrived on THIS socket. A
+    // freshly (re)connected socket that has not delivered any valid trade yet
+    // stays CONNECTING rather than inheriting a previous socket's health.
+    if (this.lastValidAt >= this.socketOpenedAt && this.socketOpenedAt > 0 && this.subscription !== "failed") {
       return "LIVE";
     }
     return "CONNECTING";
@@ -267,39 +320,95 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
   // ── WebSocket internals ────────────────────────────────────────────
 
   protected createWs(): void {
-    const url = this.getWsUrl();
-    const ws = new WebSocket(url);
+    if (this.disposed) return;
+    if (this.ws) return; // never open two sockets for one adapter
+    const gen = ++this.wsGeneration;
+    let ws: WebSocket;
+    try {
+      ws = new WebSocket(this.getWsUrl());
+    } catch {
+      this.recordError("failed to construct WebSocket");
+      this.scheduleReconnect();
+      return;
+    }
+    this.ws = ws;
+    this.socketOpenedAt = 0;
+
+    // Connect timeout: if the transport never reaches OPEN, drop it & retry.
+    const connectTimer = setTimeout(() => {
+      if (this.ws === ws && ws.readyState === WebSocket.CONNECTING) {
+        this.recordError("connect timeout");
+        try {
+          ws.close();
+        } catch {
+          /* ignore */
+        }
+      }
+    }, CONNECT_TIMEOUT_MS);
 
     ws.onopen = () => {
+      clearTimeout(connectTimer);
+      if (gen !== this.wsGeneration || this.disposed) {
+        try {
+          ws.close();
+        } catch {
+          /* ignore */
+        }
+        return;
+      }
       this.wsOpen = true;
       this.wsEverOpened = true;
+      this.socketOpenedAt = Date.now();
       this.lastPong = Date.now();
+      this.lastError = "";
+      this.subscription = "pending";
+      // Resubscribe every requested symbol on (re)connect.
       for (const symbol of this.subscribedSymbols) {
         this.send(this.getSubscribeMsg(symbol));
       }
+      this.startWatchdog();
       this.startPing();
     };
 
-    ws.onmessage = (event) => {
+    ws.onmessage = async (event) => {
+      if (gen !== this.wsGeneration || this.disposed) {
+        // Clear the connect timeout for a stale frame too.
+        clearTimeout(connectTimer);
+        return;
+      }
       this.lastPong = Date.now();
       try {
-        const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
-        this.handleMessage(data);
+        this.handleMessage(await decodeFrame(event.data));
       } catch {
-        // Binary or unparseable — ignore
+        // Malformed / non-JSON / unsupported frame — ignore.
       }
       this.recordMessage();
     };
 
     ws.onerror = (event) => {
-      const msg = (event as { message?: string })?.message || "WebSocket error";
-      this.recordError(msg);
+      if (gen !== this.wsGeneration || this.disposed) return;
+      const msg =
+        (event as { message?: string })?.message ||
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (event as any)?.error ||
+        "WebSocket error";
+      this.recordError(`WS error: ${msg}`);
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
+      clearTimeout(connectTimer);
+      if (gen !== this.wsGeneration || this.disposed) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const code = (event as any)?.code;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const reason = (event as any)?.reason;
+      const reasonText = typeof reason === "string" && reason ? ` (${reason})` : "";
+      const codeText = code != null ? ` code=${code}` : "";
+      this.recordError(`connection closed${codeText}${reasonText}`);
       this.wsOpen = false;
-      this.ws = null;
+      if (this.ws === ws) this.ws = null;
       this.stopPing();
+      this.stopWatchdog();
       this.scheduleReconnect();
     };
 
@@ -333,9 +442,41 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
     }
   }
 
+  /**
+   * Liveness watchdog: if NO inbound message of any kind arrives within
+   * MESSAGE_TIMEOUT_MS, drop the socket so the (reconnect + resubscribe) path
+   * can recover a silently-dead link. Runs for every adapter regardless of the
+   * feed's ping configuration, so stale/quiet upstreams are always detected.
+   */
+  protected startWatchdog(): void {
+    this.stopWatchdog();
+    this.watchdogInterval = setInterval(() => {
+      if (this.disposed) return;
+      if (Date.now() - this.lastPong > MESSAGE_TIMEOUT_MS) {
+        if (this.ws) this.recordError("no messages received; forcing reconnect");
+        this.ws?.close();
+      }
+    }, WATCHDOG_INTERVAL_MS);
+  }
+
+  protected stopWatchdog(): void {
+    if (this.watchdogInterval) {
+      clearInterval(this.watchdogInterval);
+      this.watchdogInterval = null;
+    }
+  }
+
   protected scheduleReconnect(): void {
+    if (this.disposed) return;
+    if (this.reconnectTimeout) return; // never stack duplicate reconnect timers
     this.reconnectCount++;
-    const delay = Math.min(1000 * Math.pow(2, this.reconnectCount), 30_000);
+    // Exponential backoff with jitter (0.5x–1x) so multiple adapters that drop
+    // together don't all reconnect in a synchronized thundering herd.
+    const base = Math.min(
+      1000 * Math.pow(2, this.reconnectCount - 1),
+      MAX_RECONNECT_DELAY_MS,
+    );
+    const delay = Math.round(base * (0.5 + Math.random() * 0.5));
     this.reconnectTimeout = setTimeout(() => {
       this.reconnectTimeout = null;
       this.createWs();
@@ -344,6 +485,7 @@ export abstract class BaseExchangeAdapter implements ExchangeAdapter {
 
   protected clearTimers(): void {
     this.stopPing();
+    this.stopWatchdog();
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;

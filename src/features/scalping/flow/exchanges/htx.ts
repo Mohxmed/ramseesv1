@@ -67,7 +67,15 @@ export class HtxAdapter extends BaseExchangeAdapter {
       if (Number.isFinite(ping)) this.send({ pong: ping });
       return;
     }
-    const msg = data as { ch?: string; tick?: { data?: unknown } };
+    const msg = data as { ch?: string; subbed?: string; unsubbed?: string; status?: string; tick?: { data?: unknown } };
+    // Subscription / unsubscription ack: { id, status: "ok", subbed: "<ch>", ts }.
+    if (typeof msg.subbed === "string" && msg.status === "ok") {
+      this.confirmSubscription();
+      return;
+    }
+    if (typeof msg.unsubbed === "string") {
+      return;
+    }
     if (!msg?.ch || Array.isArray(data)) return;
     const trades = this.normalizeTrade(msg.tick?.data);
     if (trades.length) this.markWsTrade();
