@@ -212,7 +212,7 @@ export interface ExecutionGateResult {
   reason: "move-clears-cost" | "move-below-hurdle" | "negative-move";
 }
 
-/** Full streaming-state contract returned by `useMarketStream`. */
+/** Full streaming-state contract fed to the consensus engine. */
 export interface EngineState {
   /** Live, throttled, de-stale'd snapshot fed to the consensus engine. */
   ticker: TickerPayload | null;
