@@ -132,6 +132,17 @@ async function fetchText(url: string): Promise<string> {
   }
 }
 
+/** FRED is the throttle-prone upstream — one quiet retry before surrendering
+ *  to the per-series memo fallback. */
+async function fetchTextRetry(url: string): Promise<string> {
+  try {
+    return await fetchText(url);
+  } catch {
+    await new Promise((r) => setTimeout(r, 700));
+    return await fetchText(url);
+  }
+}
+
 /**
  * Binance 5m klines → SeriesPoint[], live. klines rows:
  * [openTime(ms), open, high, low, close, volume, closeTime, ...]
@@ -412,7 +423,7 @@ async function composePayload(): Promise<CrossMarketRaw> {
     const memo = fredSeriesCache.get(key);
     if (memo && fetchedAt - memo.at < PERIODIC_SERIES_TTL_MS) return memo.raw;
     try {
-      const text = await fetchText(FRED_CSV(id, fredCosd(fetchedAt)));
+      const text = await fetchTextRetry(FRED_CSV(id, fredCosd(fetchedAt)));
       const series = parseFredCsv(text, PERIODIC_MAX_ROWS);
       if (series.length === 0) throw new Error("لا صفوف في CSV");
       const raw: FactorSeriesRaw = {
@@ -542,10 +553,25 @@ async function composePayload(): Promise<CrossMarketRaw> {
   const fredDefs = defs.filter((d) => d.provider === "fred");
   const llamaDefs = defs.filter((d) => d.provider === "defillama");
 
+  // FRED throttles per-IP; burst into concurrency trips it. Sequential with a
+  // small stagger keeps the burst pressure flat (the 10-min per-series memo
+  // then carries every subsequent cold compose with zero upstream calls).
+  async function runSequential<T>(fns: Array<() => Promise<T>>, gapMs: number): Promise<T[]> {
+    const out: T[] = [];
+    for (const fn of fns) {
+      out.push(await fn());
+      if (gapMs > 0) await new Promise((r) => setTimeout(r, gapMs));
+    }
+    return out;
+  }
+
   const [btcRaw, daily, fredAndLlama] = await Promise.all([
     fetchBtc(),
     buildDaily(fetchedAt),
-    Promise.all([...fredDefs.map(fetchFred), ...llamaDefs.map(fetchLlama)]),
+    runSequential(
+      [...fredDefs.map((d) => () => fetchFred(d)), ...llamaDefs.map((d) => () => fetchLlama(d))],
+      250
+    ),
   ]);
   const rest: FactorSeriesRaw[] = fredAndLlama;
 
