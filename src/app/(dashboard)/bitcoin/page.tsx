@@ -3,77 +3,64 @@
 import { useMarketData } from "@/features/bitcoin/store/market-context";
 import { BtcChart } from "@/features/bitcoin/components/BtcChart";
 import { TechnicalIndicatorsCard } from "@/features/bitcoin/components/TechnicalIndicators";
-import { PredictionPanel } from "@/features/bitcoin/components/PredictionPanel";
-import { MarketDataCard } from "@/features/bitcoin/components/MarketData";
-import { AnalysisPanel } from "@/features/bitcoin/components/AnalysisPanel";
-import { LiveMarketStateCard } from "@/features/bitcoin/components/LiveMarketStateCard";
-import { ForecastCards } from "@/features/bitcoin/components/ForecastCards";
 import { OrderFlowCard } from "@/features/bitcoin/components/OrderFlowCard";
 import { FuturesCard } from "@/features/bitcoin/components/FuturesCard";
 import { StructureWavesCard } from "@/features/bitcoin/components/StructureWavesCard";
-import { InstantPriceBar } from "@/features/bitcoin/components/InstantPriceBar";
-import { PageHeader, Badge, Status } from "@/components/ui/index";
+import { ForecastCards } from "@/features/bitcoin/components/ForecastCards";
+import { TopBar } from "@/features/bitcoin/components/TopBar";
+import { MarketTape } from "@/features/bitcoin/components/MarketTape";
+import { RegimeHero } from "@/features/bitcoin/components/RegimeHero";
+import { MarketScorePanel } from "@/features/bitcoin/components/MarketScorePanel";
+import { KeyLevelsPanel } from "@/features/bitcoin/components/KeyLevelsPanel";
+import { LiquidationCard } from "@/features/bitcoin/components/LiquidationCard";
+import { MultiTimeframeMatrix } from "@/features/bitcoin/components/MultiTimeframeMatrix";
+import { MarketAlerts } from "@/features/bitcoin/components/MarketAlerts";
+import { HistoricalContext } from "@/features/bitcoin/components/HistoricalContext";
+import { DataHealthPanel, SystemStatusBar } from "@/features/bitcoin/components/DataHealth";
+import { useNow } from "@/features/bitcoin/hooks/useNow";
+import { PageHeader, Status } from "@/components/ui/index";
 import { BitcoinIcon } from "@/components/icons/icons";
 
 export default function BitcoinPage() {
-  const {
-    data,
-    timeframe,
-    setTimeframe,
-    overview,
-    chartCandles,
-    indicators,
-    prediction,
-    analysis30m,
-    orderBook,
-    orderFlow,
-    liveConnected,
-    liveUpdatedAt,
-    futures,
-    marketState,
-    liquidity,
-    structure,
-    waves,
-    forecast,
-    refresh,
-  } = useMarketData();
+  const p = useMarketData();
+  const now = useNow(2000);
+  const ready = p.data.status === "ready" || !!p.overview;
 
-  const ready = data.status === "ready" || !!overview;
+  // Single price source, in priority order: engine price → live WS → REST overview.
+  const price = p.marketState?.price ?? p.livePrice ?? p.overview?.price ?? null;
+  const change24h = p.overview?.change24hPercent ?? null;
+  const candles30m = p.multiTF["30m"] ?? null;
+
+  const timestamps = [
+    p.marketState?.timestamp ?? null,
+    p.overview?.updatedAt ?? null,
+    p.futures?.timestamp ?? null,
+    p.orderBook?.timestamp ?? null,
+    p.liveUpdatedAt ?? null,
+  ];
+  const latestUpdatedAt = timestamps.reduce<number | null>((acc, t) => {
+    if (t == null) return acc;
+    return acc == null ? t : Math.max(acc, t);
+  }, null);
+  const availableSources = timestamps.filter((t) => t != null).length;
+  const freshSources = timestamps.filter((t) => t != null && now - t <= 120_000).length;
 
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="BTC Intelligence"
+        eyebrow="BTC Intelligence — Command Center"
         icon={<BitcoinIcon className="h-5 w-5 text-muted" />}
-        title="مركز قيادة بيتكوين"
-        description="مركز استخبارات سوق BTC الحية: بيانات فورية (سبوت + عقود آجلة) + تحليل متعدد الأطر + توقع احتمالي قصير المدى (30م / ساعة / ساعتان) مدعوم بمقارنة الحالات التاريخية. بيانات حقيقية من CoinGecko وبينانس."
-        actions={[
-          <Badge
-            key="live"
-            tone={liveConnected === true ? "good" : "warn"}
-          >
-            {liveConnected === true ? "مباشر" : "متصل"}
-          </Badge>,
-        ]}
-        right={
-          <button
-            type="button"
-            onClick={refresh}
-            disabled={data.status === "loading"}
-            className="rounded-md border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-300 transition-colors hover:border-zinc-500 hover:text-zinc-100 disabled:opacity-50"
-          >
-            {data.status === "loading" ? "جارٍ التحديث..." : "تحديث البيانات"}
-          </button>
-        }
+        title="مركز القيادة والتحليل الاستراتيجي للبيتكوين (BTC)"
+        description="مصفوفة استخبارات حية للسوق: سعر فوري + نظام سوقي مركّب + درجة مع ثقة + مستويات + تدفق أوامر + مشتقات + تصفيات + مصفوفة أطر زمنية + سيناريوهات احتمالية + تنبيهات وسلامة بيانات. بيانات حقيقية فقط من Binance وCoinGecko وDeribit — لا قيم وهمية."
       />
 
-      {data.status === "error" && (
+      {p.data.status === "error" && (
         <div className="rounded-card border border-down/40 bg-down/10 p-5 text-center text-sm text-down-fg">
-          {data.message} — تحقق من اتصال الإنترنت وحاول تحديث البيانات.
+          {p.data.message} — تحقق من اتصال الإنترنت وحاول تحديث البيانات.
         </div>
       )}
 
-      {data.status === "loading" && !overview && (
+      {p.data.status === "loading" && !ready && (
         <div className="flex h-40 items-center justify-center">
           <Status label="جارٍ تحميل بيانات السوق..." tone="quiet" pulse />
         </div>
@@ -81,68 +68,120 @@ export default function BitcoinPage() {
 
       {ready && (
         <>
-          {/* Chart — hero, full width, right after title/description */}
-          <BtcChart
-            candles={chartCandles}
-            timeframe={timeframe}
-            onTimeframeChange={setTimeframe}
-            analysis={analysis30m}
-            liquidity={liquidity}
-            structure={structure}
+          {/* A–B: top command bar — pair, price, live status, session, refresh */}
+          <TopBar
+            price={price}
+            change24h={change24h}
+            live={p.liveConnected === true}
+            updatedAt={latestUpdatedAt}
+            loading={p.data.status === "loading"}
+            onRefresh={p.refresh}
           />
 
-          {/* Live instant spot price data */}
-          <InstantPriceBar
-            overview={overview}
-            futures={futures}
-            marketState={marketState}
-            orderBook={orderBook}
-            live={liveConnected === true}
-            liveUpdatedAt={liveUpdatedAt}
+          <MarketTape
+            overview={p.overview}
+            futures={p.futures}
+            marketState={p.marketState}
+            orderBook={p.orderBook}
+            indicators={p.indicators}
           />
 
-          {/* Market state (half screen) + market structure/waves (half screen) */}
-          <div className="grid gap-6 lg:grid-cols-2">
-            <LiveMarketStateCard
-              state={marketState}
-              updatedAt={marketState?.timestamp ?? liveUpdatedAt ?? 0}
-              live={liveConnected === true}
-            />
-            <div className="grid gap-6">
-              <StructureWavesCard structure={structure} waves={waves ?? []} />
-              <OrderFlowCard
-                orderBook={orderBook}
-                orderFlow={orderFlow}
-                liquidity={liquidity}
-                marketState={marketState}
-                live={liveConnected === true}
-              />
-            </div>
-          </div>
-
-          {/* Forecast — most important, full prominence */}
-          <ForecastCards forecast={forecast} />
-
-          {/* Futures + technical + analysis */}
+          {/* C–D: market regime hero + market score/confidence */}
           <div className="grid gap-6 lg:grid-cols-3">
-            <div className="lg:col-span-1">
-              <FuturesCard futures={futures} />
-            </div>
-            <div className="grid gap-6 sm:grid-cols-2 lg:col-span-2">
-              <PredictionPanel prediction={prediction} />
-            </div>
-          </div>
-
-          <div className="grid gap-6 lg:grid-cols-3">
-            <div className="lg:col-span-1">
-              <AnalysisPanel analysis={analysis30m} />
-            </div>
             <div className="lg:col-span-2">
-              <TechnicalIndicatorsCard indicators={indicators} />
+              <RegimeHero state={p.marketState} />
             </div>
+            <MarketScorePanel
+              state={p.marketState}
+              latestUpdatedAt={latestUpdatedAt}
+              freshSources={freshSources}
+              availableSources={availableSources}
+            />
           </div>
 
-          <MarketDataCard overview={overview} />
+          {/* E: primary price chart */}
+          <BtcChart
+            candles={p.chartCandles}
+            timeframe={p.timeframe}
+            onTimeframeChange={p.setTimeframe}
+            analysis={p.analysis30m}
+            liquidity={p.liquidity}
+            structure={p.structure}
+          />
+
+          {/* F–G: key levels + historical context */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <KeyLevelsPanel
+              analysis={p.analysis30m}
+              indicators={p.indicators}
+              marketState={p.marketState}
+            />
+            <HistoricalContext candles={candles30m ?? []} futures={p.futures} />
+          </div>
+
+          {/* H–J: order flow / derivatives / liquidation */}
+          <div className="grid gap-6 lg:grid-cols-3">
+            <OrderFlowCard
+              orderBook={p.orderBook}
+              orderFlow={p.orderFlow}
+              liquidity={p.liquidity}
+              marketState={p.marketState}
+              live={p.liveConnected === true}
+            />
+            <FuturesCard futures={p.futures} />
+            <LiquidationCard futuresState={p.futuresState} marketState={p.marketState} />
+          </div>
+
+          {/* I: market structure & waves */}
+          <StructureWavesCard structure={p.structure} waves={p.waves ?? []} />
+
+          {/* K: multi-timeframe matrix */}
+          <MultiTimeframeMatrix multiTF={p.multiTF} />
+
+          {/* L: technical indicators */}
+          <TechnicalIndicatorsCard indicators={p.indicators} />
+
+          {/* M/Q: probability scenarios */}
+          <ForecastCards forecast={p.forecast} />
+
+          {/* N–O: alerts + data health */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <MarketAlerts
+              nowMs={now}
+              marketState={p.marketState}
+              orderBook={p.orderBook}
+              orderFlow={p.orderFlow}
+              futures={p.futures}
+              indicators={p.indicators}
+              candles30m={candles30m}
+            />
+            <DataHealthPanel
+              nowMs={now}
+              spotWsConnected={p.liveConnected}
+              spotWsUpdatedAt={p.liveUpdatedAt}
+              futuresWsLive={p.futuresWsLive}
+              futuresWsStale={p.futuresWsStale}
+              futuresWsUpdatedAt={p.futuresState?.timestamp ?? null}
+              restSpotPresent={p.orderBook != null || p.liveUpdatedAt != null}
+              restSpotUpdatedAt={p.orderBook?.timestamp ?? p.liveUpdatedAt ?? null}
+              restFuturesPresent={p.futures != null}
+              restFuturesUpdatedAt={p.futures?.timestamp ?? null}
+              coingeckoPresent={p.overview != null}
+              coingeckoUpdatedAt={p.overview?.updatedAt ?? null}
+              optionsPresent={p.optionsState != null}
+              optionsUpdatedAt={p.optionsState?.timestamp ?? null}
+            />
+          </div>
+
+          {/* P–T: provenance + system status */}
+          <SystemStatusBar
+            refreshTrigger={p.refreshTrigger}
+            futuresWsLive={p.futuresWsLive === true}
+            futuresWsLatency={p.futuresWsLatency}
+            optionsState={p.optionsState}
+            forecastSource={p.forecast?.source ?? null}
+            loading={p.data.status === "loading"}
+          />
         </>
       )}
     </div>
