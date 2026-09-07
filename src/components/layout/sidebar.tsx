@@ -56,7 +56,7 @@ function NavItem({
       {collapsed && (
         <span
           role="tooltip"
-          className="pointer-events-none absolute right-full mr-3 hidden whitespace-nowrap rounded-panel border border-line bg-surface-2 px-2.5 py-1.5 text-xs font-medium text-zinc-100 opacity-0 shadow-pop transition-opacity group-hover:opacity-100 md:block"
+          className="pointer-events-none absolute right-full top-1/2 z-50 mr-3 hidden -translate-y-1/2 whitespace-nowrap rounded-panel border border-line bg-surface-2 px-2.5 py-1.5 text-xs font-medium text-zinc-100 opacity-0 shadow-pop transition-opacity group-hover:opacity-100 md:block"
         >
           {label}
         </span>
@@ -133,7 +133,7 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
           {collapsed && (
             <span
               role="tooltip"
-              className="pointer-events-none absolute right-full mr-3 hidden whitespace-nowrap rounded-panel border border-line bg-surface-2 px-2.5 py-1.5 text-xs font-medium text-zinc-100 opacity-0 shadow-pop transition-opacity group-hover:opacity-100 md:block"
+              className="pointer-events-none absolute right-full top-1/2 z-50 mr-3 hidden -translate-y-1/2 whitespace-nowrap rounded-panel border border-line bg-surface-2 px-2.5 py-1.5 text-xs font-medium text-zinc-100 opacity-0 shadow-pop transition-opacity group-hover:opacity-100 md:block"
             >
               توسيع الشريط
             </span>

@@ -14,16 +14,19 @@ export function DashboardShell({
 }: {
   children: React.ReactNode;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const { isAuthenticated } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
-  // Restore desktop collapsed preference on mount (deferred so SSR/hydration
-  // always start expanded, then the preference is applied after first paint).
+  // Apply a stored desktop collapse preference on mount (if any). Without a
+  // stored value the sidebar keeps its MINIMIZED default. Deferred a frame so
+  // SSR/hydration always start from the same default before preference kicks in.
   useEffect(() => {
-    const stored = localStorage.getItem(DESKTOP_COLLAPSED_KEY) === "1";
+    const raw = localStorage.getItem(DESKTOP_COLLAPSED_KEY);
+    if (raw === null) return;
+    const stored = raw === "1";
     requestAnimationFrame(() =>
       setCollapsed((prev) => (prev === stored ? prev : stored))
     );
@@ -80,7 +83,7 @@ export function DashboardShell({
           collapsed ? "w-[68px]" : "w-64"
         }`}
       >
-        <div className="sticky top-0 h-screen overflow-hidden">
+        <div className="sticky top-0 h-screen">
           <Sidebar
             collapsed={collapsed}
             onToggleCollapse={toggleCollapse}
