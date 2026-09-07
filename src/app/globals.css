@@ -5,6 +5,19 @@
   --foreground: #f4f4f5;
 }
 
+/*
+ * Force the whole page RTL, no matter what. CSS direction overrides the
+ * presentation hint of any dir="ltr" attributes used on numeric/code
+ * fragments across components, so every block stays right-anchored.
+ */
+html {
+  direction: rtl;
+}
+
+[dir="ltr"] {
+  direction: rtl;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
