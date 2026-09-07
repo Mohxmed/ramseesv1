@@ -8,6 +8,7 @@ import { StrategyConditionViewer } from "./components/StrategyConditionViewer";
 import { StrategyList } from "./components/StrategyList";
 import { Card } from "@/components/ui/index";
 import { StrategyIcon } from "@/components/icons/icons";
+import { ExternalBiasStrip } from "@/features/market-influence/components/ExternalBiasStrip";
 
 export function DecisionPage() {
   const dc = useDecisionCenter();
@@ -32,6 +33,8 @@ export function DecisionPage() {
         status={statusLabel}
         onEvaluate={() => dc.cmd.refresh?.()}
       />
+
+      <ExternalBiasStrip />
 
       {isEmpty ? (
         <div className="rounded-card border border-dashed border-line bg-surface-1/40 p-8 text-center">

@@ -18,6 +18,7 @@ import { FlowPanel } from "./components/FlowPanel";
 import { PressureTrio } from "./components/PressurePanel";
 import { TradeTapePanel } from "./components/TradeTape";
 import { DataGatesFab } from "./components/DataGatesModal";
+import { ExternalBiasStrip } from "@/features/market-influence/components/ExternalBiasStrip";
 
 /**
  * Fast React boundaries for the real-time flow tape.
@@ -89,6 +90,9 @@ export function ScalpingPage() {
   return (
     <div className="space-y-4">
       <TerminalHeader snap={snap} />
+
+      {/* External cross-market bias — shared store, zero extra polls */}
+      <ExternalBiasStrip compact />
 
       {/* 02 · قرار المضاربة بجوارها حركة السعر بجواره تدفق الصفقات (fast island) */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
