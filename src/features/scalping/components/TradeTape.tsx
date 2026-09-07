@@ -31,7 +31,7 @@ const mono: CSSProperties = {
 
 const TAPE_WINDOW_MS = 60_000; // keep trades readable for 60s before fading fully
 const TAPE_CAP = 240; // hard cap so the list stays bounded
-const TAPE_POLL_MS = 80; // merge cadence
+const TAPE_POLL_MS = 64; // merge cadence (ticks with the fast flow islands)
 const TAPE_FADE_TICK_MS = 250; // min interval between pure-aging re-renders
 const TAPE_FLASH_MS = 1_500; // a freshly buffered trade keeps its entrance flash
 
@@ -52,15 +52,12 @@ export type TradeBuffer = {
 };
 
 export function useTradeBuffer(latest?: FlowLatestRef | null): TradeBuffer {
-  const [buf, setBuf] = useState<TradeBuffer>(() => {
-    const seed = latest?.current?.recentTrades ?? [];
-    return {
-      trades: seed,
-      now: 0, // hydrate first as "all fresh", then let the tick set the real clock
-      live: liveCountOf(latest?.current?.connections) > 0,
-      liveCount: liveCountOf(latest?.current?.connections),
-      lastReceive: seed.length ? seed[seed.length - 1].receivedAt : 0,
-    };
+  const [buf, setBuf] = useState<TradeBuffer>({
+    trades: [], // start empty — only trades arriving after mount show up
+    now: 0, // 0 pre-first-tick → full opacity
+    live: false,
+    liveCount: 0,
+    lastReceive: 0,
   });
   const seenRef = useRef<Set<string>>(new Set());
   const fadeTickRef = useRef(0);
