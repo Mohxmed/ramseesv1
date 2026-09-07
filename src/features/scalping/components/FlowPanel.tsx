@@ -718,15 +718,21 @@ export function FlowPanel({ snap }: { snap: FlowSnapshot | null | undefined }) {
 
   return (
     <ThemeGate>
-      <div className="space-y-3">
-        <LiveFlowHeader snap={snap} />
-        <TradePressurePanel snap={snap} />
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+        <div className="xl:col-span-2">
+          <LiveFlowHeader snap={snap} />
+        </div>
+        <div className="xl:col-span-2">
+          <TradePressurePanel snap={snap} />
+        </div>
         <NetFlowPanel snap={snap} />
-        <TapePanel snap={snap} />
+        <WindowsPanel snap={snap} />
+        <div className="xl:col-span-2">
+          <TapePanel snap={snap} />
+        </div>
         <LargeTrades snap={snap} />
         <Liquidations snap={snap} />
         <CvdPanel snap={snap} />
-        <WindowsPanel snap={snap} />
         <FlowPricePanel snap={snap} />
       </div>
     </ThemeGate>
