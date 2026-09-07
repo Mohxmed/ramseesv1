@@ -54,8 +54,16 @@ const BINANCE_BTC = (extra: string) =>
 const BTC_5D_BARS = 1440;
 const BAR_MS = 300_000;
 
-const FRED_CSV = (id: string) =>
-  `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${encodeURIComponent(id)}`;
+const FRED_CSV = (id: string, cosd: string) =>
+  `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${encodeURIComponent(
+    id
+  )}&cosd=${cosd}`;
+
+/** FRED CSV window — 420 days covers every horizon the engine needs (90d
+ *  correlation + 45d periodic sweep) at a fraction of the full-history size. */
+function fredCosd(nowMs: number): string {
+  return new Date(nowMs - 420 * 86_400_000).toISOString().slice(0, 10);
+}
 
 /** Yahoo 1-day bars, ~6 months — fills the 30D/90D matrix windows. */
 const YAHOO_DAILY = (symbol: string) =>
@@ -84,6 +92,13 @@ const UA =
 
 /** How many trailing daily/weekly observations to keep (engine needs ≤ 45). */
 const PERIODIC_MAX_ROWS = 60;
+
+/** FRED throttles ~120 req/h per IP and the payload cold-path re-runs every
+ *  12s — without a per-series memo the 9 periodic CSVs (≈45 req/min) trip the
+ *  limit and every periodic factor flips to "غير متاح". */
+const PERIODIC_SERIES_TTL_MS = 10 * 60_000;
+const fredSeriesCache = new Map<string, { at: number; raw: FactorSeriesRaw }>();
+const llamaSeriesCache = new Map<string, { at: number; raw: FactorSeriesRaw }>();
 
 async function fetchJson<T>(url: string): Promise<T> {
   const ac = new AbortController();
@@ -393,11 +408,14 @@ async function composePayload(): Promise<CrossMarketRaw> {
   const fetchFred = async (def: FactorDef): Promise<FactorSeriesRaw> => {
     const id = def.fetch.fredId;
     if (!id) return unavailable(def, "لا معرف FRED");
+    const key = `fred:${id}`;
+    const memo = fredSeriesCache.get(key);
+    if (memo && fetchedAt - memo.at < PERIODIC_SERIES_TTL_MS) return memo.raw;
     try {
-      const text = await fetchText(FRED_CSV(id));
+      const text = await fetchText(FRED_CSV(id, fredCosd(fetchedAt)));
       const series = parseFredCsv(text, PERIODIC_MAX_ROWS);
       if (series.length === 0) throw new Error("لا صفوف في CSV");
-      return {
+      const raw: FactorSeriesRaw = {
         id: def.id,
         ok: true,
         level: series[series.length - 1].v,
@@ -410,18 +428,25 @@ async function composePayload(): Promise<CrossMarketRaw> {
         series,
         meta: { shortName: id },
       };
+      fredSeriesCache.set(key, { at: fetchedAt, raw });
+      return raw;
     } catch (err) {
+      // Keep the last known figure flowing instead of hard-dropping to
+      // "غير متاح" on a transient FRED throttle/outage.
+      if (memo) return memo.raw;
       return unavailable(def, err instanceof Error ? err.message : String(err));
     }
   };
 
   const fetchLlama = async (def: FactorDef): Promise<FactorSeriesRaw> => {
     if (!def.fetch.llama) return unavailable(def, "لا مصدر DefiLlama");
+    const memo = llamaSeriesCache.get("stablecoins");
+    if (memo && fetchedAt - memo.at < PERIODIC_SERIES_TTL_MS) return memo.raw;
     try {
       const json = await fetchJson<unknown>(DEFILLAMA_STABLECOINS);
       const series = parseLlamaStablecoins(json, PERIODIC_MAX_ROWS);
       if (series.length === 0) throw new Error("سلسلة فارغة");
-      return {
+      const raw: FactorSeriesRaw = {
         id: def.id,
         ok: true,
         level: series[series.length - 1].v,
@@ -434,7 +459,10 @@ async function composePayload(): Promise<CrossMarketRaw> {
         series,
         meta: { shortName: "DefiLlama × All" },
       };
+      llamaSeriesCache.set("stablecoins", { at: fetchedAt, raw });
+      return raw;
     } catch (err) {
+      if (memo) return memo.raw;
       return unavailable(def, err instanceof Error ? err.message : String(err));
     }
   };

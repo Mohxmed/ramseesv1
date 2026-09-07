@@ -15,7 +15,7 @@ import {
 import { buildInsights, type Leader } from "./insights";
 import { scoreFactor } from "./impact";
 import { assetFreshnessFor } from "./freshness";
-import { marketSessionFor } from "./marketStatus";
+import { marketSessionFor, usEquityCalendar } from "./marketStatus";
 import { buildRegime } from "./regime";
 import type {
   CrossMarketRaw,
@@ -78,6 +78,11 @@ function latestLevel(series: SeriesPoint[]): number | null {
   return series.length > 0 ? series[series.length - 1].v : null;
 }
 
+/** A Globex board declared OPEN but silent this long, on an official US bank
+ *  holiday, means the day is genuinely dark — label it "عطلة رسمية" rather
+ *  than the alarming "قديم". */
+const FUTURES_HOLIDAY_SILENCE_MS = 2 * 60 * 60 * 1000;
+
 /** Assemble the final, consumable Cross-Market state. */
 export function buildCrossMarketState(
   raw: CrossMarketRaw,
@@ -99,7 +104,16 @@ export function buildCrossMarketState(
     }
     const series = entry.series;
     const ts = entry.updatedAt ?? entry.fetchedAt;
-    const marketStatus = marketSessionFor(def.sessionKind, nowMs);
+    let marketStatus = marketSessionFor(def.sessionKind, nowMs);
+    if (
+      marketStatus === "OPEN" &&
+      def.sessionKind === "future" &&
+      ts != null &&
+      nowMs - ts > FUTURES_HOLIDAY_SILENCE_MS &&
+      usEquityCalendar(nowMs)?.type === "full"
+    ) {
+      marketStatus = "HOLIDAY";
+    }
     const freshness = assetFreshnessFor({
       source: entry.source,
       kind: def.sessionKind,

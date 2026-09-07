@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+﻿import { describe, expect, it } from "vitest";
 import type { FactorDef } from "../../factors";
 import { MONITORED_IDS } from "../../factors";
 import type { CrossMarketRaw, FactorSeriesRaw, SeriesPoint } from "../types";
@@ -46,7 +46,7 @@ function pumpPair(): { fx: SeriesPoint[]; btc: SeriesPoint[] } {
   };
 }
 
-/** BTC whose per-bar log return is the exact inverse of the factor's ⇒ corr −1. */
+/** BTC whose per-bar log return is the exact inverse of the factor's â‡’ corr âˆ’1. */
 function btcExactInverse(fx: SeriesPoint[]): SeriesPoint[] {
   const out: SeriesPoint[] = [{ t: fx[0].t, v: 60_000 }];
   for (let i = 1; i < fx.length; i++) {
@@ -59,7 +59,7 @@ function btcExactInverse(fx: SeriesPoint[]): SeriesPoint[] {
 function dxyDef(): FactorDef {
   return {
     id: "dxy",
-    nameAr: "مؤشر الدولار",
+    nameAr: "ظ…ط¤ط´ط± ط§ظ„ط¯ظˆظ„ط§ط±",
     nameEn: "DXY",
     category: "dollar",
     tier: "primary",
@@ -104,7 +104,6 @@ function raw(
       source: "realtime",
       fetchedAt: NOW,
       updatedAt: NOW,
-      latencyMs: 300,
       series: fx,
     };
   });
@@ -123,7 +122,7 @@ describe("freshness", () => {
   });
 });
 
-describe("impact — scoreFactor", () => {
+describe("impact â€” scoreFactor", () => {
   it("late upward pump with positive BTC correlation yields positive impact", () => {
     const { fx, btc } = pumpPair();
     const f = scoreFactor(dxyDef(), fx, btc, scoreOpts());
@@ -137,8 +136,8 @@ describe("impact — scoreFactor", () => {
   });
 
   it("rising DXY with positive BTC correlation reads as BTC-up supportive impact", () => {
-    // Factor up, BTC up in phase ⇒ corr strongly positive, z positive
-    // ⇒ impact positive (DXY strength pulls BTC same way in this regime).
+    // Factor up, BTC up in phase â‡’ corr strongly positive, z positive
+    // â‡’ impact positive (DXY strength pulls BTC same way in this regime).
     const { fx, btc } = pumpPair();
     const f = scoreFactor(dxyDef(), fx, btc, scoreOpts());
     expect(f.impactScore).not.toBeNull();
@@ -148,8 +147,8 @@ describe("impact — scoreFactor", () => {
   });
 
   it("rising factor with NEGATIVE BTC correlation is pressure (negative impact)", () => {
-    // Classic mirrors: factor up (+z) while BTC moves opposite (−corr)
-    // ⇒ impact negative: the move pressures BTC.
+    // Classic mirrors: factor up (+z) while BTC moves opposite (âˆ’corr)
+    // â‡’ impact negative: the move pressures BTC.
     const { fx } = pumpPair();
     const f = scoreFactor(dxyDef(), fx, btcExactInverse(fx), scoreOpts());
     expect(f.impactScore).not.toBeNull();
@@ -157,10 +156,10 @@ describe("impact — scoreFactor", () => {
     expect(f.impactScore!).toBeLessThan(0);
   });
 
-  it("stale data is EXCLUDED — null impact, zeroed correlation (spec gate)", () => {
+  it("stale data is EXCLUDED â€” null impact, zeroed correlation (spec gate)", () => {
     // Spec: a STALE feed (market open, ~30m-old data) is quarantined from the
     // correlation and impact layers entirely; the UI renders N/A. A CLOSED
-    // market at the same age is NOT stale — its close is still valid.
+    // market at the same age is NOT stale â€” its close is still valid.
     const live = scoreFactor(dxyDef(), latePumpSeries(), btcUp(), scoreOpts());
     const stale = scoreFactor(dxyDef(), latePumpSeries(), btcUp(), scoreOpts({
       freshness: "STALE",
@@ -201,7 +200,7 @@ describe("impact — scoreFactor", () => {
   });
 });
 
-describe("aggregation — pure helpers", () => {
+describe("aggregation â€” pure helpers", () => {
   it("classifyScore buckets into bands", () => {
     expect(classifyScore(0)).toBe("NEUTRAL");
     expect(classifyScore(35)).toBe("BULLISH");
@@ -245,7 +244,7 @@ describe("aggregation — pure helpers", () => {
   });
 });
 
-describe("engine — buildCrossMarketState end-to-end", () => {
+describe("engine â€” buildCrossMarketState end-to-end", () => {
   it("assembles a full state from raw payloads", () => {
     const state = buildCrossMarketState(raw(), NOW);
     expect(state.factors.dxy).toBeDefined();
@@ -269,11 +268,59 @@ describe("engine — buildCrossMarketState end-to-end", () => {
 
   it("regime adapts to input market direction", () => {
     const state = buildCrossMarketState(raw(), NOW);
-    // btcUp + everything pumped up → friendly environment (score > 0)
+    // btcUp + everything pumped up â†’ friendly environment (score > 0)
     expect(state.score).toBeGreaterThan(0);
     for (const id of MONITORED_IDS) {
       expect(state.factors[id].status).not.toBe("unavailable");
     }
     expect(state.regime.risk).toBeTruthy();
+  });
+
+  it("a silent futures feed on a US bank holiday reads HOLIDAY, not stale", () => {
+    // Labor Day 2026 (Sep 7) at 12:00 ET. Globex calendar says OPEN, but the
+    // last Yahoo print is Sunday night â€” the engine must say "ط¹ط·ظ„ط© ط±ط³ظ…ظٹط©".
+    const now = Date.UTC(2026, 8, 7, 16, 0, 0); // 12:00 ET
+    const lastPrint = Date.UTC(2026, 8, 7, 3, 55, 0); // Sun 23:55 ET
+    const gold: FactorSeriesRaw = {
+      id: "gold",
+      ok: true,
+      level: 100,
+      prevDay: 99,
+      unit: "point",
+      provider: "yahoo",
+      source: "realtime",
+      fetchedAt: now,
+      updatedAt: lastPrint,
+      series: series([100, 100, 100], STEP, lastPrint - 3 * STEP),
+    };
+    const state = buildCrossMarketState(raw({ gold }), now);
+    const f = state.factors.gold;
+    expect(f.marketStatus).toBe("HOLIDAY");
+    expect(f.freshness).toBe("CLOSED");
+    expect(f.isStale).toBe(false);
+    expect(f.status).toBe("delayed");
+  });
+
+  it("an equally silent futures feed on a normal weekday stays STALE", () => {
+    const now = Date.UTC(2026, 8, 8, 16, 0, 0); // Tue 12:00 ET â€” no holiday
+    const lastPrint = Date.UTC(2026, 8, 7, 3, 55, 0);
+    const gold: FactorSeriesRaw = {
+      id: "gold",
+      ok: true,
+      level: 100,
+      prevDay: 99,
+      unit: "point",
+      provider: "yahoo",
+      source: "realtime",
+      fetchedAt: now,
+      updatedAt: lastPrint,
+      series: series([100, 100, 100], STEP, lastPrint - 3 * STEP),
+    };
+    const state = buildCrossMarketState(raw({ gold }), now);
+    const f = state.factors.gold;
+    expect(f.marketStatus).toBe("OPEN");
+    expect(f.freshness).toBe("STALE");
+    expect(f.isStale).toBe(true);
+    expect(f.status).toBe("stale");
   });
 });
