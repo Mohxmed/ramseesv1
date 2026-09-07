@@ -53,14 +53,16 @@ function NavItem({
         <span className="ml-auto h-5 w-0.5 rounded-full bg-up-fg" />
       )}
 
-      {collapsed && (
-        <span
-          role="tooltip"
-          className="pointer-events-none absolute right-full top-1/2 z-50 mr-3 hidden -translate-y-1/2 whitespace-nowrap rounded-panel border border-line bg-surface-2 px-2.5 py-1.5 text-xs font-medium text-zinc-100 opacity-0 shadow-pop transition-opacity group-hover:opacity-100 md:block"
-        >
-          {label}
-        </span>
-      )}
+      <span
+        role="tooltip"
+        className={`pointer-events-none absolute z-50 hidden whitespace-nowrap rounded-panel border border-line bg-surface-2 px-2.5 py-1.5 text-xs font-medium text-zinc-100 opacity-0 shadow-pop transition-opacity group-hover:opacity-100 md:block ${
+          collapsed
+            ? "right-full top-1/2 mr-3 -translate-y-1/2"
+            : "right-0 top-full mt-2"
+        }`}
+      >
+        {label}
+      </span>
     </Link>
   );
 
@@ -107,11 +109,7 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
       </div>
 
       {/* Navigation */}
-      <nav
-        className={`flex-1 overflow-y-auto px-3 py-4 ${
-          collapsed ? "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden" : ""
-        }`}
-      >
+      <nav className="flex-1 px-3 py-4">
         <ul className="space-y-1">
           {NAVIGATION.map((item) => (
             <li key={item.href}>

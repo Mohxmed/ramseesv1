@@ -16,12 +16,12 @@ import {
 const PAGE_SIZE = 10;
 
 const TABS: { value: Timeframe; label: string }[] = [
-  { value: "24h", label: "24 ساعة" },
-  { value: "12h", label: "12 ساعة" },
-  { value: "4h", label: "4 ساعات" },
-  { value: "1h", label: "ساعة" },
-  { value: "30m", label: "نصف ساعة" },
-  { value: "10m", label: "10 دقائق" },
+  { value: "24h", label: "24س" },
+  { value: "12h", label: "12س" },
+  { value: "4h", label: "4س" },
+  { value: "1h", label: "1س" },
+  { value: "30m", label: "30د" },
+  { value: "10m", label: "10د" },
 ];
 
 const SORT_KEY: Record<Timeframe, keyof GainerData> = {
@@ -182,8 +182,8 @@ function MoversTable({
                 <td className={`px-3 py-2.5 text-center ${num}`}>
                   <RankBadge rank={startRank + i} />
                 </td>
-                <td className="px-3 py-2.5" dir="ltr">
-                  <span className="inline-flex items-baseline gap-0.5">
+                <td className="px-3 py-2.5 text-right" dir="ltr">
+                  <span className="inline-flex items-baseline justify-end gap-0.5">
                     <span className="text-sm font-bold text-zinc-100">
                       {r.base}
                     </span>
@@ -271,7 +271,7 @@ export function MarketMoversSection({
     <Card
       title={TITLES[direction]}
       actions={
-        <Tabs<Timeframe> value={tab} onChange={handleTab} items={TABS} />
+        <Tabs<Timeframe> value={tab} onChange={handleTab} items={TABS} slim />
       }
       bodyClassName="p-0"
     >

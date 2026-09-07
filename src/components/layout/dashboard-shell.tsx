@@ -146,6 +146,7 @@ export function DashboardShell({
             onClick={toggleCollapse}
             className="fixed bottom-4 left-4 z-20 hidden items-center gap-2 rounded-panel border border-line bg-surface-1 px-3 py-2 text-xs font-medium text-zinc-300 shadow-pop transition-colors hover:bg-surface-2 lg:flex"
             aria-label={collapsed ? "توسيع الشريط" : "طي الشريط"}
+            title={collapsed ? "توسيع الشريط" : "طي الشريط"}
           >
             <PanelLeftIcon className="h-4 w-4" />
           </button>

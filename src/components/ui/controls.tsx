@@ -30,6 +30,7 @@ export interface TabsProps<T extends string> {
   onChange: (value: T) => void;
   items: TabItem[];
   variant?: "scrollable" | "fullWidth" | "standard";
+  slim?: boolean;
 }
 
 /**
@@ -41,6 +42,7 @@ export function Tabs<T extends string>({
   onChange,
   items,
   variant = "scrollable",
+  slim = false,
 }: TabsProps<T>) {
   return (
     <ThemeGate>
@@ -48,7 +50,10 @@ export function Tabs<T extends string>({
         value={value}
         variant={variant}
         onChange={(_e, v: T) => onChange(v)}
-        sx={{ minHeight: 36, "& .MuiTabs-indicator": { backgroundColor: tokens.colors.accent } }}
+        sx={{
+          minHeight: slim ? 30 : 36,
+          "& .MuiTabs-indicator": { backgroundColor: tokens.colors.accent },
+        }}
       >
         {items.map((it) => (
           <MuiTab
@@ -57,7 +62,12 @@ export function Tabs<T extends string>({
             label={it.label as unknown as React.ReactElement | string}
             icon={it.icon as React.ReactElement | string}
             iconPosition="start"
-            sx={{ minHeight: 36 }}
+            sx={{
+              minHeight: slim ? 30 : 36,
+              minWidth: slim ? "auto" : undefined,
+              padding: slim ? "4px 9px" : undefined,
+              fontSize: slim ? 11 : undefined,
+            }}
           />
         ))}
       </MuiTabs>
