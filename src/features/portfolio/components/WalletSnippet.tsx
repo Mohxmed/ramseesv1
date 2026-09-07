@@ -1,95 +1,95 @@
 "use client";
 
 import Link from "next/link";
-import { Badge } from "@/components/ui";
-import { WalletIcon } from "@/components/icons/icons";
+import { ArrowRightIcon, WalletIcon } from "@/components/icons/icons";
 import { usePortfolio } from "../hooks/usePortfolio";
-import { fmtDdPct, fmtMoney, fmtPct } from "../utils";
+import { fmtPct } from "../utils";
 
 /**
- * Compact live wallet preview for the home dashboard. Whole card links to
- * /portfolio; numbers stream from the same meta listener used by the full page.
+ * محفظة — the hero card of the home dashboard. One glance: current balance and
+ * net profit, in big RTL numbers. No status noise.
  */
+
+function money(v: number | null | undefined, opts: { signed?: boolean } = {}): string {
+  if (v == null || !Number.isFinite(v)) return "—";
+  const d = Math.abs(v).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  const sign = v < 0 ? "-" : opts.signed && v > 0 ? "+" : "";
+  return `${sign}${d} $`;
+}
+
 export function WalletSnippet() {
-  const { meta, transactions } = usePortfolio();
+  const { meta } = usePortfolio();
 
   const cardCls =
-    "group flex flex-col rounded-card border border-line bg-surface-1/40 p-5 transition-colors hover:border-zinc-600";
+    "group flex flex-col rounded-card border border-line bg-surface-1/40 p-5 transition-colors hover:border-zinc-600 hover:bg-surface-1/70";
 
-  const titleRow = (
-    <div className="flex items-center justify-between">
-      <h3 className="text-sm font-semibold text-zinc-100">المحفظة</h3>
-      <span aria-hidden className="text-up-fg">
-        <WalletIcon className="h-5 w-5" />
+  const titleRow = (accent: string) => (
+    <div className="flex items-center gap-2.5">
+      <span className={`flex h-8 w-8 items-center justify-center rounded-panel ${accent}`}>
+        <WalletIcon className="h-4 w-4" />
       </span>
+      <div>
+        <h3 className="text-sm font-bold text-zinc-100">المحفظة</h3>
+        <p className="text-2xs text-muted">رصيدك وأداؤك منذ البداية</p>
+      </div>
+    </div>
+  );
+
+  const footer = (label: string, tone: string) => (
+    <div className="mt-4 flex items-center justify-between border-t border-line/60 pt-3 text-xs font-semibold text-muted transition-colors group-hover:text-zinc-100">
+      {label}
+      <ArrowRightIcon className={`h-4 w-4 transition-transform duration-300 group-hover:-translate-x-1 ${tone}`} />
     </div>
   );
 
   if (!meta) {
     return (
       <Link href="/portfolio" className={cardCls}>
-        {titleRow}
-        <div className="mt-4 flex flex-1 flex-col justify-between gap-4">
+        {titleRow("bg-up/10 text-up-fg ring-1 ring-up/20")}
+        <div className="mt-5 flex flex-1 flex-col justify-between">
           <div>
-            <div className="text-2xs text-muted">لم تُنشأ محفظة بعد</div>
-            <div className="mt-1 text-lg font-bold text-zinc-200">ابدأ بتسجيل رأس مالك</div>
+            <p className="text-2xs text-muted">لم تنشئ محفظتك بعد</p>
+            <p className="mt-1 text-xl font-bold text-zinc-100">ابدأ بتسجيل رأس مالك</p>
           </div>
-          <div className="flex items-center justify-between rounded-md border border-line px-3 py-2 text-xs font-semibold text-zinc-300 transition-colors group-hover:border-zinc-500 group-hover:text-zinc-100">
-            إنشاء المحفظة <span aria-hidden>←</span>
-          </div>
+          {footer("إنشاء المحفظة", "text-up-fg")}
         </div>
       </Link>
     );
   }
 
   const up = meta.totalPnl >= 0;
+  const tone = up ? "text-good" : "text-down-fg";
 
   return (
     <Link href="/portfolio" className={cardCls}>
-      {titleRow}
-      <div className="mt-1">
-        <Badge tone="good">محدَّثة لحظياً</Badge>
+      {titleRow("bg-up/10 text-up-fg ring-1 ring-up/20")}
+
+      <div className="mt-6">
+        <p className="text-2xs text-muted">الرصيد الحالي</p>
+        <p className={`mt-1.5 font-mono tabular-nums text-4xl font-extrabold leading-none tracking-tight text-zinc-50`}>
+          {money(meta.currentBalance)}
+        </p>
       </div>
-      <div className="mt-4 flex flex-1 flex-col justify-between gap-4">
-        <div>
-          <div className="text-2xs text-muted">الرصيد الحالي</div>
-          <div
-            dir="ltr"
-            className={`mt-1 text-2xl font-extrabold leading-none ${up ? "text-good" : meta.totalPnl < 0 ? "text-down-fg" : "text-zinc-100"}`}
-          >
-            {fmtMoney(meta.currentBalance)}
-          </div>
+
+      <div className="mt-5 grid grid-cols-2 gap-3">
+        <div className="rounded-panel border border-line/60 bg-surface-2/20 p-3">
+          <p className="text-2xs text-muted">إجمالي الربح / الخسارة</p>
+          <p className={`mt-1 font-mono tabular-nums text-lg font-bold leading-none ${tone}`}>
+            {money(meta.totalPnl, { signed: true })}
+          </p>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-panel border border-line/70 bg-surface-2/30 px-2.5 py-2">
-            <div className="text-2xs text-muted">إجمالي الربح/الخسارة</div>
-            <div
-              dir="ltr"
-              className={`mt-0.5 font-mono text-sm font-bold ${up ? "text-good" : "text-down-fg"}`}
-            >
-              {fmtMoney(meta.totalPnl, { signed: true })}
-            </div>
-            <div dir="ltr" className="font-mono text-2xs text-muted">
-              {fmtPct(meta.totalPnlPercent)}
-            </div>
-          </div>
-          <div className="rounded-panel border border-line/70 bg-surface-2/30 px-2.5 py-2">
-            <div className="text-2xs text-muted">السحب الحالي</div>
-            <div
-              dir="ltr"
-              className={`mt-0.5 font-mono text-sm font-bold ${meta.currentDrawdown < 0 ? "text-down-fg" : "text-good"}`}
-            >
-              {fmtDdPct(meta.currentDrawdown)}
-            </div>
-            <div dir="ltr" className="font-mono text-2xs text-muted">
-              {transactions.length} عملية
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center justify-between rounded-md border border-line px-3 py-2 text-xs font-semibold text-zinc-300 transition-colors group-hover:border-zinc-500 group-hover:text-zinc-100">
-          فتح المحفظة <span aria-hidden>←</span>
+        <div className="rounded-panel border border-line/60 bg-surface-2/20 p-3">
+          <p className="text-2xs text-muted">إجمالي العائد</p>
+          <p className={`mt-1 font-mono tabular-nums text-lg font-bold leading-none ${tone}`}>
+            {fmtPct(meta.totalPnlPercent)}
+          </p>
         </div>
       </div>
+
+      {footer("عرض تفاصيل المحفظة", up ? "text-up-fg" : "text-down-fg")}
     </Link>
   );
 }
