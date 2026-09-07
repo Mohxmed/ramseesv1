@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { useScalping } from "./hooks/useScalping";
+import { useFlowLatest, type FlowLatestRef } from "./hooks/useFlowLatest";
 import { TerminalHeader } from "./components/terminal/TerminalHeader";
 import { DecisionCall } from "./components/terminal/DecisionCall";
 import { PriceMovePanel } from "./components/terminal/PriceMovePanel";
@@ -15,39 +15,36 @@ import { DiagnosticsContent } from "./components/terminal/DiagnosticsPanel";
 import { SystemHealthBar } from "./components/terminal/SystemHealthBar";
 import { Section, Collapse } from "./components/terminal/TradingPrimitives";
 import { FlowPanel } from "./components/FlowPanel";
-import type { FlowSnapshot } from "./flow/types";
+import { PressureTrio } from "./components/PressurePanel";
+import { DataGatesFab } from "./components/DataGatesModal";
 
 /**
- * Fast React boundary for the real-time flow tape.
+ * Fast React boundaries for the real-time flow tape.
  *
  * The flow engine publishes the newest snapshot into a module-level ref
- * (`snap.flowLatest`) as soon as it is produced (no render coupling). This
- * wrapper polls that ref on a fast cadence (~80-100ms) into a small local state
- * so ONLY the flow panel re-renders per update — the heavy scalping terminal
- * keeps its 1s cadence and no render fires per individual trade.
+ * (`snap.flowLatest`) with no render coupling. Each island below polls that
+ * ref on a fast cadence (~64ms) into a small local state so ONLY that island
+ * re-renders per update — the heavy scalping terminal keeps its 1s cadence and
+ * no render fires per individual trade.
  */
-const FLOW_TAPE_INTERVAL_MS = 64;
 
-function LiveFlowView({ latest }: { latest?: { readonly current: FlowSnapshot | null } | null }) {
-  const [flow, setFlow] = useState<FlowSnapshot | null>(() => latest?.current ?? null);
-  const lastPublishRef = useRef(0);
-
-  useEffect(() => {
-    if (!latest) return;
-    const tick = () => {
-      const next = latest.current;
-      const ts = next?.state?.timestamp ?? 0;
-      if (ts !== lastPublishRef.current) {
-        lastPublishRef.current = ts;
-        setFlow(next);
-      }
-    };
-    tick();
-    const timer = setInterval(tick, FLOW_TAPE_INTERVAL_MS);
-    return () => clearInterval(timer);
-  }, [latest]);
-
+/** The full flow window — advanced pressure, net flow, tape, liquidations, CVD. */
+function LiveFlowView({ latest }: { latest?: FlowLatestRef }) {
+  const flow = useFlowLatest(latest);
   return <FlowPanel snap={flow} />;
+}
+
+/** The pressure trio (الضغط / تنفيذ فوري / نشاط التداول) — one fast island. */
+function LiveFlowPressure({ latest }: { latest?: FlowLatestRef }) {
+  const flow = useFlowLatest(latest);
+  if (!flow) {
+    return (
+      <div className="flex items-center justify-center gap-2 rounded-panel border border-line bg-surface-1/40 py-6 text-center">
+        <span className="text-2xs text-muted">جارٍ الاتصال بمصادر التدفق المباشر…</span>
+      </div>
+    );
+  }
+  return <PressureTrio snap={flow} />;
 }
 
 /**
@@ -55,11 +52,15 @@ function LiveFlowView({ latest }: { latest?: { readonly current: FlowSnapshot | 
  *
  * Information hierarchy (single source of truth per metric):
  *   ║ 01 Header (market state monitor)          — the "3-second" zone
- *   ║ 02 Decision + Price Move                  — 1/3 + 2/3 row (ATR inside Decision)
- *   ║ 03 Strength / Execution / Risk            — three equal columns
- *   ║ 04 Forecast / Reasons / Statistical Edge  — three equal columns
- *   ║ 05 Real-Time Flow                         — full-width fast island (heartbeat)
- *   ║ 06 Details + System (compact)
+ *   ║ 02 Decision + Price Move                  — قرار المضاربة بجوارها حركة السعر
+ *   ║ 03 Pressure trio                          — الضغط بجواره تنفيذ فوري بجواره نشاط التداول
+ *   ║ 04 Strength / Execution / Risk            — three equal columns
+ *   ║ 05 Forecast / Reasons / Statistical Edge  — three equal columns
+ *   ║ 06 Real-Time Flow                         — full-width fast island (heartbeat)
+ *   ║ 07 Details + System (compact)
+ *
+ * بوابات البيانات (the live data-gates) is a floating modal launcher that sits
+ * directly above the sidebar collapse button — see DataGatesFab.
  *
  * Decision-first on mobile: sections stack in DOM order, so the primary call and
  * its direction always lead. No metric is shown twice; every value is rendered
@@ -83,13 +84,16 @@ export function ScalpingPage() {
     <div className="space-y-4">
       <TerminalHeader snap={snap} />
 
-      {/* 02-03 · Decision + Price Move — decision leads, price action spans 2/3 */}
+      {/* 02 · قرار المضاربة بجوارها حركة السعر */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <DecisionCall decision={snap.decision ?? null} signal={snap.signal} atr={snap.series?.atr ?? null} />
         <div className="lg:col-span-2">
           <PriceMovePanel snap={snap} />
         </div>
       </div>
+
+      {/* 03 · الضغط بجواره تنفيذ فوري بجواره نشاط التداول — fast island */}
+      <LiveFlowPressure latest={snap.flowLatest} />
 
       {/* Context: strength / execution / risk — three equal columns */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -130,6 +134,9 @@ export function ScalpingPage() {
         افتراضي)؛ القراءات توافق الضغط الحالي وليست ضماناً؛ «المسافة للوقف/الهدف» تقدير ATR وليست أمراً فعلياً؛ عند
         تباطؤ أو انقطاع البيانات تتوقف الإشارة للحفاظ على النزاهة.
       </p>
+
+      {/* بوابات البيانات — floating launcher above the sidebar collapse button */}
+      <DataGatesFab latest={snap.flowLatest} />
     </div>
   );
 }

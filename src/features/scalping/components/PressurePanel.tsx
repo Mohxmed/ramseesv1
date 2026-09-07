@@ -162,7 +162,7 @@ function TfFilter({ value, onChange }: { value: number; onChange: (seconds: numb
 
 // ─── Hero Pressure Meter ────────────────────────────────────────────
 
-function HeroMeter({
+export function HeroMeter({
   tfm,
   momentum,
   acceleration,
@@ -265,69 +265,36 @@ function BreakdownSection({
   );
 }
 
-function Breakdown({ snap, tfm }: { snap: FlowSnapshot; tfm: TfPressure }) {
-  const liq = snap.state.pressure.breakdown.liquidations;
+// ─── Immediate execution (تنفيذ فوري) — aggressive flow for the picked TF ──
+
+export function AggressiveFlowSection({ tfm }: { tfm: TfPressure }) {
   const ratio = tfm.sellVolume > 0 ? tfm.buyVolume / Math.max(0.0001, tfm.sellVolume) : 0;
-
   return (
-    <div className="grid grid-cols-1 gap-1.5 lg:grid-cols-2">
-      {/* Aggressive Flow */}
-      <BreakdownSection
-        title="Aggressive Flow (تنفيذ فوري)"
-        actions={<Tag tone="neutral">صفقات</Tag>}
-      >
-        <Row label="حجم الشراء السوقي" value={usd(tfm.buyVolume)} tone="long"
-          tip={(<span dir="rtl">إجمالي قيمة الصفقات المنفَّذة فوراً على جانب الشراء ضمن الفترة المختارة ({tfm.label}) — بيانات حقيقية من بثّ الصفقات</span>)} />
-        <Row label="حجم البيع السوقي" value={usd(tfm.sellVolume)} tone="short" />
-        <Row label="نسبة شراء/بيع" value={`${ratio.toFixed(1)}x`} tone={ratio >= 1 ? "long" : "short"} />
-        <Row label="صافي الحجم (Delta)" value={signedUsd(tfm.delta)} tone={tfm.delta > 0 ? "long" : tfm.delta < 0 ? "short" : "neutral"} />
-        {/* CVD delta is TF-level real */}
-        <Row label="CVD Δ" value={tfm.cvdDelta != null ? signedUsd(tfm.cvdDelta) : "N/A"}
-          tone={tfm.cvdDelta != null ? (tfm.cvdDelta > 0 ? "long" : "short") : "neutral"} />
-      </BreakdownSection>
+    <BreakdownSection title="Aggressive Flow (تنفيذ فوري)" actions={<Tag tone="neutral">صفقات</Tag>}>
+      <Row label="حجم الشراء السوقي" value={usd(tfm.buyVolume)} tone="long"
+        tip={(<span dir="rtl">إجمالي قيمة الصفقات المنفَّذة فوراً على جانب الشراء ضمن الفترة المختارة ({tfm.label}) — بيانات حقيقية من بثّ الصفقات</span>)} />
+      <Row label="حجم البيع السوقي" value={usd(tfm.sellVolume)} tone="short" />
+      <Row label="نسبة شراء/بيع" value={`${ratio.toFixed(1)}x`} tone={ratio >= 1 ? "long" : "short"} />
+      <Row label="صافي الحجم (Delta)" value={signedUsd(tfm.delta)} tone={tfm.delta > 0 ? "long" : tfm.delta < 0 ? "short" : "neutral"} />
+      {/* CVD delta is TF-level real */}
+      <Row label="CVD Δ" value={tfm.cvdDelta != null ? signedUsd(tfm.cvdDelta) : "N/A"}
+        tone={tfm.cvdDelta != null ? (tfm.cvdDelta > 0 ? "long" : "short") : "neutral"} />
+    </BreakdownSection>
+  );
+}
 
-      {/* Trade Activity */}
-      <BreakdownSection
-        title="Trade Activity (نشاط التداول)"
-        actions={<Tag tone="neutral">{tfm.tradeCount} صفقة</Tag>}
-      >
-        <Row label="صفقات/ث" value={tfm.tradesPerSec.toFixed(1)} />
-        <Row label="شراء/ث" value={tfm.buyTradesPerSec.toFixed(1)} tone="long" />
-        <Row label="بيع/ث" value={tfm.sellTradesPerSec.toFixed(1)} tone="short" />
-        <Row label="متوسط حجم الصفقة" value={usd(tfm.avgTradeSize)} />
-        <Row label="صفقات كبيرة (شراء)" value={String(tfm.largeBuys)} tone="long" />
-        <Row label="صفقات كبيرة (بيع)" value={String(tfm.largeSells)} tone="short" />
-      </BreakdownSection>
+// ─── Trading activity (نشاط التداول) — activity intensity for the picked TF ──
 
-      {/* Liquidations (real) */}
-      <BreakdownSection
-        title="Futures / تصفيات"
-        actions={<Tag tone={liq.burst ? "warn" : "neutral"}>{liq.burst ? "انفجار" : "هادئ"}</Tag>}
-      >
-        <Row label="تصفية لونج (10ث)" value={usd(liq.longNotional10s)} tone="short" />
-        <Row label="تصفية شورت (10ث)" value={usd(liq.shortNotional10s)} tone="long" />
-        <Row label="سرعة التصفية" value={`${usd(liq.velocity)}/ث`} />
-        <Row label="OI / ΔOI" value="N/A"
-          tip="مفتوح غير متوفر عبر بثّ الصفقات العام — يتطلب بثّ OI مستقل" />
-        <Row label="الفاندينغ" value="N/A"
-          tip="الفاندينغ غير متوفر عبر بثّ الصفقات العام — يتطلب بثّ Funding مستقل" />
-      </BreakdownSection>
-
-      {/* Order Book (genuinely unavailable) */}
-      <BreakdownSection title="Order Book" actions={<Tag tone="quiet">N/A</Tag>}>
-        <div className="py-1 text-2xs text-muted">
-          {snap.state.pressure.breakdown.orderBook.note}
-          <div className="mt-1 flex items-center justify-between text-2xs">
-            <span>Bid / Ask Imbalance</span>
-            <span className="font-bold text-zinc-500">N/A</span>
-          </div>
-          <div className="flex items-center justify-between text-2xs">
-            <span>Book Pressure / Absorption</span>
-            <span className="font-bold text-zinc-500">N/A</span>
-          </div>
-        </div>
-      </BreakdownSection>
-    </div>
+export function TradeActivitySection({ tfm }: { tfm: TfPressure }) {
+  return (
+    <BreakdownSection title="Trade Activity (نشاط التداول)" actions={<Tag tone="neutral">{tfm.tradeCount} صفقة</Tag>}>
+      <Row label="صفقات/ث" value={tfm.tradesPerSec.toFixed(1)} />
+      <Row label="شراء/ث" value={tfm.buyTradesPerSec.toFixed(1)} tone="long" />
+      <Row label="بيع/ث" value={tfm.sellTradesPerSec.toFixed(1)} tone="short" />
+      <Row label="متوسط حجم الصفقة" value={usd(tfm.avgTradeSize)} />
+      <Row label="صفقات كبيرة (شراء)" value={String(tfm.largeBuys)} tone="long" />
+      <Row label="صفقات كبيرة (بيع)" value={String(tfm.largeSells)} tone="short" />
+    </BreakdownSection>
   );
 }
 
@@ -474,9 +441,12 @@ function DivergenceSection({ divergences }: { divergences: PressureDivergence[] 
   );
 }
 
-// ─── Panel root ─────────────────────────────────────────────────────
+// ─── Buy/Sell Pressure trio — one row, three columns ───────────────
+// الضغط بجواره تنفيذ فوري بجواره نشاط التداول: the hero pressure meter, the
+// immediate (aggressive) execution feed, and trade activity share a single
+// timeframe selection and render side by side.
 
-export function PressurePanel({ snap }: { snap: FlowSnapshot }) {
+export function PressureTrio({ snap }: { snap: FlowSnapshot }) {
   const pressure = snap.state.pressure;
   const timeframes = pressure.timeframes;
   const [tf, setTf] = useState<number>(pressure.primarySeconds);
@@ -508,15 +478,59 @@ export function PressurePanel({ snap }: { snap: FlowSnapshot }) {
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <Section title="الفترة الزمنية" collapsible
         actions={<Tag tone="neutral">يعيد حساب كل مؤشر للفترة المختارة</Tag>}>
         <TfFilter value={tf} onChange={applyTf} />
       </Section>
 
-      <HeroMeter tfm={tfm} momentum={momentum} acceleration={accel} confidence={confidence} />
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+        <HeroMeter tfm={tfm} momentum={momentum} acceleration={accel} confidence={confidence} />
+        <AggressiveFlowSection tfm={tfm} />
+        <TradeActivitySection tfm={tfm} />
+      </div>
+    </div>
+  );
+}
 
-      <Breakdown snap={snap} tfm={tfm} />
+// ─── Advanced pressure detail — kept below the live flow window ────
+
+export function PressureDetails({ snap }: { snap: FlowSnapshot }) {
+  const pressure = snap.state.pressure;
+  const timeframes = pressure.timeframes;
+  const liq = pressure.breakdown.liquidations;
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-1 gap-1.5 lg:grid-cols-2">
+        {/* Liquidations (real) */}
+        <BreakdownSection
+          title="Futures / تصفيات"
+          actions={<Tag tone={liq.burst ? "warn" : "neutral"}>{liq.burst ? "انفجار" : "هادئ"}</Tag>}
+        >
+          <Row label="تصفية لونج (10ث)" value={usd(liq.longNotional10s)} tone="short" />
+          <Row label="تصفية شورت (10ث)" value={usd(liq.shortNotional10s)} tone="long" />
+          <Row label="سرعة التصفية" value={`${usd(liq.velocity)}/ث`} />
+          <Row label="OI / ΔOI" value="N/A"
+            tip="مفتوح غير متوفر عبر بثّ الصفقات العام — يتطلب بثّ OI مستقل" />
+          <Row label="الفاندينغ" value="N/A"
+            tip="الفاندينغ غير متوفر عبر بثّ الصفقات العام — يتطلب بثّ Funding مستقل" />
+        </BreakdownSection>
+
+        {/* Order Book (genuinely unavailable) */}
+        <BreakdownSection title="Order Book" actions={<Tag tone="quiet">N/A</Tag>}>
+          <div className="py-1 text-2xs text-muted">
+            {snap.state.pressure.breakdown.orderBook.note}
+            <div className="mt-1 flex items-center justify-between text-2xs">
+              <span>Bid / Ask Imbalance</span>
+              <span className="font-bold text-zinc-500">N/A</span>
+            </div>
+            <div className="flex items-center justify-between text-2xs">
+              <span>Book Pressure / Absorption</span>
+              <span className="font-bold text-zinc-500">N/A</span>
+            </div>
+          </div>
+        </BreakdownSection>
+      </div>
 
       <Section title="Pressure Timeline" collapsible
         actions={<Tag tone="neutral">ضغط قصير داخل ضغط طويل</Tag>}>
