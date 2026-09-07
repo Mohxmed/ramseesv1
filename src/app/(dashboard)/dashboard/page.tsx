@@ -13,6 +13,7 @@ import {
   Progress,
 } from "@/components/ui/index";
 import { DashboardIcon } from "@/components/icons/icons";
+import { TopGainers } from "@/features/dashboard/components/TopGainers";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -94,6 +95,8 @@ export default function DashboardPage() {
           </div>
         </Card>
       </div>
+
+      <TopGainers />
     </div>
   );
 }
