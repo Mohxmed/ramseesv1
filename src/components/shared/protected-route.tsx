@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/features/auth/hooks/useAuth";
+import { BrandSplash } from "@/components/shared/BrandSplash";
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
@@ -15,11 +16,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }, [loading, isAuthenticated, router]);
 
   if (loading) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-zinc-700 border-t-zinc-100" />
-      </div>
-    );
+    return <BrandSplash />;
   }
 
   if (!isAuthenticated) {

@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/features/auth/hooks/useAuth";
+import { BrandSplash } from "@/components/shared/BrandSplash";
 
 export function RedirectIfAuthenticated({
   children,
@@ -19,7 +20,7 @@ export function RedirectIfAuthenticated({
   }, [loading, isAuthenticated, router]);
 
   if (loading) {
-    return null;
+    return <BrandSplash />;
   }
 
   if (isAuthenticated) {

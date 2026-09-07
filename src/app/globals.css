@@ -96,6 +96,16 @@ body {
   }
 }
 
+/* Indeterminate sweep bar for the brand splash screen. */
+@keyframes loading-bar {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
 /* Pulsing status dot for the live-feed indicator (matches Dot's animate-pulse). */
 @keyframes dot-blink {
   0%,
