@@ -7,6 +7,11 @@ import { formatAge } from "../freshness";
 import { Dot } from "./TradingPrimitives";
 import { Tip } from "./TerminalTip";
 import { num } from "@/components/ui/design-tokens";
+import {
+  ArrowUpRightIcon,
+  ArrowDownRightIcon,
+  ArrowRightIcon,
+} from "@/components/icons/icons";
 
 const WAVE_LABEL: Record<WaveState, string> = {
   up: "صاعدة",
@@ -72,8 +77,18 @@ function Cell({ reading }: { reading: MarketTfReading }) {
           {wave != null ? WAVE_LABEL[wave] : "غير متاح"}
         </span>
       </Tip>
-      <span className={`text-xs font-bold leading-none ${textClass}`}>
-        {wave != null ? (wave === "up" ? "↗" : wave === "down" ? "↘" : "→") : "·"}
+      <span className={`flex items-center justify-center text-xs font-bold leading-none ${textClass}`}>
+        {wave != null ? (
+          wave === "up" ? (
+            <ArrowUpRightIcon className="h-3.5 w-3.5" />
+          ) : wave === "down" ? (
+            <ArrowDownRightIcon className="h-3.5 w-3.5" />
+          ) : (
+            <ArrowRightIcon className="h-3.5 w-3.5" />
+          )
+        ) : (
+          "·"
+        )}
       </span>
     </div>
   );

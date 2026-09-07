@@ -21,6 +21,7 @@ import type {
 import { HORIZON_KEYS, CONFIDENCE_RANGES } from "./validation/versions";
 import { REGIME_LABELS } from "../regime";
 import { ValidationDashboard } from "./ValidationDashboard";
+import { PlayIcon, PauseIcon } from "@/components/icons/icons";
 
 /** 7-layer Decision Validation Lab — premium dark-minimal, no wallet. */
 export function ValidationLab() {
@@ -238,8 +239,18 @@ function LayerReplay({ lab }: { lab: ReturnType<typeof useValidationLab> }) {
       actions={<Tag tone={lab.replay === "playing" ? "good" : "neutral"} ltr>{REPLAY_LABELS[lab.replay]}</Tag>}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <button onClick={() => (lab.replay === "playing" ? lab.pause() : lab.play())} disabled={!lab.candles.length} className="rounded-panel border border-line bg-surface-2 px-3 py-1.5 text-xs font-bold text-zinc-200 hover:border-surface-3 disabled:opacity-40">
-          {lab.replay === "playing" ? "⏸ إيقاف" : "▶ تشغيل"}
+        <button onClick={() => (lab.replay === "playing" ? lab.pause() : lab.play())} disabled={!lab.candles.length} className="inline-flex items-center gap-1.5 rounded-panel border border-line bg-surface-2 px-3 py-1.5 text-xs font-bold text-zinc-200 hover:border-surface-3 disabled:opacity-40">
+          {lab.replay === "playing" ? (
+            <>
+              <PauseIcon className="h-3.5 w-3.5" />
+              إيقاف
+            </>
+          ) : (
+            <>
+              <PlayIcon className="h-3.5 w-3.5" />
+              تشغيل
+            </>
+          )}
         </button>
         <button onClick={() => lab.nextBar()} disabled={!lab.candles.length} className="rounded-panel border border-line bg-surface-2 px-3 py-1.5 text-xs font-bold text-zinc-200 disabled:opacity-40">
           خطوة ▸

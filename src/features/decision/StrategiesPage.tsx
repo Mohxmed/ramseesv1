@@ -7,6 +7,7 @@ import { StrategyList } from "./components/StrategyList";
 import { LiveStrategyBuilder } from "./components/LiveStrategyBuilder";
 import { CreateStrategyModal } from "./components/CreateStrategyModal";
 import { Badge, type Tone } from "@/components/ui/index";
+import { StrategyIcon } from "@/components/icons/icons";
 
 const STATUS_META: Record<PersistStatus, { label: string; tone: Tone }> = {
   loading: { label: "جارٍ التحميل…", tone: "quiet" },
@@ -45,8 +46,8 @@ export function StrategiesPage() {
       <section className="rounded-card border border-line bg-surface-1/40 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-panel border border-line bg-surface-2/60 text-xl">
-              🧩
+            <div className="flex h-10 w-10 items-center justify-center rounded-panel border border-line bg-surface-2/60 text-muted">
+              <StrategyIcon className="h-5 w-5" />
             </div>
             <div>
               <h1 className="text-lg font-bold text-zinc-100">إدارة الاستراتيجيات</h1>

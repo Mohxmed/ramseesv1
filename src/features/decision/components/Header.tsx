@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Status } from "@/components/ui/index";
+import { DecisionIcon } from "@/components/icons/icons";
 
 export function Header({
   liveConnected,
@@ -18,8 +19,8 @@ export function Header({
     <section className="rounded-card border border-line bg-surface-1/40 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-panel border border-line bg-surface-2/60">
-            <span className="text-xl">🧭</span>
+          <div className="flex h-10 w-10 items-center justify-center rounded-panel border border-line bg-surface-2/60 text-muted">
+            <DecisionIcon className="h-5 w-5" />
           </div>
           <div>
             <h1 className="text-lg font-bold text-zinc-100">مركز القرارات</h1>

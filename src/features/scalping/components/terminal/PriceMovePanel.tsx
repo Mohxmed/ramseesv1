@@ -7,6 +7,11 @@ import type { VolatilityRegime } from "../../data/microTicks";
 import { Dot, Section } from "./TradingPrimitives";
 import { colors, num } from "@/components/ui/design-tokens";
 import { Tip } from "./TerminalTip";
+import {
+  ZapIcon,
+  ArrowUpRightIcon,
+  ArrowDownRightIcon,
+} from "@/components/icons/icons";
 
 function dirOf(pct: number | null): "up" | "down" | "flat" {
   if (pct == null) return "flat";
@@ -192,7 +197,15 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
       <span dir="ltr">مدى 30ث: {fmtPoint(series?.range30sBps)}</span>
       {bps != null && bpsTrend !== "flat" && (
         <span className="mt-0.5">
-          {bpsTrend === "up" ? "↗ اتساع" : "↘ انكماش"} مقارنة بالقراءة السابقة.
+          <span className="inline-flex items-center gap-0.5">
+            {bpsTrend === "up" ? (
+              <ArrowUpRightIcon className="h-3 w-3" />
+            ) : (
+              <ArrowDownRightIcon className="h-3 w-3" />
+            )}
+            {bpsTrend === "up" ? "اتساع" : "انكماش"}
+          </span>{" "}
+          مقارنة بالقراءة السابقة.
         </span>
       )}
     </span>
@@ -372,7 +385,7 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
               }`}
               dir="ltr"
             >
-              <span className="text-muted">⚡</span>
+              <ZapIcon className="h-3.5 w-3.5 text-muted" />
               <span>{ticksPerSec != null ? `${ticksPerSec} تيك/ث` : "—"}</span>
             </span>
           </Tip>
@@ -412,7 +425,10 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
                     }`}
                     dir="ltr"
                   >
-                    ⚡ {fmtUsd(v.usdPerSec)} usd/ث
+                    <span className="inline-flex items-center gap-0.5">
+                    <ZapIcon className="h-3 w-3 text-muted" />
+                    {fmtUsd(v.usdPerSec)} usd/ث
+                  </span>
                   </div>
                 </Tip>
                 <div className="mt-0.5 text-[9px] text-muted">({v.label})</div>

@@ -13,6 +13,7 @@ import {
 } from "./services/firestore";
 import { buildComparison, type ComparisonOptions } from "./compare/compare";
 import type { RunSummaryRow, ValidationMetrics } from "./types";
+import { StarIcon } from "@/components/icons/icons";
 
 /**
  * Layer 9 — Validation History & Comparison dashboard for the Decision Engine.
@@ -230,8 +231,8 @@ function AccuracyBar({ r, isBase }: { r: RunSummaryRow; isBase: boolean }) {
   const a60 = r.accuracy["60s"];
   return (
     <div className="flex items-center gap-2">
-      <span className="w-24 shrink-0 text-2xs text-muted ltr" dir="ltr">
-        {isBase ? "★ " : ""}
+      <span className="inline-flex w-24 shrink-0 items-center text-2xs text-muted ltr" dir="ltr">
+        {isBase && <StarIcon className="mr-0.5 h-3 w-3 text-warn" />}
         {shortId(r.runId)}
       </span>
       <div className="h-2 flex-1 overflow-hidden rounded-full bg-line">

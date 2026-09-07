@@ -28,6 +28,17 @@ import {
   Wifi,
   Clock,
   SlidersHorizontal,
+  TriangleAlert,
+  BarChart3,
+  Zap,
+  Play,
+  Pause,
+  Star,
+  Trophy,
+  ArrowUpRight,
+  ArrowDownRight,
+  ArrowRight,
+  ArrowUpDown,
   type LucideProps,
 } from "lucide-react";
 
@@ -73,3 +84,14 @@ export const ChevronDownIcon = wrap(ChevronDown, "h-4 w-4");
 export const WifiIcon = wrap(Wifi);
 export const ClockIcon = wrap(Clock);
 export const SlidersIcon = wrap(SlidersHorizontal);
+export const AlertIcon = wrap(TriangleAlert);
+export const ChartIcon = wrap(BarChart3);
+export const ZapIcon = wrap(Zap);
+export const PlayIcon = wrap(Play);
+export const PauseIcon = wrap(Pause);
+export const StarIcon = wrap(Star);
+export const TrophyIcon = wrap(Trophy);
+export const ArrowUpRightIcon = wrap(ArrowUpRight);
+export const ArrowDownRightIcon = wrap(ArrowDownRight);
+export const ArrowRightIcon = wrap(ArrowRight);
+export const ArrowUpDownIcon = wrap(ArrowUpDown, "h-3.5 w-3.5");

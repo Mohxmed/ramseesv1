@@ -4,6 +4,7 @@ import type { ScalpRecorderView, ScalpingFeature } from "../../types";
 import type { FuturesState } from "../../../bitcoin/futures/types";
 import { Tag, Collapse, Bar, TONE_TEXT } from "./TradingPrimitives";
 import { classifyFreshness, formatAge } from "../freshness";
+import { ArrowUpDownIcon } from "@/components/icons/icons";
 
 function dirMeta(dir: ScalpingFeature["direction"]): { text: string; tone: "long" | "short" | "neutral" } {
   return dir === "bullish"
@@ -178,7 +179,10 @@ function FuturesDeep({ state }: { state: FuturesState }) {
 
       <div className="rounded-panel border border-line bg-surface-2/40 p-3">
         <div className="flex items-center justify-between">
-          <span className="text-2xs text-muted">علاقة السعر ↔ العقود</span>
+          <span className="inline-flex items-center gap-1 text-2xs text-muted">
+            <ArrowUpDownIcon className="h-3.5 w-3.5" />
+            علاقة السعر بالعقود
+          </span>
           <span className="text-2xs text-zinc-300">{rel.quadrant.replaceAll("-", " · ")}</span>
         </div>
         <div className="mt-1.5 flex items-center gap-3">

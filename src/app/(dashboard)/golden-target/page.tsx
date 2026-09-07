@@ -12,6 +12,7 @@ import { GOLDEN_TARGET_CONFIG } from "@/features/golden-target/constants";
 import { formatNumber } from "@/features/golden-target/utils";
 import type { ProgressCheckInput } from "@/features/golden-target/types";
 import { Badge, Card } from "@/components/ui/index";
+import { TrophyIcon } from "@/components/icons/icons";
 
 export default function GoldenTargetPage() {
   const {
@@ -84,8 +85,9 @@ export default function GoldenTargetPage() {
 
       {isDone ? (
         <Card bodyClassName="p-8 text-center" className="border-up/40 bg-good/10">
-          <div className="text-2xl font-bold text-up-fg">
-            🎉 تهانينا! أكملت الهدف الذهبي
+          <div className="flex items-center justify-center gap-2 text-2xl font-bold text-up-fg">
+            <TrophyIcon className="h-7 w-7" />
+            تهانينا! أكملت الهدف الذهبي
           </div>
           <p className="mt-3 text-sm text-zinc-300">
             وصلت إلى القيمة النهائية: {formatNumber(1_048_576)} بعد 20 حركة

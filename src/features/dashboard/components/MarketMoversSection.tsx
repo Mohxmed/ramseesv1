@@ -8,6 +8,7 @@ import {
   type MarketMoversState,
   type Timeframe,
 } from "../hooks/useMarketMovers";
+import { AlertIcon, ChartIcon } from "@/components/icons/icons";
 
 /* ------------------------------------------------------------------ */
 /* Constants                                                           */
@@ -284,7 +285,7 @@ export function MarketMoversSection({
         </div>
       ) : error ? (
         <div className="flex flex-col items-center justify-center gap-2 py-12">
-          <span className="text-lg">⚠</span>
+          <AlertIcon className="h-6 w-6 text-down-fg" />
           <p className="text-sm text-down-fg">{error}</p>
           <button
             onClick={reload}
@@ -295,7 +296,7 @@ export function MarketMoversSection({
         </div>
       ) : rows.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-2 py-12">
-          <span className="text-lg">📊</span>
+          <ChartIcon className="h-6 w-6 text-muted" />
           <p className="text-sm text-muted">لا توجد بيانات متاحة حاليًا</p>
         </div>
       ) : (

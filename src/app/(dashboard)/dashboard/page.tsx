@@ -12,7 +12,7 @@ import {
   Badge,
   Progress,
 } from "@/components/ui/index";
-import { DashboardIcon } from "@/components/icons/icons";
+import { DashboardIcon, StrategyIcon, DecisionIcon } from "@/components/icons/icons";
 import {
   useMarketMovers,
 } from "@/features/dashboard/hooks/useMarketMovers";
@@ -49,7 +49,7 @@ export default function DashboardPage() {
           className="group flex flex-col rounded-card border border-line bg-surface-1/40 p-5 transition-colors hover:border-zinc-600"
         >
           <CardInner
-            icon="🧩"
+            icon={<StrategyIcon className="h-5 w-5" />}
             title="الاستراتيجيات"
             body={
               <div className="mt-4 flex flex-1 flex-col justify-between gap-4">
@@ -73,7 +73,7 @@ export default function DashboardPage() {
           className="group flex flex-col rounded-card border border-line bg-surface-1/40 p-5 transition-colors hover:border-zinc-600"
         >
           <CardInner
-            icon="🎯"
+            icon={<DecisionIcon className="h-5 w-5" />}
             title="مركز القرارات"
             body={
               <div className="mt-4 flex flex-1 flex-col justify-end gap-4">
@@ -114,7 +114,7 @@ function CardInner({
   title,
   body,
 }: {
-  icon: string;
+  icon: ReactNode;
   title: string;
   body: ReactNode;
 }) {
@@ -122,7 +122,7 @@ function CardInner({
     <>
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-zinc-100">{title}</h3>
-        <span aria-hidden className="text-lg">{icon}</span>
+        <span aria-hidden className="text-muted">{icon}</span>
       </div>
       {body}
     </>

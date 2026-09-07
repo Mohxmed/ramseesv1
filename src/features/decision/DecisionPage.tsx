@@ -7,6 +7,7 @@ import { DecisionSummary } from "./components/DecisionSummary";
 import { StrategyConditionViewer } from "./components/StrategyConditionViewer";
 import { StrategyList } from "./components/StrategyList";
 import { Card } from "@/components/ui/index";
+import { StrategyIcon } from "@/components/icons/icons";
 
 export function DecisionPage() {
   const dc = useDecisionCenter();
@@ -34,7 +35,7 @@ export function DecisionPage() {
 
       {isEmpty ? (
         <div className="rounded-card border border-dashed border-line bg-surface-1/40 p-8 text-center">
-          <div className="text-lg">🧩</div>
+          <StrategyIcon className="mx-auto h-8 w-8 text-muted" />
           <div className="mt-2 text-sm font-semibold text-zinc-100">لا توجد استراتيجيات بعد</div>
           <p className="mt-1 text-xs text-muted">
             أنشئ استراتيجية أولاً في صفحة الإدارة لتقييم شروطها مقابل البيانات الحية للبيتكوين.
