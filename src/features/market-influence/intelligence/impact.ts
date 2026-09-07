@@ -102,7 +102,10 @@ export function scoreFactor(
   nowMs: number,
   updatedAt: number | null
 ): Omit<MarketInfluenceFactor, "weight" | "tier" | "category" | "nameAr" | "nameEn" | "unit" | "source" | "provider" | "tooltip" | "id"> {
-  const kind: SeriesKind = def.provider === "fred" ? "periodic" : "intraday";
+  const kind: SeriesKind =
+    def.provider === "fred" || def.provider === "defillama"
+      ? "periodic"
+      : "intraday";
   const rocBars = kind === "periodic" ? PERIODIC_ROCS : INTRADAY_ROCS;
 
   const rocs = rocByWindow(points, rocBars);

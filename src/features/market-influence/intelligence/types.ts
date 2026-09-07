@@ -72,7 +72,7 @@ export type FactorSeriesRaw = {
   unit: "point" | "percent";
   source: SourceTier;
   /** Where the raw source is fetched from (for provenance). */
-  provider: "yahoo" | "fred" | "derived" | "unavailable";
+  provider: "yahoo" | "fred" | "derived" | "defillama" | "binance" | "unavailable";
   fetchedAt: number;
   updatedAt: number | null;
   /** Downsampled to a bounded window server-side. */
@@ -137,7 +137,7 @@ export interface MarketInfluenceFactor extends FactorStats {
   weight: number;
   unit: "point" | "percent";
   source: SourceTier;
-  provider: "yahoo" | "fred" | "derived" | "unavailable";
+  provider: "yahoo" | "fred" | "derived" | "defillama" | "binance" | "unavailable";
   tooltip: string;
 }
 
@@ -168,7 +168,7 @@ export interface CrossInsight {
 export type SourceHealthEntry = {
   id: string;
   status: FactorStatus;
-  provider: "yahoo" | "fred" | "derived" | "unavailable";
+  provider: "yahoo" | "fred" | "derived" | "defillama" | "binance" | "unavailable";
   updatedAt: number | null;
   latencySec: number | null;
 };

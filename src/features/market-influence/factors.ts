@@ -5,9 +5,18 @@ import type { FactorCategory, FactorTier, SourceTier } from "./intelligence/type
  * monitor, how we fetch them, and how heavily they weigh into the score.
  *
  * Never hard-coded in UI components: the engine + API route read this list.
+ *
+ * Live-data strategy (no API keys):
+ *   - Binance REST          — BTC-USD reference (genuinely realtime, ~seconds)
+ *   - Yahoo chart (5m/5d)   — indices/futures/FX: FX & DXY are near-live on
+ *                             the feed; equity indices update real-time while
+ *                             their market is open; gold/oil futures ~30min.
+ *   - FRED CSV              — DGS2 / M2SL / WALCL (inherently periodic).
+ *   - DefiLlama stablecoins — stablecoin supply, key-free, daily cadence.
+ *   - derived               — 10Y−2Y spread on the ^TNX grid.
  */
 
-export type Provider = "yahoo" | "fred" | "derived" | "unavailable";
+export type Provider = "yahoo" | "fred" | "derived" | "defillama" | "binance" | "unavailable";
 
 export interface FactorDef {
   id: string;
@@ -19,7 +28,7 @@ export interface FactorDef {
   unit: "point" | "percent";
   source: SourceTier;
   provider: Provider;
-  fetch: { yahooSymbol?: string; fredId?: string; derived?: boolean };
+  fetch: { yahooSymbol?: string; fredId?: string; llama?: boolean; derived?: boolean };
   tooltip: string;
 }
 
@@ -134,7 +143,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     provider: "fred",
     fetch: { fredId: "M2SL" },
     tooltip:
-      "المعروض النقدي الأمريكي الواسع M2 — مؤشر كمية السيولة في النظام المالي، يتغير أسبوعياً.",
+      "المعروض النقدي الأمريكي الواسع M2 — مؤشر كمية السيولة في النظام المالي، يتغير شهرياً.",
   },
   {
     id: "rut2000",
@@ -152,7 +161,7 @@ export const FACTOR_DEFS: FactorDef[] = [
   },
   {
     id: "us2y",
-    nameAr: "عائد سنتين",
+    nameAr: "عائد سنتين (يومي)",
     nameEn: "US 2Y Yield",
     category: "rates",
     tier: "secondary",
@@ -162,7 +171,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     provider: "fred",
     fetch: { fredId: "DGS2" },
     tooltip:
-      "عائد سندات السنتين — الأنسب لقياس توقعات مسار أسعار الفائدة القصيرة (سياسة الاحتياطي الفيدرالي).",
+      "عائد سندات السنتين (إصدار يومي من الاحتياطي الفيدرالي) — الأنسب لقياس توقعات مسار أسعار الفائدة القصيرة.",
   },
   {
     id: "eurusd",
@@ -207,6 +216,20 @@ export const FACTOR_DEFS: FactorDef[] = [
       "خام غرب تكساس — مؤشر التضخم وأسعار الطاقة. تقلبه ينتقل أحياناً إلى أسواق الأصول الخطرة.",
   },
   {
+    id: "stablecoin-supply",
+    nameAr: "معروض العملات المستقرة",
+    nameEn: "Stablecoin Supply",
+    category: "liquidity",
+    tier: "secondary",
+    weight: 0.5,
+    unit: "point",
+    source: "periodic",
+    provider: "defillama",
+    fetch: { llama: true },
+    tooltip:
+      "إجمالي قيمة العملات المستقرة المتداولة (DefiLlama) — وكيل سيولة الدخول إلى الأصول الرقمية؛ تحديث يومي مجاني مباشر.",
+  },
+  {
     id: "spread",
     nameAr: "فارق 10-2 سنة",
     nameEn: "10Y − 2Y Spread",
@@ -233,19 +256,6 @@ export const FACTOR_DEFS: FactorDef[] = [
     provider: "unavailable",
     fetch: {},
     tooltip: "صافي تدفقات صناديق بيتكوين المتداولة — لا مصدر مجاني موثوق متاح حاليًا؛ يظهر كغير متاح ولا يدخل الحساب.",
-  },
-  {
-    id: "stablecoin-supply",
-    nameAr: "معروض العملات المستقرة",
-    nameEn: "Stablecoin Supply",
-    category: "liquidity",
-    tier: "secondary",
-    weight: 0.5,
-    unit: "point",
-    source: "unsupported",
-    provider: "unavailable",
-    fetch: {},
-    tooltip: "إجمالي معروض العملات المستقرة — مؤشر سيولة الدخول إلى العملات الرقمية؛ غير متاح حاليًا كمصدر موثوق.",
   },
 ];
 

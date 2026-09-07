@@ -104,7 +104,8 @@ describe("freshness", () => {
     expect(statusFor("realtime", NOW - 60_000 * 3, NOW)).toBe("near");
     expect(statusFor("realtime", NOW - 60_000 * 30, NOW)).toBe("stale");
     expect(statusFor("periodic", NOW - 3 * 86_400_000, NOW)).toBe("delayed");
-    expect(statusFor("periodic", NOW - 20 * 86_400_000, NOW)).toBe("stale");
+    expect(statusFor("periodic", NOW - 20 * 86_400_000, NOW)).toBe("delayed");
+    expect(statusFor("periodic", NOW - 50 * 86_400_000, NOW)).toBe("stale");
     expect(statusFor("realtime", null, NOW)).toBe("unavailable");
   });
 });

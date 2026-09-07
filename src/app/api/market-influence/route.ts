@@ -6,8 +6,12 @@
  * correlations, z-scores, impacts and the global score from these series.
  *
  * Sources (no API keys):
- *   - Yahoo chart API  (5m / 5d)  — intraday factors + the BTC reference
- *   - FRED CSV (public)           — DGS2 / M2SL / WALCL (daily/weekly cadence)
+ *   - Binance REST (BTCUSDT 5m)   — LIVE BTC-USD reference (seconds-old bars)
+ *   - Yahoo chart API (5m / 5d)   — indices, futures, FX; Yahoo FX + DXY are
+ *                                   near-live, equity indices real-time during
+ *                                   market hours, futures ~30min delayed.
+ *   - FRED CSV (public)           — DGS2 / M2SL / WALCL (inherently periodic)
+ *   - DefiLlama stablecoins       — live daily stablecoin supply (key-free)
  *   - derived                     — 10Y−2Y spread = ^TNX series − DGS2
  *
  * Every source is wrapped so a single outage never takes the whole section
@@ -33,6 +37,15 @@ const YAHOO_CHART = (symbol: string) =>
   `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
     symbol
   )}?interval=5m&range=5d`;
+
+const BINANCE_BTC = (extra: string) =>
+  `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=5m&limit=1000${extra}`;
+
+/** 5d of 5m klines = 1440 bars; Binance caps one call at 1000 → two calls. */
+const BTC_5D_BARS = 1440;
+const BAR_MS = 300_000;
+
+const DEFILLAMA_STABLECOINS = "https://stablecoins.llama.fi/stablecoincharts/All";
 
 const FRED_CSV = (id: string) =>
   `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${encodeURIComponent(id)}`;
@@ -120,6 +133,68 @@ function parseYahooSeries(json: unknown): {
         ? meta.previousClose
         : series[0].v,
   };
+}
+
+/**
+ * Binance 5m klines → SeriesPoint[], live. klines rows:
+ * [openTime(ms), open, high, low, close, volume, closeTime, ...]
+ */
+function parseBinanceKlines(json: unknown): {
+  series: SeriesPoint[];
+  updatedAt: number | null;
+  level: number | null;
+} {
+  const rows = json as Array<
+    [number, string, string, string, string, string, number, ...unknown[]]
+  >;
+  if (!Array.isArray(rows) || rows.length === 0) {
+    throw new Error("empty binance klines");
+  }
+  const series: SeriesPoint[] = [];
+  for (const r of rows) {
+    const t = r[0];
+    const v = Number(r[4]);
+    if (!Number.isFinite(t) || !Number.isFinite(v)) continue;
+    series.push({ t, v });
+  }
+  if (series.length === 0) throw new Error("no valid binance bars");
+  const last = rows[rows.length - 1];
+  return {
+    series,
+    updatedAt: Number(last[6]) || series[series.length - 1].t,
+    level: Number(last[4]) || series[series.length - 1].v,
+  };
+}
+
+/** DefiLlama stablecoin supply (All chains). Key-free, daily cadence. */
+function parseLlamaStablecoins(json: unknown, maxRows: number): SeriesPoint[] {
+  const rows = json as Array<{
+    date: string | number;
+    totalCirculatingUSD?:
+      | number
+      | Record<string, number | undefined>;
+  }>;
+  if (!Array.isArray(rows) || rows.length === 0) {
+    throw new Error("empty stablecoin series");
+  }
+  const series: SeriesPoint[] = [];
+  for (const r of rows) {
+    const t = Number(r.date) * 1000;
+    if (!Number.isFinite(t)) continue;
+    let total = 0;
+    const usd = r.totalCirculatingUSD;
+    if (typeof usd === "number") {
+      total = usd;
+    } else if (usd && typeof usd === "object") {
+      for (const v of Object.values(usd)) {
+        if (typeof v === "number" && Number.isFinite(v)) total += v;
+      }
+    }
+    if (!Number.isFinite(total) || total <= 0) continue;
+    series.push({ t, v: total });
+  }
+  if (series.length === 0) throw new Error("no valid stablecoin rows");
+  return series.slice(-maxRows);
 }
 
 /** Parse a FRED fredgraph.csv (DATE,VALUE). Rows are ascending by date. */
@@ -216,6 +291,7 @@ export async function GET(): Promise<Response> {
   const defs = FACTOR_DEFS;
   const yahooDefs = defs.filter((d) => d.provider === "yahoo");
   const fredDefs = defs.filter((d) => d.provider === "fred");
+  const llamaDefs = defs.filter((d) => d.provider === "defillama");
 
   // BTC reference + every intraday factor in parallel.
   const fetchEntry = async (
@@ -279,6 +355,35 @@ export async function GET(): Promise<Response> {
     }
   };
 
+  const fetchLlama = async (
+    def: FactorDef
+  ): Promise<FactorSeriesRaw> => {
+    if (!def.fetch.llama) return unavailable(def, "لا مصدر DefiLlama");
+    try {
+      const json = await fetchJson<unknown>(DEFILLAMA_STABLECOINS);
+      const series = parseLlamaStablecoins(json, PERIODIC_MAX_ROWS);
+      if (series.length === 0) throw new Error("سلسلة فارغة");
+      return {
+        id: def.id,
+        ok: true,
+        level: series[series.length - 1].v,
+        prevDay: series.length > 1 ? series[series.length - 2].v : null,
+        unit: def.unit,
+        source: def.source,
+        provider: "defillama",
+        fetchedAt,
+        updatedAt: series[series.length - 1].t,
+        series,
+        meta: { shortName: "DefiLlama × All" },
+      };
+    } catch (err) {
+      return unavailable(
+        def,
+        err instanceof Error ? err.message : String(err)
+      );
+    }
+  };
+
   function unavailable(
     def: FactorDef,
     error: string
@@ -298,24 +403,83 @@ export async function GET(): Promise<Response> {
     };
   }
 
-  const btcDef: FactorDef = {
-    id: "btc-usd",
-    nameAr: "BTC-USD",
-    nameEn: "BTC-USD",
-    category: "fx",
-    tier: "primary",
-    weight: 0,
-    unit: "point",
-    source: "realtime",
-    provider: "yahoo",
-    fetch: { yahooSymbol: "BTC-USD" },
-    tooltip: "السلسلة المرجعية لحساب الارتباطات.",
-  };
+  /**
+   * BTC-USD reference — Binance (live) first, Yahoo as a fallback so one
+   * upstream outage never kills the correlation layer.
+   */
+  async function fetchBtc(): Promise<FactorSeriesRaw> {
+    const meta: Omit<FactorSeriesRaw, "series"> = {
+      id: "btc-usd",
+      ok: true,
+      level: null,
+      prevDay: null,
+      unit: "point",
+      source: "realtime",
+      provider: "yahoo",
+      fetchedAt,
+      updatedAt: null,
+    };
+    try {
+      // Recent 1000 bars + the older span, merged and trimmed to 5d (1440).
+      const recent = parseBinanceKlines(await fetchJson<unknown>(BINANCE_BTC("")));
+      let series = recent.series;
+      if (recent.series.length < BTC_5D_BARS) {
+        const from = recent.series[0].t - (BTC_5D_BARS - recent.series.length) * BAR_MS;
+        const to = recent.series[0].t - 1;
+        try {
+          const older = parseBinanceKlines(
+            await fetchJson<unknown>(BINANCE_BTC(`&startTime=${from}&endTime=${to}`))
+          );
+          const merged = [...older.series, ...recent.series];
+          const seen = new Set<number>();
+          const out: SeriesPoint[] = [];
+          for (const p of merged) {
+            if (seen.has(p.t)) continue;
+            seen.add(p.t);
+            out.push(p);
+          }
+          series = out.slice(-BTC_5D_BARS);
+        } catch {
+          // Keep the recent window if the older span fails — still live.
+        }
+      }
+      return {
+        ...meta,
+        ok: true,
+        level: recent.level,
+        updatedAt: recent.updatedAt,
+        series,
+        provider: "binance",
+      };
+    } catch (binErr) {
+      try {
+        const json = await fetchJson<unknown>(YAHOO_CHART("BTC-USD"));
+        const parsed = parseYahooSeries(json);
+        return {
+          ...meta,
+          ok: true,
+          level: parsed.level,
+          prevDay: parsed.prevDay,
+          updatedAt: parsed.updatedAt,
+          series: parsed.series,
+          provider: "yahoo",
+        };
+      } catch (yahooErr) {
+        return {
+          ...meta,
+          ok: false,
+          series: [],
+          error: `binance: ${binErr instanceof Error ? binErr.message : String(binErr)}; yahoo: ${yahooErr instanceof Error ? yahooErr.message : String(yahooErr)}`,
+        };
+      }
+    }
+  }
 
-  const [btcRaw, ...rest] = await Promise.all([
-    fetchEntry(btcDef),
+  const btcRaw = await fetchBtc();
+  const rest = await Promise.all([
     ...yahooDefs.map(fetchEntry),
     ...fredDefs.map(fetchFred),
+    ...llamaDefs.map(fetchLlama),
   ]);
 
   const byId = new Map(rest.map((r) => [r.id, r]));

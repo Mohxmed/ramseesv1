@@ -2,7 +2,9 @@ import type { FactorStatus, SourceTier } from "./types";
 
 /**
  * Honest per-source-tier freshness limits. Realtime sources are judged on
- * seconds; periodic (daily/weekly) FRED sources on their real cadence.
+ * seconds; periodic sources on their real cadence — FRED weekly (WALCL),
+ * daily (DGS2), monthly (M2SL) and DefiLlama's daily stablecoin print all fit
+ * well inside a 45-day border; older than that is truly stale.
  */
 export const REALTIME_WINDOWS = {
   live: 2 * 60_000,
@@ -10,7 +12,7 @@ export const REALTIME_WINDOWS = {
   delayed: 15 * 60_000,
 } as const;
 
-export const PERIODIC_MAX_AGE_MS = 14 * 86_400_000;
+export const PERIODIC_MAX_AGE_MS = 45 * 86_400_000;
 
 export function statusFor(
   source: SourceTier,
