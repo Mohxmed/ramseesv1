@@ -5,12 +5,21 @@
  * plain, un-computed `CrossMarketRaw` payload. The engine (client-side) derives
  * correlations, z-scores, impacts and the global score from these series.
  *
- * Sources (no API keys):
+ * Performance model (fastMarketService):
+ *   - The realtime universe (indices, FX, futures, yields) is fetched by
+ *     `fetchRealtimeUniverse()` — one parallel burst, provider-agnostic
+ *     (Finnhub/FMP when a key is set, key-free Yahoo fast path otherwise),
+ *     with per-symbol fallback so one dead symbol never blanks the board.
+ *   - The fully composed payload is served through an in-memory 12s cache, so
+ *     repeat polls return in well under 200ms instead of re-running ~30
+ *     upstream calls. FRED/DefiLlama/BTC/daily run in the SAME parallel burst
+ *     on a cold miss.
+ *
+ * Sources (no API keys required):
  *   - Binance REST (BTCUSDT 5m)   — LIVE BTC-USD reference (seconds-old bars)
- *   - Yahoo chart API (5m / 5d)   — indices, futures, FX; Yahoo FX + DXY are
- *                                   near-live, equity indices real-time during
- *                                   market hours, futures ~30min delayed.
- *   - FRED CSV (public)           — DGS2 / M2SL / WALCL (inherently periodic)
+ *   - fastMarketService           — indices/FX/futures (Yahoo fast path by
+ *                                   default; Finnhub/FMP when keyed)
+ *   - FRED CSV (public)           — DGS2 / M2SL / WALCL / DFII10 / etc.
  *   - DefiLlama stablecoins       — live daily stablecoin supply (key-free)
  *   - derived                     — 10Y−2Y spread = ^TNX series − DGS2
  *
@@ -19,10 +28,7 @@
  * unavailable (they don't contaminate the score).
  */
 import { NextResponse } from "next/server";
-import {
-  FACTOR_DEFS,
-  type FactorDef,
-} from "@/features/market-influence/factors";
+import { FACTOR_DEFS, type FactorDef } from "@/features/market-influence/factors";
 import { FETCH_TIMEOUT_MS } from "@/features/market-influence/intelligence";
 import type {
   CrossMarketRaw,
@@ -30,14 +36,15 @@ import type {
   MacroDaily,
   SeriesPoint,
 } from "@/features/market-influence/intelligence";
+import {
+  cached,
+  fetchRealtimeUniverse,
+  fetchYahooSeriesForSymbol,
+  ROUTE_CACHE_TTL_MS,
+} from "@/features/market-influence/fastMarketService";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const YAHOO_CHART = (symbol: string) =>
-  `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
-    symbol
-  )}?interval=5m&range=5d`;
 
 const BINANCE_BTC = (extra: string) =>
   `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=5m&limit=1000${extra}`;
@@ -56,7 +63,8 @@ const YAHOO_DAILY = (symbol: string) =>
   )}?interval=1d&range=6mo`;
 
 /** Binance 1-day klines for BTC-USD, same window. */
-const BINANCE_BTC_DAILY = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=200";
+const BINANCE_BTC_DAILY =
+  "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=200";
 
 /** Asset ids (feature-level) used in the daily correlation-matrix dataset. */
 const DAILY_ASSET_SYMBOLS: Record<string, string> = {
@@ -108,53 +116,6 @@ async function fetchText(url: string): Promise<string> {
   }
 }
 
-/** Build a SeriesPoint[] from a Yahoo chart payload. */
-function parseYahooSeries(json: unknown): {
-  series: SeriesPoint[];
-  updatedAt: number | null;
-  level: number | null;
-  prevDay: number | null;
-} {
-  const chart = (json as {
-    chart?: { result?: Array<Record<string, unknown>> | null };
-  })?.chart;
-  const result = chart?.result?.[0];
-  if (!result) throw new Error("empty chart result");
-
-  const ts = result.timestamp as number[] | undefined;
-  const close =
-    (result.indicators as { quote?: Array<{ close?: (number | null)[] }> })
-      ?.quote?.[0]?.close;
-  if (!Array.isArray(ts) || !Array.isArray(close)) throw new Error("no bars");
-
-  const meta = (result.meta ?? {}) as Record<string, unknown>;
-  const series: SeriesPoint[] = [];
-  for (let i = 0; i < ts.length; i++) {
-    const v = close[i];
-    if (v == null || !Number.isFinite(v)) continue;
-    series.push({ t: ts[i] * 1000, v });
-  }
-  if (series.length === 0) throw new Error("no valid bars");
-
-  return {
-    series,
-    updatedAt:
-      typeof meta.regularMarketTime === "number"
-        ? meta.regularMarketTime * 1000
-        : null,
-    level:
-      typeof meta.regularMarketPrice === "number"
-        ? meta.regularMarketPrice
-        : series[series.length - 1].v,
-    prevDay:
-      typeof meta.chartPreviousClose === "number"
-        ? meta.chartPreviousClose
-        : typeof meta.previousClose === "number"
-        ? meta.previousClose
-        : series[0].v,
-  };
-}
-
 /**
  * Binance 5m klines → SeriesPoint[], live. klines rows:
  * [openTime(ms), open, high, low, close, volume, closeTime, ...]
@@ -190,9 +151,7 @@ function parseBinanceKlines(json: unknown): {
 function parseLlamaStablecoins(json: unknown, maxRows: number): SeriesPoint[] {
   const rows = json as Array<{
     date: string | number;
-    totalCirculatingUSD?:
-      | number
-      | Record<string, number | undefined>;
+    totalCirculatingUSD?: number | Record<string, number | undefined>;
   }>;
   if (!Array.isArray(rows) || rows.length === 0) {
     throw new Error("empty stablecoin series");
@@ -235,10 +194,7 @@ function parseFredCsv(text: string, maxRows: number): SeriesPoint[] {
 }
 
 /** Latest DGS2 ≤ day for spread construction. */
-function dgs2ForDay(
-  dgs2: SeriesPoint[],
-  dayMs: number
-): number | undefined {
+function dgs2ForDay(dgs2: SeriesPoint[], dayMs: number): number | undefined {
   let best: number | undefined;
   for (const p of dgs2) {
     if (p.t > dayMs) break;
@@ -309,29 +265,29 @@ async function buildSpread(
  * Build the daily-closes dataset for the macro correlation matrix. Each asset
  * is fetched independently so a single outage never blanks the whole matrix.
  */
-async function buildDaily(
-  fetchedAt: number
-): Promise<MacroDaily> {
-  const fetchSeries = async (
-    symbol: string,
-    provider: "yahoo" | "binance"
-  ): Promise<SeriesPoint[] | null> => {
+async function buildDaily(fetchedAt: number): Promise<MacroDaily> {
+  const fetchBtcDaily = async (): Promise<SeriesPoint[] | null> => {
     try {
-      if (provider === "binance") {
-        const json = await fetchJson<unknown>(BINANCE_BTC_DAILY);
-        const rows = json as Array<
-          [number, string, string, string, string, string, number, ...unknown[]]
-        >;
-        if (!Array.isArray(rows)) throw new Error("no daily rows");
-        const out: SeriesPoint[] = [];
-        for (const r of rows) {
-          const t = r[0];
-          const v = Number(r[4]);
-          if (!Number.isFinite(t) || !Number.isFinite(v) || v <= 0) continue;
-          out.push({ t, v });
-        }
-        return out.length > 0 ? out : null;
+      const json = await fetchJson<unknown>(BINANCE_BTC_DAILY);
+      const rows = json as Array<
+        [number, string, string, string, string, string, number, ...unknown[]]
+      >;
+      if (!Array.isArray(rows)) throw new Error("no daily rows");
+      const out: SeriesPoint[] = [];
+      for (const r of rows) {
+        const t = r[0];
+        const v = Number(r[4]);
+        if (!Number.isFinite(t) || !Number.isFinite(v) || v <= 0) continue;
+        out.push({ t, v });
       }
+      return out.length > 0 ? out : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const fetchDailyAsset = async (symbol: string): Promise<SeriesPoint[] | null> => {
+    try {
       const json = await fetchJson<unknown>(YAHOO_DAILY(symbol));
       const result = (
         json as {
@@ -360,59 +316,53 @@ async function buildDaily(
 
   const entries = await Promise.all(
     Object.entries(DAILY_ASSET_SYMBOLS).map(async ([id, symbol]) => {
-      const series = await fetchSeries(symbol, "yahoo");
+      const series = await fetchDailyAsset(symbol);
       return [id, series] as [string, SeriesPoint[] | null];
     })
   );
-  const assets: MacroDaily["assets"] = Object.fromEntries(entries) as MacroDaily["assets"];
-  const btc = await fetchSeries("", "binance");
+  const assets = Object.fromEntries(entries) as MacroDaily["assets"];
+  const btc = await fetchBtcDaily();
 
   return { btc, assets, fetchedAt };
 }
 
+/** One composed, cached response for the whole board. */
+const PAYLOAD_CACHE_KEY = "market-influence:payload:v1";
+
 export async function GET(): Promise<Response> {
+  const payload = await cached(PAYLOAD_CACHE_KEY, ROUTE_CACHE_TTL_MS, composePayload);
+  return NextResponse.json(payload);
+}
+
+/**
+ * Cold path: everything in ONE parallel burst — the fast realtime universe,
+ * FRED periodic series, DefiLlama stablecoin supply, the BTC reference and the
+ * daily-closes dataset. Failures only ever downgrade the affected factor.
+ */
+async function composePayload(): Promise<CrossMarketRaw> {
   const fetchedAt = Date.now();
-
   const defs = FACTOR_DEFS;
-  const yahooDefs = defs.filter((d) => d.provider === "yahoo");
-  const fredDefs = defs.filter((d) => d.provider === "fred");
-  const llamaDefs = defs.filter((d) => d.provider === "defillama");
 
-  // BTC reference + every intraday factor in parallel.
-  const fetchEntry = async (
-    def: FactorDef
-  ): Promise<FactorSeriesRaw> => {
-    const symbol = def.fetch.yahooSymbol;
-    if (!symbol) {
-      return unavailable(def, "لا رمز مصدر");
-    }
-    try {
-      const json = await fetchJson<unknown>(YAHOO_CHART(symbol));
-      const { series, updatedAt, level, prevDay } = parseYahooSeries(json);
-      return {
-        id: def.id,
-        ok: true,
-        level,
-        prevDay,
-        unit: def.unit,
-        source: def.source,
-        provider: "yahoo",
-        fetchedAt,
-        updatedAt,
-        series,
-        meta: { shortName: symbol },
-      };
-    } catch (err) {
-      return unavailable(
-        def,
-        err instanceof Error ? err.message : String(err)
-      );
-    }
-  };
+  const fast = await fetchRealtimeUniverse(fetchedAt);
+  const fastById = new Map(fast.factors.map((f) => [f.id, f]));
 
-  const fetchFred = async (
-    def: FactorDef
-  ): Promise<FactorSeriesRaw> => {
+  function unavailable(def: FactorDef, error: string): FactorSeriesRaw {
+    return {
+      id: def.id,
+      ok: false,
+      error,
+      level: null,
+      prevDay: null,
+      unit: def.unit,
+      source: def.source,
+      provider: def.provider,
+      fetchedAt,
+      updatedAt: null,
+      series: [],
+    };
+  }
+
+  const fetchFred = async (def: FactorDef): Promise<FactorSeriesRaw> => {
     const id = def.fetch.fredId;
     if (!id) return unavailable(def, "لا معرف FRED");
     try {
@@ -433,16 +383,11 @@ export async function GET(): Promise<Response> {
         meta: { shortName: id },
       };
     } catch (err) {
-      return unavailable(
-        def,
-        err instanceof Error ? err.message : String(err)
-      );
+      return unavailable(def, err instanceof Error ? err.message : String(err));
     }
   };
 
-  const fetchLlama = async (
-    def: FactorDef
-  ): Promise<FactorSeriesRaw> => {
+  const fetchLlama = async (def: FactorDef): Promise<FactorSeriesRaw> => {
     if (!def.fetch.llama) return unavailable(def, "لا مصدر DefiLlama");
     try {
       const json = await fetchJson<unknown>(DEFILLAMA_STABLECOINS);
@@ -462,31 +407,9 @@ export async function GET(): Promise<Response> {
         meta: { shortName: "DefiLlama × All" },
       };
     } catch (err) {
-      return unavailable(
-        def,
-        err instanceof Error ? err.message : String(err)
-      );
+      return unavailable(def, err instanceof Error ? err.message : String(err));
     }
   };
-
-  function unavailable(
-    def: FactorDef,
-    error: string
-  ): FactorSeriesRaw {
-    return {
-      id: def.id,
-      ok: false,
-      error,
-      level: null,
-      prevDay: null,
-      unit: def.unit,
-      source: def.source,
-      provider: def.provider,
-      fetchedAt,
-      updatedAt: null,
-      series: [],
-    };
-  }
 
   /**
    * BTC-USD reference — Binance (live) first, Yahoo as a fallback so one
@@ -538,8 +461,7 @@ export async function GET(): Promise<Response> {
       };
     } catch (binErr) {
       try {
-        const json = await fetchJson<unknown>(YAHOO_CHART("BTC-USD"));
-        const parsed = parseYahooSeries(json);
+        const parsed = await fetchYahooSeriesForSymbol("BTC-USD");
         return {
           ...meta,
           ok: true,
@@ -560,19 +482,27 @@ export async function GET(): Promise<Response> {
     }
   }
 
-  const btcRaw = await fetchBtc();
-  const rest = await Promise.all([
-    ...yahooDefs.map(fetchEntry),
-    ...fredDefs.map(fetchFred),
-    ...llamaDefs.map(fetchLlama),
-  ]);
+  // One parallel burst: fast realtime + BTC + FRED + DefiLlama + daily dataset.
+  const fredDefs = defs.filter((d) => d.provider === "fred");
+  const llamaDefs = defs.filter((d) => d.provider === "defillama");
 
-  const byId = new Map(rest.map((r) => [r.id, r]));
+  const [btcRaw, daily, fredAndLlama] = await Promise.all([
+    fetchBtc(),
+    buildDaily(fetchedAt),
+    Promise.all([...fredDefs.map(fetchFred), ...llamaDefs.map(fetchLlama)]),
+  ]);
+  const rest: FactorSeriesRaw[] = fredAndLlama;
+
+  const byId = new Map<string, FactorSeriesRaw>([
+    ...fastById,
+    ...rest.map((r) => [r.id, r] as [string, FactorSeriesRaw]),
+  ]);
   const tnx = byId.get("us10y") ?? null;
   const dgs2 = byId.get("us2y") ?? null;
   const spread = await buildSpread(tnx, dgs2, fetchedAt);
 
   const factors: FactorSeriesRaw[] = [
+    ...fast.factors,
     ...rest,
     spread,
     // Unsupported-but-monitored factors: honest zeros so they appear in the
@@ -582,12 +512,10 @@ export async function GET(): Promise<Response> {
       .map((d) => unavailable(d, "لا مصدر مجاني موثوق حاليًا")),
   ];
 
-  const payload: CrossMarketRaw = {
+  return {
     fetchedAt,
     btc: btcRaw.ok ? btcRaw.series : null,
     factors,
-    daily: await buildDaily(fetchedAt),
+    daily,
   };
-
-  return NextResponse.json(payload);
 }

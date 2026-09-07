@@ -16,7 +16,15 @@ import type { FactorCategory, FactorTier, SourceTier } from "./intelligence/type
  *   - derived               — 10Y−2Y spread on the ^TNX grid.
  */
 
-export type Provider = "yahoo" | "fred" | "derived" | "defillama" | "binance" | "unavailable";
+export type Provider =
+  | "yahoo"
+  | "fred"
+  | "derived"
+  | "defillama"
+  | "binance"
+  | "finnhub"
+  | "fmp"
+  | "unavailable";
 
 export interface FactorDef {
   id: string;
@@ -28,7 +36,16 @@ export interface FactorDef {
   unit: "point" | "percent";
   source: SourceTier;
   provider: Provider;
-  fetch: { yahooSymbol?: string; fredId?: string; llama?: boolean; derived?: boolean };
+  fetch: {
+    yahooSymbol?: string;
+    /** Optional alternates used by fastMarketService when a Finnhub/FMP key
+     *  is configured; unset symbols fall back to the key-free Yahoo fast path. */
+    finnhubSymbol?: string;
+    fmpSymbol?: string;
+    fredId?: string;
+    llama?: boolean;
+    derived?: boolean;
+  };
   tooltip: string;
 }
 
@@ -57,7 +74,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "point",
     source: "realtime",
     provider: "yahoo",
-    fetch: { yahooSymbol: "^NDX" },
+    fetch: { yahooSymbol: "^NDX", finnhubSymbol: "^NDX", fmpSymbol: "^NDX" },
     tooltip:
       "مؤشر أكبر 100 شركة تكنولوجية — وكيل شهية المخاطرة عالمياً والأكثر ارتباطاً تاريخياً بحركة BTC.",
   },
@@ -71,7 +88,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "point",
     source: "realtime",
     provider: "yahoo",
-    fetch: { yahooSymbol: "^GSPC" },
+    fetch: { yahooSymbol: "^GSPC", finnhubSymbol: "^GSPC", fmpSymbol: "^GSPC" },
     tooltip:
       "مؤشر السوق الأمريكي الواسع. حركته تعكس الحالة العامة للسيولة والثقة في الأصول الخطرة.",
   },
@@ -85,7 +102,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "percent",
     source: "realtime",
     provider: "yahoo",
-    fetch: { yahooSymbol: "^TNX" },
+    fetch: { yahooSymbol: "^TNX", finnhubSymbol: "^TNX", fmpSymbol: "^TNX" },
     tooltip:
       "عائد سندات الخزانة الأمريكية لأجل 10 سنوات. عادةً ترتفع مع توقعات رفع الفائدة أو التضخم، مما يضغط على أصول مثل BTC.",
   },
@@ -99,7 +116,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "point",
     source: "realtime",
     provider: "yahoo",
-    fetch: { yahooSymbol: "^VIX" },
+    fetch: { yahooSymbol: "^VIX", finnhubSymbol: "^VIX", fmpSymbol: "^VIX" },
     tooltip:
       "مؤشر التقلب CBOE — يقيس الخوف المتوقع في السوق. ارتفاعه يشير لنفور من المخاطرة يدفع الاستثمار بعيداً عن BTC.",
   },
@@ -155,7 +172,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "point",
     source: "realtime",
     provider: "yahoo",
-    fetch: { yahooSymbol: "^RUT" },
+    fetch: { yahooSymbol: "^RUT", finnhubSymbol: "^RUT", fmpSymbol: "^RUT" },
     tooltip:
       "مؤشر الشركات الصغيرة الأمريكية — الأكثر حساسية لسيولة السوق وشهية المخاطرة المحلية.",
   },
@@ -183,7 +200,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "point",
     source: "realtime",
     provider: "yahoo",
-    fetch: { yahooSymbol: "EURUSD=X" },
+    fetch: { yahooSymbol: "EURUSD=X", finnhubSymbol: "EURUSD", fmpSymbol: "EURUSD" },
     tooltip:
       "زوج العملة الأوروبية مقابل الدولار — عملة الدولار نفسه من زاوية أخرى؛ انخفاضه يعكس قوة الدولار.",
   },
@@ -197,7 +214,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "point",
     source: "realtime",
     provider: "yahoo",
-    fetch: { yahooSymbol: "JPY=X" },
+    fetch: { yahooSymbol: "JPY=X", finnhubSymbol: "USDJPY", fmpSymbol: "USDJPY" },
     tooltip:
       "الين عملة تمويل شهيرة (carry). ارتفاعه ينذر بتفكيك مراكز المخاطرة الممولة بالين — ضغط على BTC.",
   },
@@ -253,7 +270,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "percent",
     source: "realtime",
     provider: "yahoo",
-    fetch: { yahooSymbol: "^TYX" },
+    fetch: { yahooSymbol: "^TYX", finnhubSymbol: "^TYX", fmpSymbol: "^TYX" },
     tooltip:
       "عائد سندات الخزانة لأجل 30 سنة — الطرف الطويل لمنحنى العائد. ارتفاعه يعكس مخاوف التضخم طويلة الأجل وتدهور أوضاع المالية العامة.",
   },
