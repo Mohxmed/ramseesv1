@@ -62,7 +62,7 @@ export const API_ENDPOINTS = {
   FUTURES_OPEN_INTEREST_HIST:
     "https://fapi.binance.com/futures/data/openInterestHist?symbol=BTCUSDT&period=30m",
   LONG_SHORT_RATIO:
-    "https://fapi.binance.com/futures/data/globalLongShortAccountRatio?symbol=BTCUSDT",
+    "https://fapi.binance.com/futures/data/globalLongShortAccountRatio",
 } as const;
 
 export const KLINES_LIMIT = 500;

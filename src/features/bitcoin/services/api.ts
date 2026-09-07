@@ -235,7 +235,7 @@ export const futuresApi = {
     limit = 60
   ): Promise<LongShortRatioRaw> {
     return fetchJson<LongShortRatioRaw>(
-      `${API_ENDPOINTS.LONG_SHORT_RATIO}?period=${period}&limit=${limit}`
+      `${API_ENDPOINTS.LONG_SHORT_RATIO}?symbol=BTCUSDT&period=${period}&limit=${limit}`
     );
   },
 };
