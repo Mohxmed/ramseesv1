@@ -43,11 +43,20 @@ const BATCH = 30;
 const TIMEOUT = 15_000;
 const TOP_N = 200;
 
-const STABLE = /^.*(USD[CT]|BUSD|FDUSD|TUSD|USDP)$/;
 const QUOTE = "USDT";
-const INVALID = /^(BNB|BTC|ETH|PAXG)$/;
 
-const NON_24H: { tf: Timeframe; interval: string; field: "pct12" | "pct4" | "pct1" }[] = [
+/** Base assets that are stables/fiat-paired — excluded from movers. */
+const STABLE_BASE =
+  /^(USDC|BUSD|TUSD|FDUSD|USDP|DAI|USDD|GUSD|PAX|EURS|AEUR|EUR|USDT|BRL|TRY|RUB|ZAR|NGN|USTC)$/;
+
+/** Major/fee tokens deliberately excluded from the movers list. */
+const EXCLUDED_BASE = /^(BNB|BTC|ETH|PAXG)$/;
+
+const NON_24H: {
+  tf: Timeframe;
+  interval: string;
+  field: "pct12" | "pct4" | "pct1";
+}[] = [
   { tf: "12h", interval: "12h", field: "pct12" },
   { tf: "4h", interval: "4h", field: "pct4" },
   { tf: "1h", interval: "1h", field: "pct1" },
@@ -115,30 +124,28 @@ function fmtPair(s: string): string {
   return base ? `${base} / USDT` : s;
 }
 
-interface GainerResult {
+interface MoversResult {
   rows: GainerData[];
   unavailable: Set<Timeframe>;
 }
 
 /**
- * Pure data loader: fetches the top USDT gainers once, computing the 24h
- * percents from `/ticker/24hr` and the 12h/4h/1h percents from batched
- * `/klines` open prices. Returns the fully-populated array; callers derive
- * per-tab views without re-fetching.
+ * Pure data loader: fetches all USDT-quoted pairs once, keeps the most
+ * liquid 200, and computes the 12h/4h/1h percents from batched `/klines`
+ * open prices. The 24h percent comes directly from `/ticker/24hr`. Both the
+ * gainers and losers sections derive their views from this single result.
  */
-async function loadGainers(signal?: AbortSignal): Promise<GainerResult> {
-  const tickers = (await fetchJson(
-    `${BASE}/ticker/24hr`,
-    signal
-  )) as TickerRaw[];
+async function loadMovers(signal?: AbortSignal): Promise<MoversResult> {
+  const tickers = (await fetchJson(`${BASE}/ticker/24hr`, signal)) as TickerRaw[];
 
   const pairs = tickers
-    .filter(
-      (t) =>
-        t.symbol.endsWith(QUOTE) &&
-        !STABLE.test(t.symbol) &&
-        !INVALID.test(t.symbol)
-    )
+    .filter((t) => {
+      if (!t.symbol.endsWith(QUOTE)) return false;
+      const base = t.symbol.slice(0, -QUOTE.length);
+      if (!base || STABLE_BASE.test(base)) return false;
+      if (EXCLUDED_BASE.test(base)) return false;
+      return true;
+    })
     .map((t) => ({
       symbol: t.symbol,
       price: parseFloat(t.lastPrice),
@@ -155,6 +162,8 @@ async function loadGainers(signal?: AbortSignal): Promise<GainerResult> {
         d.vol > 0
     );
 
+  // Keep the most liquid pairs so the shorter-window kline derivations are
+  // meaningful and bounded.
   pairs.sort((a, b) => b.vol - a.vol);
   const top = pairs.slice(0, TOP_N);
 
@@ -204,12 +213,20 @@ async function loadGainers(signal?: AbortSignal): Promise<GainerResult> {
 /* Hook                                                                */
 /* ------------------------------------------------------------------ */
 
+export interface MarketMoversState {
+  rows: GainerData[];
+  loading: boolean;
+  error: string | null;
+  unavailable: Set<Timeframe>;
+  reload: () => void;
+}
+
 /**
- * Loads top USDT gainers once per mount. The heavy fetch runs in a pure
- * loader; state is written only in the effect's promise callbacks so no
- * synchronous state updates occur in the effect body (React lint-clean).
+ * Loads USDT market movers once per mount (single fetch shared by the
+ * gainers and losers sections). State is written only in the effect's
+ * promise callbacks so no synchronous state updates occur in the effect.
  */
-export function useTopGainers() {
+export function useMarketMovers(): MarketMoversState {
   const [rows, setRows] = useState<GainerData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -218,7 +235,7 @@ export function useTopGainers() {
   useEffect(() => {
     const c = new AbortController();
 
-    loadGainers(c.signal)
+    loadMovers(c.signal)
       .then((res) => {
         setRows(res.rows);
         setUnavailable(res.unavailable);
@@ -236,7 +253,7 @@ export function useTopGainers() {
 
   const reload = useCallback(() => {
     setLoading(true);
-    loadGainers()
+    loadMovers()
       .then((res) => {
         setRows(res.rows);
         setUnavailable(res.unavailable);

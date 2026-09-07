@@ -13,11 +13,15 @@ import {
   Progress,
 } from "@/components/ui/index";
 import { DashboardIcon } from "@/components/icons/icons";
-import { TopGainers } from "@/features/dashboard/components/TopGainers";
+import {
+  useMarketMovers,
+} from "@/features/dashboard/hooks/useMarketMovers";
+import { MarketMoversSection } from "@/features/dashboard/components/MarketMoversSection";
 
 export default function DashboardPage() {
   const { user } = useAuth();
   const { strategies } = useStrategies();
+  const movers = useMarketMovers();
 
   const available = strategies.filter((s) => s.enabled).length;
   const enabledPct = strategies.length
@@ -33,6 +37,9 @@ export default function DashboardPage() {
         description="نظرة عامة على النظام والوصول السريع إلى الميزات."
         right={<Badge tone="good">نشط</Badge>}
       />
+
+      <MarketMoversSection direction="up" state={movers} />
+      <MarketMoversSection direction="down" state={movers} />
 
       <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-3">
         <Link
@@ -95,8 +102,6 @@ export default function DashboardPage() {
           </div>
         </Card>
       </div>
-
-      <TopGainers />
     </div>
   );
 }

@@ -4,10 +4,10 @@ import { useMemo, useState } from "react";
 import { Tabs } from "@/components/ui/controls";
 import { Card } from "@/components/ui/primitives";
 import {
-  useTopGainers,
-  type Timeframe,
   type GainerData,
-} from "../hooks/useTopGainers";
+  type MarketMoversState,
+  type Timeframe,
+} from "../hooks/useMarketMovers";
 
 /* ------------------------------------------------------------------ */
 /* Constants                                                           */
@@ -28,6 +28,11 @@ const SORT_KEY: Record<Timeframe, keyof GainerData> = {
   "4h": "pct4",
   "1h": "pct1",
 };
+
+const TITLES = {
+  up: "العملات الصاعدة",
+  down: "العملات الهابطة",
+} as const;
 
 /* ------------------------------------------------------------------ */
 /* Formatting                                                          */
@@ -54,7 +59,7 @@ function fmtPct(v: number): string {
 /* Sub-components                                                      */
 /* ------------------------------------------------------------------ */
 
-function GainPill({ value }: { value: number }) {
+function MovePill({ value }: { value: number }) {
   const up = value >= 0;
   return (
     <span
@@ -131,7 +136,7 @@ function Pager({
 /* Table                                                               */
 /* ------------------------------------------------------------------ */
 
-function GainersTable({
+function MoversTable({
   rows,
   startRank,
   tf,
@@ -180,7 +185,7 @@ function GainersTable({
                   ${fmtPrice(r.price)}
                 </td>
                 <td className="px-3 py-2.5 text-right">
-                  <GainPill value={r[key] as number} />
+                  <MovePill value={r[key] as number} />
                 </td>
                 <td className={`px-3 py-2.5 text-right ${num} text-muted`}>
                   {fmtVol(r.vol24)}
@@ -201,19 +206,28 @@ function GainersTable({
 }
 
 /* ------------------------------------------------------------------ */
-/* Main component                                                      */
+/* Section                                                             */
 /* ------------------------------------------------------------------ */
 
-export function TopGainers() {
-  const { rows, loading, error, unavailable, reload } = useTopGainers();
+export function MarketMoversSection({
+  direction,
+  state,
+}: {
+  direction: "up" | "down";
+  state: MarketMoversState;
+}) {
+  const { rows, loading, error, unavailable, reload } = state;
   const [tab, setTab] = useState<Timeframe>("24h");
   const [page, setPage] = useState(0);
 
   const sorted = useMemo(() => {
     if (rows.length === 0) return [];
+    const dir = direction === "up" ? -1 : 1;
     const key = SORT_KEY[tab];
-    return [...rows].sort((a, b) => (b[key] as number) - (a[key] as number));
-  }, [rows, tab]);
+    return [...rows].sort(
+      (a, b) => ((b[key] as number) - (a[key] as number)) * dir
+    );
+  }, [rows, tab, direction]);
 
   const paged = useMemo(
     () => sorted.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE),
@@ -225,9 +239,14 @@ export function TopGainers() {
     setPage(0);
   };
 
+  const accent =
+    direction === "up"
+      ? "border-up/40 bg-up/5 text-up-fg"
+      : "border-down/40 bg-down/5 text-down-fg";
+
   return (
     <Card
-      title="العملات الصاعدة"
+      title={TITLES[direction]}
       actions={
         <Tabs<Timeframe> value={tab} onChange={handleTab} items={TABS} />
       }
@@ -259,11 +278,11 @@ export function TopGainers() {
       ) : (
         <>
           {unavailable.has(tab) && (
-            <div className="border-b border-warn/30 bg-warn/5 px-4 py-2 text-xs text-warn-fg">
+            <div className={`border-b px-4 py-2 text-xs ${accent}`}>
               بيانات هذه الفترة غير متاحة حاليًا — يتم عرض بيانات 24 ساعة
             </div>
           )}
-          <GainersTable rows={paged} startRank={page * PAGE_SIZE + 1} tf={tab} />
+          <MoversTable rows={paged} startRank={page * PAGE_SIZE + 1} tf={tab} />
           <div className="border-t border-line/60 px-3 py-2">
             <Pager page={page} total={sorted.length} onChange={setPage} />
           </div>
