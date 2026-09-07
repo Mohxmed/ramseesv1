@@ -20,6 +20,8 @@ const TABS: { value: Timeframe; label: string }[] = [
   { value: "12h", label: "12 ساعة" },
   { value: "4h", label: "4 ساعات" },
   { value: "1h", label: "ساعة" },
+  { value: "30m", label: "نصف ساعة" },
+  { value: "10m", label: "10 دقائق" },
 ];
 
 const SORT_KEY: Record<Timeframe, keyof GainerData> = {
@@ -27,6 +29,8 @@ const SORT_KEY: Record<Timeframe, keyof GainerData> = {
   "12h": "pct12",
   "4h": "pct4",
   "1h": "pct1",
+  "30m": "pct30m",
+  "10m": "pct10m",
 };
 
 const TITLES = {
@@ -149,12 +153,12 @@ function MoversTable({
   const key = SORT_KEY[tf];
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full border-collapse text-xs" dir="ltr">
+    <div className="overflow-x-auto" dir="rtl">
+      <table className="w-full border-collapse text-xs">
         <thead>
           <tr className="text-[10px] uppercase tracking-wider text-muted">
             <th className="w-10 px-3 py-2 text-center font-medium">#</th>
-            <th className="px-3 py-2 text-left font-medium">العملة</th>
+            <th className="px-3 py-2 text-right font-medium">العملة</th>
             <th className="px-3 py-2 text-right font-medium">السعر</th>
             <th className="px-3 py-2 text-right font-medium">التغير</th>
             <th className="px-3 py-2 text-right font-medium">الحجم 24س</th>
@@ -178,22 +182,34 @@ function MoversTable({
                 <td className={`px-3 py-2.5 text-center ${num}`}>
                   <RankBadge rank={startRank + i} />
                 </td>
-                <td className="px-3 py-2.5">
+                <td className="px-3 py-2.5" dir="ltr">
                   <span className="font-medium text-zinc-100">{r.pair}</span>
                 </td>
-                <td className={`px-3 py-2.5 text-right ${num}`}>
+                <td
+                  className={`px-3 py-2.5 text-right ${num}`}
+                  dir="ltr"
+                >
                   ${fmtPrice(r.price)}
                 </td>
-                <td className="px-3 py-2.5 text-right">
+                <td className="px-3 py-2.5 text-right" dir="ltr">
                   <MovePill value={r[key] as number} />
                 </td>
-                <td className={`px-3 py-2.5 text-right ${num} text-muted`}>
+                <td
+                  className={`px-3 py-2.5 text-right ${num} text-muted`}
+                  dir="ltr"
+                >
                   {fmtVol(r.vol24)}
                 </td>
-                <td className={`px-3 py-2.5 text-right ${num} text-muted`}>
+                <td
+                  className={`px-3 py-2.5 text-right ${num} text-muted`}
+                  dir="ltr"
+                >
                   ${fmtPrice(r.high24)}
                 </td>
-                <td className={`px-3 py-2.5 text-right ${num} text-muted`}>
+                <td
+                  className={`px-3 py-2.5 text-right ${num} text-muted`}
+                  dir="ltr"
+                >
                   ${fmtPrice(r.low24)}
                 </td>
               </tr>
@@ -222,7 +238,7 @@ export function MarketMoversSection({
 
   const sorted = useMemo(() => {
     if (rows.length === 0) return [];
-    const dir = direction === "up" ? -1 : 1;
+    const dir = direction === "up" ? 1 : -1;
     const key = SORT_KEY[tab];
     return [...rows].sort(
       (a, b) => ((b[key] as number) - (a[key] as number)) * dir

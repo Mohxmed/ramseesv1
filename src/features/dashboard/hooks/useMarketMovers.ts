@@ -30,9 +30,11 @@ export interface GainerData {
   pct12: number;
   pct4: number;
   pct1: number;
+  pct30m: number;
+  pct10m: number;
 }
 
-export type Timeframe = "24h" | "12h" | "4h" | "1h";
+export type Timeframe = "24h" | "12h" | "4h" | "1h" | "30m" | "10m";
 
 /* ------------------------------------------------------------------ */
 /* Constants                                                           */
@@ -52,14 +54,24 @@ const STABLE_BASE =
 /** Major/fee tokens deliberately excluded from the movers list. */
 const EXCLUDED_BASE = /^(BNB|BTC|ETH|PAXG)$/;
 
-const NON_24H: {
+interface WindowCfg {
   tf: Timeframe;
   interval: string;
-  field: "pct12" | "pct4" | "pct1";
-}[] = [
-  { tf: "12h", interval: "12h", field: "pct12" },
-  { tf: "4h", interval: "4h", field: "pct4" },
-  { tf: "1h", interval: "1h", field: "pct1" },
+  limit: number;
+  field: "pct12" | "pct4" | "pct1" | "pct30m" | "pct10m";
+}
+
+/**
+ * Non-24h windows derived from the earliest candle open in a kline range.
+ * Binance has no native 10m interval, so 10m uses 11 one-minute candles
+ * whose earliest open is ~10 minutes back.
+ */
+const WINDOWS: WindowCfg[] = [
+  { tf: "12h", interval: "12h", limit: 1, field: "pct12" },
+  { tf: "4h", interval: "4h", limit: 1, field: "pct4" },
+  { tf: "1h", interval: "1h", limit: 1, field: "pct1" },
+  { tf: "30m", interval: "30m", limit: 1, field: "pct30m" },
+  { tf: "10m", interval: "1m", limit: 11, field: "pct10m" },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -86,13 +98,15 @@ async function fetchJson(url: string, signal?: AbortSignal): Promise<unknown> {
 async function fetchOpenPrice(
   symbol: string,
   interval: string,
+  limit: number,
   signal?: AbortSignal
 ): Promise<number | null> {
   try {
     const data = (await fetchJson(
-      `${BASE}/klines?symbol=${symbol}&interval=${interval}&limit=1`,
+      `${BASE}/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`,
       signal
     )) as KlineRaw[];
+    // Earliest candle open in the window = price ~`limit×interval` ago.
     const open = data.length > 0 ? parseFloat(data[0][1]) : NaN;
     return isFinite(open) && open > 0 ? open : null;
   } catch {
@@ -103,13 +117,14 @@ async function fetchOpenPrice(
 async function fetchOpensBatch(
   symbols: string[],
   interval: string,
+  limit: number,
   signal?: AbortSignal
 ): Promise<Map<string, number>> {
   const out = new Map<string, number>();
   for (let i = 0; i < symbols.length; i += BATCH) {
     const chunk = symbols.slice(i, i + BATCH);
     const results = await Promise.all(
-      chunk.map((s) => fetchOpenPrice(s, interval, signal))
+      chunk.map((s) => fetchOpenPrice(s, interval, limit, signal))
     );
     chunk.forEach((s, idx) => {
       const open = results[idx];
@@ -178,14 +193,16 @@ async function loadMovers(signal?: AbortSignal): Promise<MoversResult> {
     pct12: 0,
     pct4: 0,
     pct1: 0,
+    pct30m: 0,
+    pct10m: 0,
   }));
 
   const symIdx = new Map(rows.map((d, i) => [d.symbol, i]));
   const unavailable = new Set<Timeframe>();
   const symbols = top.map((d) => d.symbol);
 
-  for (const cfg of NON_24H) {
-    const opens = await fetchOpensBatch(symbols, cfg.interval, signal);
+  for (const cfg of WINDOWS) {
+    const opens = await fetchOpensBatch(symbols, cfg.interval, cfg.limit, signal);
     if (signal?.aborted) return { rows, unavailable };
 
     if (opens.size === 0) {
