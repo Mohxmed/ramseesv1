@@ -46,6 +46,10 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+/** Cold compose touches 9 FRED + several upstream feeds in parallel; keep the
+ *  function alive well past the Hobby 10s default so mid-stream kills never
+ *  surface as "signal is aborted". */
+export const maxDuration = 60;
 
 const BINANCE_BTC = (extra: string) =>
   `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=5m&limit=1000${extra}`;
@@ -132,13 +136,17 @@ async function fetchText(url: string): Promise<string> {
   }
 }
 
-/** FRED is the throttle-prone upstream — one quiet retry before surrendering
- *  to the per-series memo fallback. */
+/** FRED is the throttle-prone upstream. The 10-min per-series memo already
+ *  prevents repeated bursts, so we only add a cheap retry for *fast* HTTP
+ *  rejections (429/5xx). A timeout/aborted failure means the upstream is slow
+ *  — retrying would only double the latency of a cold compose. */
 async function fetchTextRetry(url: string): Promise<string> {
   try {
     return await fetchText(url);
-  } catch {
-    await new Promise((r) => setTimeout(r, 700));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/aborted|timeout/i.test(msg)) throw err;
+    await new Promise((r) => setTimeout(r, 350));
     return await fetchText(url);
   }
 }
@@ -550,28 +558,15 @@ async function composePayload(): Promise<CrossMarketRaw> {
   }
 
   // One parallel burst: fast realtime + BTC + FRED + DefiLlama + daily dataset.
+  // (Parallel is safe for FRED: the 10-min per-series memo caps sustained
+  // throughput; serialising it only widened a cold compose past timeouts.)
   const fredDefs = defs.filter((d) => d.provider === "fred");
   const llamaDefs = defs.filter((d) => d.provider === "defillama");
-
-  // FRED throttles per-IP; burst into concurrency trips it. Sequential with a
-  // small stagger keeps the burst pressure flat (the 10-min per-series memo
-  // then carries every subsequent cold compose with zero upstream calls).
-  async function runSequential<T>(fns: Array<() => Promise<T>>, gapMs: number): Promise<T[]> {
-    const out: T[] = [];
-    for (const fn of fns) {
-      out.push(await fn());
-      if (gapMs > 0) await new Promise((r) => setTimeout(r, gapMs));
-    }
-    return out;
-  }
 
   const [btcRaw, daily, fredAndLlama] = await Promise.all([
     fetchBtc(),
     buildDaily(fetchedAt),
-    runSequential(
-      [...fredDefs.map((d) => () => fetchFred(d)), ...llamaDefs.map((d) => () => fetchLlama(d))],
-      250
-    ),
+    Promise.all([...fredDefs.map(fetchFred), ...llamaDefs.map(fetchLlama)]),
   ]);
   const rest: FactorSeriesRaw[] = fredAndLlama;
 

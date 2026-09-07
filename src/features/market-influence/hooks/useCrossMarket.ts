@@ -32,7 +32,10 @@ export function useCrossMarket() {
     busyRef.current = true;
     try {
       const ac = new AbortController();
-      const timer = setTimeout(() => ac.abort(), 20_000);
+      // Cold composes fan out to ~20 upstreams in parallel; give them room
+      // instead of aborting mid-stream (warm/cached hits return in <1s). The
+      // 60s poll cadence still surfaces refresh errors quickly.
+      const timer = setTimeout(() => ac.abort(), 40_000);
       try {
         const res = await fetch("/api/market-influence", {
           cache: "no-store",
