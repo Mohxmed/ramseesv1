@@ -142,6 +142,8 @@ function deserializeTx(id: string, raw: Record<string, unknown>): PortfolioTrans
 function buildTxDoc(input: AddTransactionInput, balanceBefore: number, balanceAfter: number, txId: string) {
   const pnl = balanceAfter - balanceBefore;
   const pnlPercent = balanceBefore > 0 ? (pnl / balanceBefore) * 100 : null;
+  const symbol = input.symbol ? String(input.symbol).trim() : "";
+  const description = input.description ? String(input.description).trim() : "";
   return {
     id: txId,
     type: input.type,
@@ -151,8 +153,9 @@ function buildTxDoc(input: AddTransactionInput, balanceBefore: number, balanceAf
     balanceAfter,
     pnl,
     pnlPercent,
-    symbol: input.symbol ? String(input.symbol).trim() || undefined : undefined,
-    description: input.description ? String(input.description).trim() || undefined : undefined,
+    // Firestore rejects `undefined` field values — omit the key entirely.
+    ...(symbol ? { symbol } : {}),
+    ...(description ? { description } : {}),
     timestamp: Timestamp.fromDate(new Date(input.timestamp)),
     createdAt: serverTimestamp(),
   };
