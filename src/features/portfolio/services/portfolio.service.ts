@@ -29,6 +29,7 @@ import type {
  */
 
 const META_ID = "meta";
+const LEDGER_ID = "ledger";
 const COLLECTION_NAME = "transactions";
 export const PORTFOLIO_TX_PAGE = 100;
 
@@ -36,8 +37,19 @@ function metaRef(userId: string) {
   return doc(collection(getDb(), "users", userId, "portfolio"), META_ID);
 }
 
+// Firestore path segments must alternate collection/document, so a transactions
+// COLLECTION needs an odd number of segments. `users/{uid}/portfolio/{??}` at
+// segment 4 would be a DOCUMENT — hence the fixed `ledger` container doc:
+// `users/{uid}/portfolio/ledger/transactions` (5 segments) is the collection.
 function txCol(userId: string) {
-  return collection(getDb(), "users", userId, "portfolio", COLLECTION_NAME);
+  return collection(
+    getDb(),
+    "users",
+    userId,
+    "portfolio",
+    LEDGER_ID,
+    COLLECTION_NAME
+  );
 }
 
 /* ─── Validation ──────────────────────────────────────────────────── */
