@@ -21,6 +21,7 @@ interface KlineRaw {
 
 export interface GainerData {
   symbol: string;
+  base: string;
   pair: string;
   price: number;
   high24: number;
@@ -184,6 +185,7 @@ async function loadMovers(signal?: AbortSignal): Promise<MoversResult> {
 
   const rows: GainerData[] = top.map((d) => ({
     symbol: d.symbol,
+    base: d.symbol.slice(0, -QUOTE.length),
     pair: fmtPair(d.symbol),
     price: d.price,
     high24: d.high,

@@ -38,8 +38,10 @@ export default function DashboardPage() {
         right={<Badge tone="good">نشط</Badge>}
       />
 
-      <MarketMoversSection direction="up" state={movers} />
-      <MarketMoversSection direction="down" state={movers} />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <MarketMoversSection direction="up" state={movers} />
+        <MarketMoversSection direction="down" state={movers} />
+      </div>
 
       <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-3">
         <Link

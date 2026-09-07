@@ -162,8 +162,8 @@ function MoversTable({
             <th className="px-3 py-2 text-right font-medium">السعر</th>
             <th className="px-3 py-2 text-right font-medium">التغير</th>
             <th className="px-3 py-2 text-right font-medium">الحجم 24س</th>
-            <th className="px-3 py-2 text-right font-medium">High</th>
-            <th className="px-3 py-2 text-right font-medium">Low</th>
+            <th className="px-3 py-2 text-right font-medium">القمة</th>
+            <th className="px-3 py-2 text-right font-medium">القاع</th>
           </tr>
         </thead>
         <tbody>
@@ -183,7 +183,14 @@ function MoversTable({
                   <RankBadge rank={startRank + i} />
                 </td>
                 <td className="px-3 py-2.5" dir="ltr">
-                  <span className="font-medium text-zinc-100">{r.pair}</span>
+                  <span className="inline-flex items-baseline gap-0.5">
+                    <span className="text-sm font-bold text-zinc-100">
+                      {r.base}
+                    </span>
+                    <span className="text-2xs font-medium text-muted">
+                      /USDT
+                    </span>
+                  </span>
                 </td>
                 <td
                   className={`px-3 py-2.5 text-right ${num}`}

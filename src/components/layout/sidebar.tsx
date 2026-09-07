@@ -74,7 +74,7 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
     <div className="flex h-full flex-col">
       {/* Brand */}
       <div
-        className={`flex items-center border-b border-line py-5 ${
+        className={`group relative flex items-center border-b border-line py-5 ${
           collapsed ? "justify-center px-0" : "px-5"
         }`}
       >
@@ -94,6 +94,15 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
               نظام تداول البيتكوين
             </p>
           </div>
+        )}
+        {collapsed && (
+          <span
+            role="tooltip"
+            className="pointer-events-none absolute right-full top-1/2 z-50 mr-3 hidden -translate-y-1/2 whitespace-nowrap rounded-panel border border-line bg-surface-2 px-2.5 py-1.5 text-xs font-medium text-zinc-100 opacity-0 shadow-pop transition-opacity group-hover:opacity-100 md:block"
+          >
+            {NAVIGATION.find((item) => item.href === pathname)?.label ??
+              "لوحة التحكم"}
+          </span>
         )}
       </div>
 
