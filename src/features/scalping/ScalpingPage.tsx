@@ -50,9 +50,7 @@ function LiveFlowPressure({ latest }: { latest?: FlowLatestRef }) {
 
 /** The trade tape (تدفق الصفقات المباشر) beside Price Move — one fast island. */
 function LiveFlowTape({ latest }: { latest?: FlowLatestRef }) {
-  const flow = useFlowLatest(latest);
-  if (!flow) return null;
-  return <TradeTapePanel snap={flow} />;
+  return <TradeTapePanel latest={latest} />;
 }
 
 /**

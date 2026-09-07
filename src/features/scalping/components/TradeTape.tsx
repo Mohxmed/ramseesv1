@@ -1,26 +1,109 @@
 "use client";
 
-import { useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
-import type { FlowSnapshot, NormalizedTrade } from "../flow/types";
+import type { FlowLatestRef } from "../hooks/useFlowLatest";
+import type { NormalizedTrade } from "../flow/types";
 import { ADAPTER_LABELS } from "../flow/exchanges";
 import { Section, Tag, Dot } from "./terminal/TradingPrimitives";
 
 /**
- * Real-time trade tape (تدفق الصفقات المباشر) — AGGR.TRADE-style.
+ * Real-time trade tape (تدفق الصفقات المباشر) — AGGR.TRADE-style, buffered.
  *
  * Every row is a coloured block: the BACKGROUND carries the signal, so direction
  * and size are readable at a glance without reading the number.
  *   · background tint = side (green=buy, red=sell)
  *   · background intensity = size (bigger notional = hotter fill)
  *   · ≥500K rows get a glowing ring — the "influential" trades stand out.
- * A size filter (أكبر من) keeps the tape scoped to the sizes you care about.
+ *   · size filter (أكبر من) scopes the tape to the sizes you care about.
+ *
+ * Buffering: instead of vanishing with the engine's 5s rolling window, trades are
+ * locally accumulated and kept visible for a full minute, then FADE OUT gradually
+ * (older = dimmer). Fresh trades slide in, so large moves stay readable.
  */
 
 const mono: CSSProperties = {
   fontVariantNumeric: "tabular-nums",
   fontFamily: "var(--font-mono), ui-monospace, monospace",
 };
+
+/* ─── Buffering state ─────────────────────────────────────────────── */
+
+const TAPE_WINDOW_MS = 60_000; // keep trades readable for 60s before fading fully
+const TAPE_CAP = 240; // hard cap so the list stays bounded
+const TAPE_POLL_MS = 80; // merge cadence
+const TAPE_FADE_TICK_MS = 250; // min interval between pure-aging re-renders
+const TAPE_FLASH_MS = 1_500; // a freshly buffered trade keeps its entrance flash
+
+function dedupeKey(t: NormalizedTrade): string {
+  return t.tradeId ?? `${t.receivedAt}_${t.exchange}_${t.side}_${t.price}_${t.quantity}`;
+}
+
+function liveCountOf(list: { status: string }[] | undefined): number {
+  return (list ?? []).filter((c) => c.status === "LIVE").length;
+}
+
+export type TradeBuffer = {
+  trades: NormalizedTrade[]; // chronological — render reversed (newest on top)
+  now: number; // last aging clock (0 before the first tick → full opacity)
+  live: boolean;
+  liveCount: number;
+  lastReceive: number; // receivedAt of the most recently buffered trade
+};
+
+export function useTradeBuffer(latest?: FlowLatestRef | null): TradeBuffer {
+  const [buf, setBuf] = useState<TradeBuffer>(() => {
+    const seed = latest?.current?.recentTrades ?? [];
+    return {
+      trades: seed,
+      now: 0, // hydrate first as "all fresh", then let the tick set the real clock
+      live: liveCountOf(latest?.current?.connections) > 0,
+      liveCount: liveCountOf(latest?.current?.connections),
+      lastReceive: seed.length ? seed[seed.length - 1].receivedAt : 0,
+    };
+  });
+  const seenRef = useRef<Set<string>>(new Set());
+  const fadeTickRef = useRef(0);
+
+  useEffect(() => {
+    if (!latest) return;
+    const tick = () => {
+      const next = latest.current;
+      if (!next) return;
+      const now = Date.now();
+      setBuf((prev) => {
+        // Merge only genuinely new trades (deduped) — keeps push-then-expire.
+        const seen = (seenRef.current ??= new Set(prev.trades.map(dedupeKey)));
+        const fresh: NormalizedTrade[] = [];
+        for (const t of next.recentTrades) {
+          const k = dedupeKey(t);
+          if (!seen.has(k)) {
+            seen.add(k);
+            fresh.push(t);
+          }
+        }
+        const fadeDue = now - fadeTickRef.current >= TAPE_FADE_TICK_MS;
+        if (!fresh.length && !fadeDue) return prev; // nothing changed → no re-render
+        if (fadeDue) fadeTickRef.current = now;
+        const cutoff = now - TAPE_WINDOW_MS;
+        const pruned = [...prev.trades, ...fresh].filter((t) => t.receivedAt > cutoff).slice(-TAPE_CAP);
+        seenRef.current = new Set(pruned.map(dedupeKey)); // keep the set bounded
+        return {
+          trades: pruned,
+          now,
+          live: liveCountOf(next.connections) > 0,
+          liveCount: liveCountOf(next.connections),
+          lastReceive: fresh.length ? Math.max(fresh[fresh.length - 1].receivedAt, prev.lastReceive) : prev.lastReceive,
+        };
+      });
+    };
+    tick();
+    const timer = setInterval(tick, TAPE_POLL_MS);
+    return () => clearInterval(timer);
+  }, [latest]);
+
+  return buf;
+}
 
 /* ─── Size filter (أكبر من) ───────────────────────────────────────── */
 
@@ -107,22 +190,31 @@ function hhmmss(d: Date | number): string {
 
 /* ─── Row ─────────────────────────────────────────────────────────── */
 
-function TapeRow({ trade }: { trade: NormalizedTrade }) {
+function fadeOpacity(ageMs: number): number {
+  if (ageMs <= 0) return 1;
+  const eased = Math.min(1, ageMs / TAPE_WINDOW_MS);
+  return Math.max(0.3, 1 - eased * 0.7);
+}
+
+function TapeRow({ trade, now, flash }: { trade: NormalizedTrade; now: number; flash: boolean }) {
   const buy = trade.side === "buy";
   const heat = heatOf(trade.notional);
   const bg = buy ? ROW_BG.buy[heat] : ROW_BG.sell[heat];
   const influential = heat >= 4;
-  const venue = ADAPTER_LABELS[trade.exchange] ?? trade.exchange;
+  const venue = (ADAPTER_LABELS as Record<string, string | undefined>)[trade.exchange] ?? trade.exchange;
 
   return (
     <div
-      className={`flex items-center gap-1.5 rounded-md border border-line/40 px-1.5 py-1 transition-colors ${bg}`}
-      title={`${venue} · ${buy ? "شراء" : "بيع"} · ${usd(trade.notional)} · ${hhmmss(trade.timestamp)}${
+      className={`flex items-center gap-1.5 rounded-md border border-line/40 px-1.5 py-1 transition-opacity duration-200 ${bg}${
+        flash ? " animate-fade-in-up" : ""
+      }`}
+      style={{ opacity: fadeOpacity(now ? now - trade.receivedAt : 0) }}
+      title={`${venue} · ${buy ? "شراء" : "بيع"} · ${usd(trade.notional)} · ${hhmmss(trade.receivedAt)}${
         influential ? " · صفقة كبيرة مؤثرة" : ""
       }${trade.liquidation ? " · تصفية" : ""}`}
     >
       <span className="w-[46px] shrink-0 text-2xs text-zinc-400" dir="ltr" style={mono}>
-        {hhmmss(trade.timestamp)}
+        {hhmmss(trade.receivedAt)}
       </span>
       <span className="w-[34px] shrink-0 truncate text-2xs text-zinc-300">{venue}</span>
       <span className={`w-[20px] shrink-0 text-2xs font-black ${buy ? "text-up-fg" : "text-down-fg"}`}>
@@ -144,12 +236,11 @@ function TapeRow({ trade }: { trade: NormalizedTrade }) {
 
 /* ─── Panel ───────────────────────────────────────────────────────── */
 
-export function TradeTapePanel({ snap }: { snap: FlowSnapshot }) {
+export function TradeTapePanel({ latest }: { latest?: FlowLatestRef | null }) {
   const [minSize, setMinSize] = useState<number | null>(null);
-  const trades = snap.recentTrades;
-  const liveCount = snap.connections.filter((c) => c.status === "LIVE").length;
+  const { trades, now, live, lastReceive } = useTradeBuffer(latest);
   const filtered = minSize == null ? trades : trades.filter((t) => t.notional >= (minSize as number));
-  const latest = filtered[filtered.length - 1];
+  const latestRow = filtered[filtered.length - 1];
   const total = filtered.reduce((s, t) => s + t.notional, 0);
 
   return (
@@ -158,11 +249,11 @@ export function TradeTapePanel({ snap }: { snap: FlowSnapshot }) {
       collapsible
       bodyClassName="p-2 flex flex-col"
       snippet={
-        latest ? (
+        latestRow ? (
           <div className="flex items-center justify-between gap-3">
             <span className="text-2xs text-muted">آخر صفقة</span>
             <span className="text-xs font-bold text-zinc-100" dir="ltr" style={mono}>
-              {usd(latest.notional)} · {ADAPTER_LABELS[latest.exchange] ?? latest.exchange}
+              {usd(latestRow.notional)} · {ADAPTER_LABELS[latestRow.exchange] ?? latestRow.exchange}
             </span>
           </div>
         ) : (
@@ -173,22 +264,27 @@ export function TradeTapePanel({ snap }: { snap: FlowSnapshot }) {
         )
       }
       actions={
-        <Tag tone={liveCount > 0 ? "good" : "warn"}>
-          <Dot tone={liveCount > 0 ? "good" : "warn"} pulse={liveCount > 0} />
-          {liveCount > 0 ? "مباشر" : "مقطوع"}
+        <Tag tone={live ? "good" : "warn"}>
+          <Dot tone={live ? "good" : "warn"} pulse={live} />
+          {live ? "مباشر" : "مقطوع"}
         </Tag>
       }
     >
       <SizeFilter value={minSize} onChange={setMinSize} />
 
       <div className="mt-2 max-h-[320px] min-h-0 flex-1 space-y-1 overflow-y-auto pr-0.5">
-        {filtered.length === 0 ? (
-          <div className="py-6 text-center text-2xs text-muted">
-            لا صفقات بهذا الحجم في اللحظة الراهنة… (جرّب فلترة أخف)
-          </div>
+        {trades.length === 0 ? (
+          <div className="py-6 text-center text-2xs text-muted">بانتظار الصفقات المباشرة…</div>
+        ) : filtered.length === 0 ? (
+          <div className="py-6 text-center text-2xs text-muted">لا صفقات بهذا الحجم حالياً — جرّب فلترة أخف</div>
         ) : (
-          [...filtered].reverse().map((t, i) => (
-            <TapeRow key={`${t.exchange}_${t.tradeId ?? i}_${i}`} trade={t} />
+          [...filtered].reverse().map((t) => (
+            <TapeRow
+              key={dedupeKey(t)}
+              trade={t}
+              now={now}
+              flash={lastReceive > 0 && t.receivedAt >= lastReceive - TAPE_FLASH_MS}
+            />
           ))
         )}
       </div>
@@ -198,6 +294,7 @@ export function TradeTapePanel({ snap }: { snap: FlowSnapshot }) {
         <span dir="ltr" style={mono}>
           إجمالي {usd(total)}
         </span>
+        <span className="text-muted/70">احتفاظ {TAPE_WINDOW_MS / 1000}ث</span>
       </div>
     </Section>
   );
