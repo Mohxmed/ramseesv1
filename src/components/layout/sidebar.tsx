@@ -4,8 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { NAVIGATION } from "@/config/navigation";
-import { useAuth } from "@/features/auth/hooks/useAuth";
-import { LogoutIcon, PanelLeftCloseIcon } from "@/components/icons/icons";
+import { PanelLeftCloseIcon } from "@/components/icons/icons";
 
 type SidebarProps = {
   collapsed: boolean;
@@ -69,10 +68,7 @@ function NavItem({
 }
 
 export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProps) {
-  const { user, logout } = useAuth();
   const pathname = usePathname();
-
-  const displayName = user?.displayName || user?.email || "مستخدم";
 
   return (
     <div className="flex h-full flex-col">
@@ -125,55 +121,24 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
 
       {/* Footer */}
       <div className="border-t border-line p-3">
-        {!collapsed && (
-          <div className="mb-3 flex items-center gap-3 rounded-panel bg-surface-2/30 px-3 py-2.5">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-3/70 text-sm font-semibold text-zinc-100">
-              {displayName.charAt(0).toUpperCase()}
-            </div>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-zinc-100">
-                {displayName}
-              </p>
-              {user?.email && (
-                <p className="truncate text-xs text-muted">{user.email}</p>
-              )}
-            </div>
-          </div>
-        )}
-
-        <div className="flex flex-col gap-1">
-          <button
-            type="button"
-            onClick={() => logout()}
-            className={`group relative flex items-center gap-3 rounded-panel py-2.5 text-sm font-medium text-muted transition-colors hover:bg-down/10 hover:text-down-fg ${
-              collapsed ? "justify-center px-0" : "px-3"
-            }`}
-          >
-            <span className="flex shrink-0 items-center justify-center text-muted group-hover:text-down-fg">
-              <LogoutIcon className="h-5 w-5" />
-            </span>
-            {!collapsed && <span>تسجيل الخروج</span>}
-            {collapsed && (
-              <span
-                role="tooltip"
-                className="pointer-events-none absolute right-full mr-3 hidden whitespace-nowrap rounded-panel border border-line bg-surface-2 px-2.5 py-1.5 text-xs font-medium text-zinc-100 opacity-0 shadow-pop transition-opacity group-hover:opacity-100 md:block"
-              >
-                تسجيل الخروج
-              </span>
-            )}
-          </button>
-
-          {!collapsed && (
-            <button
-              type="button"
-              onClick={onToggleCollapse}
-              className="flex items-center gap-3 rounded-panel px-3 py-2.5 text-sm font-medium text-muted transition-colors hover:bg-surface-2/70 hover:text-zinc-200"
+        <button
+          type="button"
+          onClick={onToggleCollapse}
+          className={`group relative flex w-full items-center gap-3 rounded-panel py-2.5 text-sm font-medium text-muted transition-colors hover:bg-surface-2/70 hover:text-zinc-200 ${
+            collapsed ? "justify-center px-0" : "px-3"
+          }`}
+        >
+          <PanelLeftCloseIcon className="h-5 w-5 shrink-0" />
+          {!collapsed && <span>طي الشريط</span>}
+          {collapsed && (
+            <span
+              role="tooltip"
+              className="pointer-events-none absolute right-full mr-3 hidden whitespace-nowrap rounded-panel border border-line bg-surface-2 px-2.5 py-1.5 text-xs font-medium text-zinc-100 opacity-0 shadow-pop transition-opacity group-hover:opacity-100 md:block"
             >
-              <PanelLeftCloseIcon className="h-5 w-5 shrink-0" />
-              <span>طي الشريط</span>
-            </button>
+              توسيع الشريط
+            </span>
           )}
-        </div>
+        </button>
       </div>
     </div>
   );

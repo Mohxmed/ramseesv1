@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { Sidebar } from "./sidebar";
-import { MenuIcon, CloseIcon, PanelLeftIcon } from "@/components/icons/icons";
+import { Header } from "./header";
+import { CloseIcon, PanelLeftIcon } from "@/components/icons/icons";
 
 const DESKTOP_COLLAPSED_KEY = "ramsees:sidebar-collapsed";
 
@@ -20,9 +20,13 @@ export function DashboardShell({
   const router = useRouter();
   const pathname = usePathname();
 
-  // Restore desktop collapsed preference on mount
+  // Restore desktop collapsed preference on mount (deferred so SSR/hydration
+  // always start expanded, then the preference is applied after first paint).
   useEffect(() => {
-    setCollapsed(localStorage.getItem(DESKTOP_COLLAPSED_KEY) === "1");
+    const stored = localStorage.getItem(DESKTOP_COLLAPSED_KEY) === "1";
+    requestAnimationFrame(() =>
+      setCollapsed((prev) => (prev === stored ? prev : stored))
+    );
   }, []);
 
   // Lock body scroll when mobile drawer is open
@@ -38,8 +42,10 @@ export function DashboardShell({
 
   // Close drawer on route change
   useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
+    if (!mobileOpen) return;
+    const id = requestAnimationFrame(() => setMobileOpen(false));
+    return () => cancelAnimationFrame(id);
+  }, [pathname, mobileOpen]);
 
   // Escape closes mobile drawer
   useEffect(() => {
@@ -127,25 +133,8 @@ export function DashboardShell({
 
       {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Mobile header */}
-        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-line bg-surface-1/90 px-4 py-3 backdrop-blur lg:hidden">
-          <button
-            type="button"
-            onClick={() => setMobileOpen(true)}
-            className="rounded-panel p-2 text-zinc-300 hover:bg-surface-2"
-            aria-label="فتح القائمة"
-          >
-            <MenuIcon className="h-6 w-6" />
-          </button>
-          <Image
-            src="/favicon.jpg"
-            alt="شعار RAMSEES"
-            width={28}
-            height={28}
-            className="h-7 w-7 rounded-md object-cover"
-          />
-          <span className="text-sm font-bold text-zinc-50">RAMSEES</span>
-        </header>
+        {/* Unified header (desktop + mobile) */}
+        <Header onOpenMobileNav={() => setMobileOpen(true)} />
 
         {/* Desktop collapse toggle (floating) */}
         <div className="hidden lg:block">

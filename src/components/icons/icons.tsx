@@ -22,6 +22,12 @@ import {
   SearchCheck,
   Activity,
   Link2,
+  Bell,
+  UserRound,
+  ChevronDown,
+  Wifi,
+  Clock,
+  SlidersHorizontal,
   type LucideProps,
 } from "lucide-react";
 
@@ -61,3 +67,9 @@ export const DecisionIcon = wrap(ListChecks);
 export const StrategyIcon = wrap(SearchCheck);
 export const ScalpIcon = wrap(Activity);
 export const LinkIcon = wrap(Link2);
+export const BellIcon = wrap(Bell);
+export const UserIcon = wrap(UserRound);
+export const ChevronDownIcon = wrap(ChevronDown, "h-4 w-4");
+export const WifiIcon = wrap(Wifi);
+export const ClockIcon = wrap(Clock);
+export const SlidersIcon = wrap(SlidersHorizontal);
