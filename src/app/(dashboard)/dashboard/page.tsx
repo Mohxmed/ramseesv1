@@ -10,6 +10,7 @@ import {
 import { MarketMoversSection } from "@/features/dashboard/components/MarketMoversSection";
 import { WalletSnippet } from "@/features/portfolio/components/WalletSnippet";
 import { GoldenTargetSnippet } from "@/features/golden-target/components/GoldenTargetSnippet";
+import { CrossMarketSection } from "@/features/market-influence/components/CrossMarketSection";
 
 const cardCls =
   "flex flex-col rounded-card border border-line bg-surface-1/40 p-5 transition-colors hover:border-zinc-600 hover:bg-surface-1/70";
@@ -62,6 +63,8 @@ export default function DashboardPage() {
         <MarketMoversSection direction="up" state={movers} />
         <MarketMoversSection direction="down" state={movers} />
       </div>
+
+      <CrossMarketSection />
     </div>
   );
 }

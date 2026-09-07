@@ -42,6 +42,7 @@ import {
   Wallet,
   Download,
   Plus,
+  RotateCw,
   type LucideProps,
 } from "lucide-react";
 
@@ -101,3 +102,4 @@ export const ArrowUpDownIcon = wrap(ArrowUpDown, "h-3.5 w-3.5");
 export const WalletIcon = wrap(Wallet);
 export const DownloadIcon = wrap(Download, "h-4 w-4");
 export const PlusIcon = wrap(Plus);
+export const RefreshIcon = wrap(RotateCw, "h-4 w-4");
