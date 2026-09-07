@@ -89,49 +89,33 @@ function RankBadge({ rank }: { rank: number }) {
   );
 }
 
-function Pager({
+function ShowMoreButton({
+  sorted,
   page,
-  total,
-  onChange,
+  onMore,
 }: {
+  sorted: GainerData[];
   page: number;
-  total: number;
-  onChange: (p: number) => void;
+  onMore: () => void;
 }) {
-  const pages = Math.ceil(total / PAGE_SIZE);
-  if (pages <= 1) return null;
-
-  const btn =
-    "inline-flex h-7 min-w-[28px] items-center justify-center rounded-[4px] px-1.5 text-xs font-medium transition-colors";
+  const visible = Math.min((page + 1) * PAGE_SIZE, sorted.length);
+  if (visible >= sorted.length) return null;
+  const next = sorted[visible];
 
   return (
-    <div className="flex items-center justify-center gap-1" dir="ltr">
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-2xs text-muted" dir="ltr">
+        عرض {visible} من {sorted.length}
+      </span>
       <button
-        disabled={page === 0}
-        onClick={() => onChange(page - 1)}
-        className={`${btn} border border-line text-muted hover:border-zinc-500 hover:text-zinc-200 disabled:opacity-30`}
+        type="button"
+        onClick={onMore}
+        className="inline-flex items-center gap-1.5 rounded-[4px] border border-line px-3 py-1 text-xs font-semibold text-muted transition-colors hover:border-up/50 hover:bg-up/10 hover:text-up-fg"
       >
-        ‹
-      </button>
-      {Array.from({ length: pages }, (_, i) => (
-        <button
-          key={i}
-          onClick={() => onChange(i)}
-          className={`${btn} ${
-            i === page
-              ? "border border-up/50 bg-up/10 text-up-fg"
-              : "border border-line text-muted hover:border-zinc-500 hover:text-zinc-200"
-          }`}
-        >
-          {i + 1}
-        </button>
-      ))}
-      <button
-        disabled={page >= pages - 1}
-        onClick={() => onChange(page + 1)}
-        className={`${btn} border border-line text-muted hover:border-zinc-500 hover:text-zinc-200 disabled:opacity-30`}
-      >
-        ›
+        المزيد
+        <span dir="ltr" className={next ? "text-up-fg" : undefined}>
+          {next.base}
+        </span>
       </button>
     </div>
   );
@@ -308,7 +292,7 @@ export function MarketMoversSection({
           )}
           <MoversTable rows={paged} startRank={page * PAGE_SIZE + 1} tf={tab} />
           <div className="border-t border-line/60 px-3 py-2">
-            <Pager page={page} total={sorted.length} onChange={setPage} />
+            <ShowMoreButton sorted={sorted} page={page} onMore={() => setPage((p) => p + 1)} />
           </div>
         </>
       )}
