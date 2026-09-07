@@ -39,6 +39,9 @@ import {
   ArrowDownRight,
   ArrowRight,
   ArrowUpDown,
+  Wallet,
+  Download,
+  Plus,
   type LucideProps,
 } from "lucide-react";
 
@@ -95,3 +98,6 @@ export const ArrowUpRightIcon = wrap(ArrowUpRight);
 export const ArrowDownRightIcon = wrap(ArrowDownRight);
 export const ArrowRightIcon = wrap(ArrowRight);
 export const ArrowUpDownIcon = wrap(ArrowUpDown, "h-3.5 w-3.5");
+export const WalletIcon = wrap(Wallet);
+export const DownloadIcon = wrap(Download, "h-4 w-4");
+export const PlusIcon = wrap(Plus);

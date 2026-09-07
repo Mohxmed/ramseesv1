@@ -7,27 +7,30 @@ import { SystemStatus } from "./SystemStatus";
 import { NotificationCenter } from "./NotificationCenter";
 import { UserMenu } from "./UserMenu";
 import { MenuIcon } from "@/components/icons/icons";
+import { HeaderWalletLink } from "./HeaderWalletLink";
 
 /**
  * Unified app header (RTL).
  *
  * Physical layout, right → left:
- *   [User Menu] [Notifications] [System Status] │ [Market Context] │
- *   [☰ (mobile)] [Brand] │ [Page title]
+ *   [User Menu] [Notifications] [System Status] [Wallet] │
+ *   [Market Context] │ [☰ (mobile)] [Brand] │ [Page title]
  *
  * The right cluster is composition-ready for control center use: system
- * health, notifications and the account menu live here, the brand + page
- * context on the left. Responsive so the header never crowds on small screens.
+ * health, notifications, the portfolio wallet and the account menu live here,
+ * the brand + page context on the left. Responsive so the header never
+ * crowds on small screens.
  */
 export function Header({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
   return (
     <header className="sticky top-0 z-30 h-12 shrink-0 border-b border-line bg-surface-1/85 backdrop-blur">
       <div className="flex h-full items-center gap-1.5 px-2 sm:gap-2 sm:px-4">
-        {/* Right cluster — user (outermost), notifications, system status */}
+        {/* Right cluster — user (outermost), notifications, system status, wallet */}
         <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
           <UserMenu />
           <NotificationCenter />
           <SystemStatus />
+          <HeaderWalletLink />
         </div>
 
         {/* Center — live market context (hidden on small screens) */}
