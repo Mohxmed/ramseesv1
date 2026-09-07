@@ -329,9 +329,14 @@ async function buildDaily(fetchedAt: number): Promise<MacroDaily> {
 /** One composed, cached response for the whole board. */
 const PAYLOAD_CACHE_KEY = "market-influence:payload:v1";
 
+/** Last provider the fast feed served through (observable via header). */
+let lastFeedProvider: string | null = null;
+
 export async function GET(): Promise<Response> {
   const payload = await cached(PAYLOAD_CACHE_KEY, ROUTE_CACHE_TTL_MS, composePayload);
-  return NextResponse.json(payload);
+  return NextResponse.json(payload, {
+    headers: lastFeedProvider ? { "X-Market-Feed": lastFeedProvider } : undefined,
+  });
 }
 
 /**
@@ -344,6 +349,7 @@ async function composePayload(): Promise<CrossMarketRaw> {
   const defs = FACTOR_DEFS;
 
   const fast = await fetchRealtimeUniverse(fetchedAt);
+  lastFeedProvider = fast.provider;
   const fastById = new Map(fast.factors.map((f) => [f.id, f]));
 
   function unavailable(def: FactorDef, error: string): FactorSeriesRaw {

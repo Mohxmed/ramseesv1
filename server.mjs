@@ -19,11 +19,18 @@ import http from "node:http";
 import zlib from "node:zlib";
 import next from "next";
 import { WebSocketServer, WebSocket } from "ws";
+import envPkg from "@next/env";
+const { loadEnvConfig } = envPkg;
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOSTNAME || "0.0.0.0";
 const port = parseInt(process.env.PORT || "3000", 10);
 const HTX_UPSTREAM = process.env.HTX_UPSTREAM_URL || "wss://api.huobi.pro/ws";
+
+// Load .env.local / .env.production explicitly — a custom next() server does
+// not always inherit Next's CLI env loading, and fastMarketService reads keys
+// (FINNHUB_API_KEY/FMP_API_KEY) from process.env at request time.
+loadEnvConfig(process.cwd(), dev);
 
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();

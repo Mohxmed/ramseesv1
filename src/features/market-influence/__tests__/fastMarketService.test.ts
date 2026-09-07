@@ -150,10 +150,10 @@ describe("fastMarketService", () => {
     expect(batch.provider).toBe("finnhub");
     expect(batch.factors.every((f) => f.ok)).toBe(true);
 
-    // Mapped symbols each resolve through exactly one Finnhub quote (the
-    // failing S&P 500 quote 500s immediately — no retry — and falls back).
+    // Capability probe (1 quote) + one quote per mapped symbol; the failing
+    // S&P 500 quote 500s immediately (no retry) and falls back to Yahoo.
     expect(mock.calls.filter((c) => c.includes("finnhub.io/api/v1/quote"))).toHaveLength(
-      mappedSymbols().length
+      mappedSymbols().length + 1
     );
     // The failed S&P 500 silently landed on the Yahoo fast path, still healthy.
     expect(byId.get("sp500")!.provider).toBe("yahoo");
@@ -177,6 +177,34 @@ describe("fastMarketService", () => {
     // The rest of the board keeps its full data.
     const others = batch.factors.filter((f) => f.id !== "vix");
     expect(others.every((f) => f.ok)).toBe(true);
+  });
+
+  it("burns one probe call and downgrades to yahoo-fast when the keyed plan can't serve our universe", async () => {
+    vi.stubEnv("FINNHUB_API_KEY", "free-tier-key");
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
+        const u = String(input);
+        calls.push(u);
+        if (u.includes("finnhub.io/api/v1/quote")) {
+          // Free-tier denial: Finnhub answers 200 with an error body.
+          return json({ error: "Market data subscription required for CFD indices." });
+        }
+        if (u.includes("query1.finance.yahoo.com")) return json(yahooBody());
+        return json({}, 418);
+      })
+    );
+
+    const batch = await fetchRealtimeUniverse(1700000000);
+
+    // One probe decided Finnhub can't feed us → whole batch on the fast path.
+    expect(calls.filter((c) => c.includes("finnhub.io"))).toHaveLength(1);
+    expect(batch.provider).toBe("yahoo-fast");
+    expect(calls.filter((c) => c.includes("query1.finance.yahoo.com"))).toHaveLength(
+      REALTIME_DEFS.length
+    );
+    expect(batch.factors.every((f) => f.ok && f.provider === "yahoo")).toBe(true);
   });
 
   it("batches are stable and store-ready (single batch consumed without post-processing)", async () => {

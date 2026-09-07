@@ -10,7 +10,10 @@
  *   3. Per-symbol grace: when a keyed provider is configured (Finnhub or FMP)
  *      but fails/doesn't map a symbol, that symbol silently falls back to the
  *      key-free Yahoo fast path. One dead symbol never blanks the board.
- *   4. Store-ready output — `FactorSeriesRaw[]`, exactly what the client
+ *   4. Provider capability probe: free Finnhub tokens deny index/FX/futures
+ *      feeds — detected with one probe call (memo 5 min), after which the
+ *      whole batch runs the key-free fast path instead of burning dead calls.
+ *   5. Store-ready output — `FactorSeriesRaw[]`, exactly what the client
  *      engine consumes (no post-processing needed in the route).
  *
  * Provider selection (no keys are required):
@@ -78,6 +81,7 @@ export async function cached<T>(
 export function clearFastCache(): void {
   cache.clear();
   inflight.clear();
+  finnhubCapabilityCheckedAt = 0;
 }
 
 /* ------------------------------------------------------------------ */
@@ -254,6 +258,45 @@ async function yahooFactor(def: FactorDef, fetchedAt: number): Promise<FactorSer
 const FINNHUB = (path: string, key: string) =>
   `https://finnhub.io/api/v1${path}&token=${key}`;
 
+/** Finnhub plan-capability memo: free tokens deny index/FX/futures feeds
+ *  ("Market data subscription required for CFD indices."). Probe once every
+ *  5 minutes; a negative verdict drops the whole batch to the key-free Yahoo
+ *  fast path instead of burning quote+candle calls that can never succeed. */
+const CAPABILITY_TTL_MS = 5 * 60_000;
+let finnhubCapable = true;
+let finnhubCapabilityCheckedAt = 0;
+
+/** Finnhub /quote; throws on the 200-with-error-body plan denials. */
+async function finnhubQuote(symbol: string, key: string): Promise<{
+  c?: number | null;
+  pc?: number | null;
+  t?: number | null;
+}> {
+  const res = await rawFetch(FINNHUB(`/quote?symbol=${encodeURIComponent(symbol)}`, key), 6_000);
+  const body = (await res.json()) as {
+    c?: number | null;
+    pc?: number | null;
+    t?: number | null;
+    error?: string;
+  };
+  if (body && typeof body.error === "string" && body.error.length > 0) {
+    throw new Error(`finnhub plan: ${body.error}`);
+  }
+  return body;
+}
+
+/** One probe quote — is this key able to serve our universe? */
+async function probeFinnhub(key: string): Promise<boolean> {
+  const symbol = REALTIME_DEFS.find((d) => d.fetch.finnhubSymbol)?.fetch.finnhubSymbol;
+  if (!symbol) return false;
+  try {
+    await finnhubQuote(symbol, key);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function finnhubFactor(
   def: FactorDef,
   key: string,
@@ -264,9 +307,9 @@ async function finnhubFactor(
 
   try {
     // Quote: near-realtime current + previous close (cheap, per-symbol).
-    const quote = (await (
-      await rawFetch(FINNHUB(`/quote?symbol=${encodeURIComponent(symbol)}`, key), 6_000)
-    ).json()) as { c?: number | null; pc?: number | null; t?: number | null };
+    // The shared helper throws on Finnhub's 200-error plan denials, so a
+    // restricted symbol skips straight to the key-free fallback.
+    const quote = await finnhubQuote(symbol, key);
     const level =
       typeof quote.c === "number" && Number.isFinite(quote.c) ? quote.c : null;
     const prevDay =
@@ -451,7 +494,20 @@ export async function fetchRealtimeUniverse(fetchedAt = Date.now()): Promise<Fas
     finnhub: process.env.FINNHUB_API_KEY,
     fmp: process.env.FMP_API_KEY,
   };
-  const batchKey = `fast:${pref}:${DEF_SIG}`;
+
+  // Provider capability probe: if the keyed provider can't serve our universe
+  // (e.g. free Finnhub tokens deny index/FX/futures feeds), drop to the fast
+  // key-free path for the whole batch instead of failing symbol-by-symbol.
+  let effectivePref = pref;
+  if (pref === "finnhub" && keys.finnhub) {
+    if (started - finnhubCapabilityCheckedAt >= CAPABILITY_TTL_MS) {
+      finnhubCapable = await probeFinnhub(keys.finnhub);
+      finnhubCapabilityCheckedAt = Date.now();
+    }
+    if (!finnhubCapable) effectivePref = "yahoo-fast";
+  }
+
+  const batchKey = `fast:${effectivePref}:${DEF_SIG}`;
 
   const hit = cache.get(batchKey) as CacheEntry<FastMarketBatch> | undefined;
   if (hit && started - hit.at < CACHE_TTL_MS) {
@@ -469,10 +525,10 @@ export async function fetchRealtimeUniverse(fetchedAt = Date.now()): Promise<Fas
     : await (async () => {
         const promise = (async (): Promise<FastMarketBatch> => {
           const factors = await Promise.all(
-            REALTIME_DEFS.map((def) => loadBestFactor(def, pref, keys, fetchedAt))
+            REALTIME_DEFS.map((def) => loadBestFactor(def, effectivePref, keys, fetchedAt))
           );
           const built: FastMarketBatch = {
-            provider: pref,
+            provider: effectivePref,
             cached: false,
             ageMs: 0,
             latencyMs: 0,
