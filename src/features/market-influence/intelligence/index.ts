@@ -11,6 +11,8 @@ export type {
   FactorSeriesRaw,
   FactorStatus,
   FactorTier,
+  MacroDaily,
+  MacroDailyAssets,
   MarketInfluenceFactor,
   MomentumStats,
   RegimeDims,
@@ -90,6 +92,27 @@ export {
 } from "./aggregation";
 
 export { buildRegime } from "./regime";
+
+export {
+  btcDecoupling,
+  correlationMatrix,
+  dailyReturns,
+  economicCalendar,
+  eventRisk,
+  intradayTrend,
+  macroPressure,
+  macroRegimeLevel,
+  MACRO_WINDOWS,
+  type CorrCell,
+  type DecouplingStatus,
+  type EconEvent,
+  type EventImpact,
+  type MacroAssetId,
+  type MacroCorrMatrix,
+  type MacroPressureCategory,
+  type MacroRegimeLevel,
+  type MacroWindow,
+} from "./macro";
 
 export { buildInsights, type Leader } from "./insights";
 

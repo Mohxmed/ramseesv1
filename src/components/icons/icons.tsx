@@ -43,6 +43,8 @@ import {
   Download,
   Plus,
   RotateCw,
+  Globe,
+  CalendarDays,
   type LucideProps,
 } from "lucide-react";
 
@@ -103,3 +105,5 @@ export const WalletIcon = wrap(Wallet);
 export const DownloadIcon = wrap(Download, "h-4 w-4");
 export const PlusIcon = wrap(Plus);
 export const RefreshIcon = wrap(RotateCw, "h-4 w-4");
+export const GlobeIcon = wrap(Globe);
+export const CalendarIcon = wrap(CalendarDays);

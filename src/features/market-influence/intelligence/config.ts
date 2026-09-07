@@ -72,6 +72,11 @@ export const FACTOR_WEIGHTS: Record<string, number> = {
   usdjpy: 0.4,
   oil: 0.3,
   spread: 0.55,
+  us30y: 0.5,
+  "real-yield": 0.45,
+  "reverse-repo": 0.4,
+  tga: 0.35,
+  nfci: 0.4,
 };
 
 /** Impact score thresholds for global classification. */

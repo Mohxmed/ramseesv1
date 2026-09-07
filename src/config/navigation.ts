@@ -8,6 +8,7 @@ import {
   ScalpIcon,
   MarketIcon,
   LinkIcon,
+  GlobeIcon,
   type IconProps,
 } from "@/components/icons/icons";
 
@@ -47,6 +48,11 @@ export const NAVIGATION: NavItem[] = [
     label: "مركز القرارات",
     href: "/decision-center",
     icon: DecisionIcon,
+  },
+  {
+    label: "الأسواق العالمية",
+    href: "/global-markets",
+    icon: GlobeIcon,
   },
   {
     label: "الاستراتيجيات",

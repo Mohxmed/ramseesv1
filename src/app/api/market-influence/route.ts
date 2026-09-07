@@ -27,6 +27,7 @@ import { FETCH_TIMEOUT_MS } from "@/features/market-influence/intelligence";
 import type {
   CrossMarketRaw,
   FactorSeriesRaw,
+  MacroDaily,
   SeriesPoint,
 } from "@/features/market-influence/intelligence";
 
@@ -45,10 +46,29 @@ const BINANCE_BTC = (extra: string) =>
 const BTC_5D_BARS = 1440;
 const BAR_MS = 300_000;
 
-const DEFILLAMA_STABLECOINS = "https://stablecoins.llama.fi/stablecoincharts/All";
-
 const FRED_CSV = (id: string) =>
   `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${encodeURIComponent(id)}`;
+
+/** Yahoo 1-day bars, ~6 months — fills the 30D/90D matrix windows. */
+const YAHOO_DAILY = (symbol: string) =>
+  `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
+    symbol
+  )}?interval=1d&range=6mo`;
+
+/** Binance 1-day klines for BTC-USD, same window. */
+const BINANCE_BTC_DAILY = "https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=200";
+
+/** Asset ids (feature-level) used in the daily correlation-matrix dataset. */
+const DAILY_ASSET_SYMBOLS: Record<string, string> = {
+  ndx: "^NDX",
+  spx: "^GSPC",
+  dxy: "DX-Y.NYB",
+  gold: "GC=F",
+  vix: "^VIX",
+  us10y: "^TNX",
+};
+
+const DEFILLAMA_STABLECOINS = "https://stablecoins.llama.fi/stablecoincharts/All";
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36";
@@ -285,6 +305,71 @@ async function buildSpread(
   };
 }
 
+/**
+ * Build the daily-closes dataset for the macro correlation matrix. Each asset
+ * is fetched independently so a single outage never blanks the whole matrix.
+ */
+async function buildDaily(
+  fetchedAt: number
+): Promise<MacroDaily> {
+  const fetchSeries = async (
+    symbol: string,
+    provider: "yahoo" | "binance"
+  ): Promise<SeriesPoint[] | null> => {
+    try {
+      if (provider === "binance") {
+        const json = await fetchJson<unknown>(BINANCE_BTC_DAILY);
+        const rows = json as Array<
+          [number, string, string, string, string, string, number, ...unknown[]]
+        >;
+        if (!Array.isArray(rows)) throw new Error("no daily rows");
+        const out: SeriesPoint[] = [];
+        for (const r of rows) {
+          const t = r[0];
+          const v = Number(r[4]);
+          if (!Number.isFinite(t) || !Number.isFinite(v) || v <= 0) continue;
+          out.push({ t, v });
+        }
+        return out.length > 0 ? out : null;
+      }
+      const json = await fetchJson<unknown>(YAHOO_DAILY(symbol));
+      const result = (
+        json as {
+          chart?: { result?: Array<Record<string, unknown>> | null };
+        }
+      )?.chart?.result?.[0];
+      if (!result) throw new Error("no daily result");
+      const ts = result.timestamp as number[] | undefined;
+      const close = (
+        result.indicators as {
+          quote?: Array<{ close?: (number | null)[] }>;
+        }
+      )?.quote?.[0]?.close;
+      if (!Array.isArray(ts) || !Array.isArray(close)) throw new Error("no bars");
+      const out: SeriesPoint[] = [];
+      for (let i = 0; i < ts.length; i++) {
+        const v = close[i];
+        if (v == null || !Number.isFinite(v) || v <= 0) continue;
+        out.push({ t: ts[i] * 1000, v });
+      }
+      return out.length > 0 ? out : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const entries = await Promise.all(
+    Object.entries(DAILY_ASSET_SYMBOLS).map(async ([id, symbol]) => {
+      const series = await fetchSeries(symbol, "yahoo");
+      return [id, series] as [string, SeriesPoint[] | null];
+    })
+  );
+  const assets: MacroDaily["assets"] = Object.fromEntries(entries) as MacroDaily["assets"];
+  const btc = await fetchSeries("", "binance");
+
+  return { btc, assets, fetchedAt };
+}
+
 export async function GET(): Promise<Response> {
   const fetchedAt = Date.now();
 
@@ -501,6 +586,7 @@ export async function GET(): Promise<Response> {
     fetchedAt,
     btc: btcRaw.ok ? btcRaw.series : null,
     factors,
+    daily: await buildDaily(fetchedAt),
   };
 
   return NextResponse.json(payload);

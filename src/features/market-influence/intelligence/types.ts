@@ -85,7 +85,23 @@ export type CrossMarketRaw = {
   /** BTC-USD reference series used to compute adaptive correlations. */
   btc: SeriesPoint[] | null;
   factors: FactorSeriesRaw[];
+  /**
+   * Daily-closes dataset for the macro page (correlation matrix 30/90d,
+   * decoupling probes). Assets keyed by id; null when the source failed.
+   */
+  daily?: MacroDaily;
 };
+
+/** Daily close history for the cross-asset correlation matrix. */
+export type MacroDaily = {
+  btc: SeriesPoint[] | null;
+  assets: MacroDailyAssets;
+  fetchedAt: number;
+};
+
+export type MacroDailyAssets = Partial<
+  Record<"ndx" | "spx" | "dxy" | "gold" | "vix" | "us10y", SeriesPoint[] | null>
+>;
 
 /* ------------------------------------------------------------------ */
 /* Per-factor computed stats                                           */
