@@ -50,21 +50,21 @@ export function PortfolioPage() {
 
   if (loading) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-3">
         <div className="h-20 rounded-card border border-line bg-surface-1/40" />
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-24 animate-pulse rounded-card border border-line bg-surface-1/40" />
+            <div key={i} className="h-20 animate-pulse rounded-card border border-line bg-surface-1/40" />
           ))}
         </div>
-        <div className="h-72 animate-pulse rounded-card border border-line bg-surface-1/40" />
+        <div className="h-40 animate-pulse rounded-card border border-line bg-surface-1/40" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-3">
         <PageHeader
           eyebrow="Portfolio"
           icon={<WalletIcon />}
@@ -87,7 +87,7 @@ export function PortfolioPage() {
 
   if (!meta) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-3">
         <PageHeader
           eyebrow="Portfolio"
           icon={<WalletIcon />}
@@ -129,7 +129,7 @@ export function PortfolioPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <PageHeader
         eyebrow="Portfolio"
         icon={<WalletIcon />}
@@ -163,16 +163,12 @@ export function PortfolioPage() {
 
       <PortfolioSummary summary={meta} />
 
-      <PerformancePanel summary={meta} transactions={transactions} />
-
-      <div className="grid gap-4 lg:grid-cols-5">
-        <div className="lg:col-span-2">
-          <DrawdownPanel summary={meta} points={equityPoints} />
-        </div>
-        <div className="lg:col-span-3">
-          <PortfolioStats summary={meta} />
-        </div>
+      <div className="grid gap-3 lg:grid-cols-2">
+        <PerformancePanel summary={meta} transactions={transactions} />
+        <DrawdownPanel summary={meta} points={equityPoints} />
       </div>
+
+      <PortfolioStats summary={meta} />
 
       <TransactionTable
         transactions={transactions}

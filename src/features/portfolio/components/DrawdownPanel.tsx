@@ -18,11 +18,11 @@ export function DrawdownPanel({
 
   return (
     <Card title="السحب · Drawdown">
-      <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-panel border border-line/70 bg-surface-2/30 p-3">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-panel border border-line/70 bg-surface-2/30 p-2.5">
           <div className="text-2xs font-semibold text-muted">السحب الحالي</div>
           <div
-            className={`mt-1 text-2xl font-extrabold leading-none ${summary.currentDrawdown < 0 ? "text-down-fg" : "text-good"}`}
+            className={`mt-0.5 text-lg font-extrabold leading-none ${summary.currentDrawdown < 0 ? "text-down-fg" : "text-good"}`}
             dir="ltr"
           >
             {fmtDdPct(summary.currentDrawdown)}
@@ -31,16 +31,16 @@ export function DrawdownPanel({
             من قمة <span dir="ltr">{fmtDd(summary)}</span>
           </div>
         </div>
-        <div className="rounded-panel border border-line/70 bg-surface-2/30 p-3">
+        <div className="rounded-panel border border-line/70 bg-surface-2/30 p-2.5">
           <div className="text-2xs font-semibold text-muted">أقصى سحب</div>
-          <div className="mt-1 text-2xl font-extrabold leading-none text-down-fg" dir="ltr">
+          <div className="mt-0.5 text-lg font-extrabold leading-none text-down-fg" dir="ltr">
             {fmtDdPct(summary.maxDrawdown)}
           </div>
           <div className="mt-1 text-2xs text-muted">عمقها محفوظ في السجل — لا يُعاد حسابه</div>
         </div>
       </div>
 
-      <div className="mt-3 h-36 w-full">
+      <div className="mt-2 h-24 w-full">
         {hasCurve ? (
           <AreaChart
             data={data}

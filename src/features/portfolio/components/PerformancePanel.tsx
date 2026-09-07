@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Card, Tabs } from "@/components/ui";
-import { AreaChart } from "@/components/charts/ChartContainer";
+import { LineChart } from "@/components/charts/ChartContainer";
 import { colors } from "@/components/ui/design-tokens";
 import { fmtMoney, fmtPct, fmtShortDate, fmtTime, buildEquitySeries, computePeriodMetrics, periodSinceMs } from "../utils";
 import { PERFORMANCE_PERIODS, type PerformancePeriod, type PortfolioSummary, type PortfolioTransaction } from "../types";
@@ -54,27 +54,27 @@ export function PerformancePanel({
         <Tabs<PerformancePeriod> value={period} onChange={setPeriod} items={PERIOD_TABS} slim />
       }
     >
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-panel border border-line/70 bg-surface-2/30 p-3">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-panel border border-line/70 bg-surface-2/30 p-2.5">
           <div className="text-2xs font-semibold text-muted">نمو الفترة</div>
-          <div className={`${growthPct == null ? "text-muted" : up ? "text-up-fg" : "text-down-fg"} mt-1 text-2xl font-extrabold leading-none`} dir="ltr">
+          <div className={`${growthPct == null ? "text-muted" : up ? "text-up-fg" : "text-down-fg"} mt-0.5 text-lg font-extrabold leading-none`} dir="ltr">
             {growthPct == null ? "—" : fmtPct(growthPct)}
           </div>
         </div>
-        <div className="rounded-panel border border-line/70 bg-surface-2/30 p-3">
+        <div className="rounded-panel border border-line/70 bg-surface-2/30 p-2.5">
           <div className="text-2xs font-semibold text-muted">الرصيد الافتتاحي للفترة</div>
-          <div className="mt-1 text-2xl font-extrabold leading-none text-zinc-100" dir="ltr">
+          <div className="mt-0.5 truncate text-lg font-extrabold leading-none text-zinc-100" dir="ltr">
             {startBalance == null ? fmtMoney(summary.currentBalance) : fmtMoney(startBalance)}
           </div>
         </div>
       </div>
 
-      <div className="mt-3 h-56 w-full">
+      <div className="mt-2 h-40 w-full">
         {points.length >= 2 ? (
-          <AreaChart
+          <LineChart
             data={data}
             xKey="label"
-            series={[{ key: "balance", name: "الرصيد", color: stroke, fillOpacity: 0.22 }]}
+            series={[{ key: "balance", name: "الرصيد", color: stroke }]}
             height="100%"
             yFormatter={(v) => fmtMoney(v, { compact: true })}
             valueFormatter={(v) => <span dir="ltr">{fmtMoney(Number(v))}</span>}
