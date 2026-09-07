@@ -16,6 +16,7 @@ import { SystemHealthBar } from "./components/terminal/SystemHealthBar";
 import { Section, Collapse } from "./components/terminal/TradingPrimitives";
 import { FlowPanel } from "./components/FlowPanel";
 import { PressureTrio } from "./components/PressurePanel";
+import { TradeTapePanel } from "./components/TradeTape";
 import { DataGatesFab } from "./components/DataGatesModal";
 
 /**
@@ -47,12 +48,19 @@ function LiveFlowPressure({ latest }: { latest?: FlowLatestRef }) {
   return <PressureTrio snap={flow} />;
 }
 
+/** The trade tape (تدفق الصفقات المباشر) beside Price Move — one fast island. */
+function LiveFlowTape({ latest }: { latest?: FlowLatestRef }) {
+  const flow = useFlowLatest(latest);
+  if (!flow) return null;
+  return <TradeTapePanel snap={flow} />;
+}
+
 /**
  * Premium Trading Terminal — the scalping page.
  *
  * Information hierarchy (single source of truth per metric):
  *   ║ 01 Header (market state monitor)          — the "3-second" zone
- *   ║ 02 Decision + Price Move                  — قرار المضاربة بجوارها حركة السعر
+ *   ║ 02 Decision + Price Move + Trade Tape     — قرار بجوارها حركة السعر بجواره تدفق الصفقات
  *   ║ 03 Pressure trio                          — الضغط بجواره تنفيذ فوري بجواره نشاط التداول
  *   ║ 04 Strength / Execution / Risk            — three equal columns
  *   ║ 05 Forecast / Reasons / Statistical Edge  — three equal columns
@@ -84,11 +92,16 @@ export function ScalpingPage() {
     <div className="space-y-4">
       <TerminalHeader snap={snap} />
 
-      {/* 02 · قرار المضاربة بجوارها حركة السعر */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <DecisionCall decision={snap.decision ?? null} signal={snap.signal} atr={snap.series?.atr ?? null} />
-        <div className="lg:col-span-2">
+      {/* 02 · قرار المضاربة بجوارها حركة السعر بجواره تدفق الصفقات (fast island) */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <div className="lg:col-span-3">
+          <DecisionCall decision={snap.decision ?? null} signal={snap.signal} atr={snap.series?.atr ?? null} />
+        </div>
+        <div className="lg:col-span-5">
           <PriceMovePanel snap={snap} />
+        </div>
+        <div className="lg:col-span-4">
+          <LiveFlowTape latest={snap.flowLatest} />
         </div>
       </div>
 

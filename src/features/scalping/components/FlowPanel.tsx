@@ -11,7 +11,6 @@ import {
   Dot,
   StatRow,
   TONE_TEXT,
-  TONE_BG,
   type Tone,
 } from "./terminal/TradingPrimitives";
 import { ThemeGate } from "@/components/ui/mui-theme";
@@ -176,63 +175,7 @@ function NetFlowPanel({ snap }: { snap: FlowSnapshot }) {
   );
 }
 
-// ─── 04 · Trade tape ────────────────────────────────────────────────
-
-function TapeRow({ trade }: { trade: NormalizedTrade }) {
-  const tone: Tone = trade.side === "buy" ? "long" : "short";
-  return (
-    <div className={`${row} rounded-chip px-1.5 py-1 ${TONE_BG[tone]}`}>
-      <span className="w-[46px] shrink-0 text-2xs text-muted" dir="ltr" style={mono}>{hhmmss(trade.timestamp)}</span>
-      <span className="w-[34px] shrink-0 truncate text-2xs text-zinc-400">{ADAPTER_LABELS[trade.exchange] ?? trade.exchange}</span>
-      <span className={`w-[26px] shrink-0 text-2xs font-bold ${TONE_TEXT[tone]}`}>{trade.side === "buy" ? "B" : "S"}</span>
-      {trade.liquidation ? <span className="shrink-0 rounded-sm bg-warn/15 px-1 text-2xs font-extrabold text-warn-fg">LIQ</span> : null}
-      <span className={`ml-auto text-xs font-bold ${TONE_TEXT[tone]}`} dir="ltr" style={mono}>{usd(trade.notional)}</span>
-    </div>
-  );
-}
-
-function TapePanel({ snap }: { snap: FlowSnapshot }) {
-  const trades = snap.recentTrades;
-  const liveCount = snap.connections.filter((c) => c.status === "LIVE").length;
-  const last = trades[trades.length - 1];
-  return (
-    <Section
-      title="شريط الصفقات"
-     
-      collapsible
-      bodyClassName="p-2"
-      snippet={
-        last ? (
-          <SnippetRow label="آخر صفقة">
-            <span className={`text-xs font-bold ${TONE_TEXT[last.side === "buy" ? "long" : "short"]}`} dir="ltr" style={mono}>
-              {usd(last.notional)} · {ADAPTER_LABELS[last.exchange] ?? last.exchange}
-            </span>
-          </SnippetRow>
-        ) : (
-          <SnippetRow label="شريط الصفقات">
-            <span className="text-xs text-muted">بانتظار الصفقات</span>
-          </SnippetRow>
-        )
-      }
-      actions={
-        <Tag tone={liveCount > 0 ? "good" : "warn"}>
-          <Dot tone={liveCount > 0 ? "good" : "warn"} pulse={liveCount > 0} />
-          {liveCount > 0 ? "مباشر" : "مقطوع"}
-        </Tag>
-      }
-    >
-      {trades.length === 0 ? (
-        <div className="py-6 text-center text-2xs text-muted">بانتظار الصفقات المباشرة…</div>
-      ) : (
-        <div className="max-h-56 space-y-1 overflow-y-auto pr-0.5">
-          {[...trades].reverse().map((t, i) => (
-            <TapeRow key={`${t.exchange}_${t.tradeId ?? i}_${i}`} trade={t} />
-          ))}
-        </div>
-      )}
-    </Section>
-  );
-}
+// ─── 04 · (trade tape moved to the terminal top row as تدفق الصفقات) ──
 
 // ─── 05 · Large trades ──────────────────────────────────────────────
 
@@ -484,9 +427,6 @@ export function FlowPanel({ snap }: { snap: FlowSnapshot | null | undefined }) {
         </div>
         <NetFlowPanel snap={snap} />
         <WindowsPanel snap={snap} />
-        <div className="xl:col-span-2">
-          <TapePanel snap={snap} />
-        </div>
         <LargeTrades snap={snap} />
         <Liquidations snap={snap} />
         <CvdPanel snap={snap} />
