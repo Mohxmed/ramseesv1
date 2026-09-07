@@ -17,6 +17,7 @@ import {
   useMarketMovers,
 } from "@/features/dashboard/hooks/useMarketMovers";
 import { MarketMoversSection } from "@/features/dashboard/components/MarketMoversSection";
+import { WalletSnippet } from "@/features/portfolio/components/WalletSnippet";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -43,7 +44,7 @@ export default function DashboardPage() {
         <MarketMoversSection direction="down" state={movers} />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-4">
         <Link
           href="/strategies"
           className="group flex flex-col rounded-card border border-line bg-surface-1/40 p-5 transition-colors hover:border-zinc-600"
@@ -67,6 +68,8 @@ export default function DashboardPage() {
             }
           />
         </Link>
+
+        <WalletSnippet />
 
         <Link
           href="/decision-center"
