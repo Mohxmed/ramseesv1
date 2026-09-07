@@ -104,7 +104,7 @@ export function CrossMarketSection() {
 
           <RegimeStrip state={state} />
 
-          <FactorGrid state={state} onOpen={setOpenId} />
+          <FactorGrid state={state} onOpen={setOpenId} nowMs={nowMs} />
 
           <DataHealthCard state={state} nowMs={nowMs} />
         </>

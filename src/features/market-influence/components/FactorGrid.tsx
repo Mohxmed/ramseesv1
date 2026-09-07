@@ -11,9 +11,11 @@ import { FactorCard } from "./FactorCard";
 export function FactorGrid({
   state,
   onOpen,
+  nowMs,
 }: {
   state: CrossMarketState;
   onOpen: (id: string) => void;
+  nowMs: number;
 }) {
   const ordered = [...state.ranking.map((r) => r.factorId)];
   const rest = Object.entries(state.factors)
@@ -37,7 +39,7 @@ export function FactorGrid({
         {ids.map((id) => {
           const f = state.factors[id];
           if (!f) return null;
-          return <FactorCard key={id} factor={f} onOpen={onOpen} />;
+          return <FactorCard key={id} factor={f} onOpen={onOpen} nowMs={nowMs} />;
         })}
       </div>
     </Card>

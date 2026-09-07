@@ -158,8 +158,10 @@ describe("fastMarketService", () => {
     // The failed S&P 500 silently landed on the Yahoo fast path, still healthy.
     expect(byId.get("sp500")!.provider).toBe("yahoo");
     expect(byId.get("sp500")!.level).toBe(102);
-    // Unmapped symbols (dxy/gold/oil) also served by Yahoo.
-    expect(mock.calls.filter((c) => c.includes("query1.finance.yahoo.com"))).toHaveLength(4);
+    // Unmapped symbols (indices without Finnhub coverage + the futures layer)
+    // also served by Yahoo: dxy/gold/oil + nq/es/rty/vix futures = 7, plus the
+    // S&P 500 fallback → 8 Yahoo calls total.
+    expect(mock.calls.filter((c) => c.includes("query1.finance.yahoo.com"))).toHaveLength(8);
   });
 
   it("marks a factor ok:false (never throws) when primary AND fallback fail", async () => {

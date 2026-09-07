@@ -38,6 +38,7 @@ import type {
 } from "@/features/market-influence/intelligence";
 import {
   cached,
+  feedHealth,
   fetchRealtimeUniverse,
   fetchYahooSeriesForSymbol,
   ROUTE_CACHE_TTL_MS,
@@ -332,7 +333,28 @@ const PAYLOAD_CACHE_KEY = "market-influence:payload:v1";
 /** Last provider the fast feed served through (observable via header). */
 let lastFeedProvider: string | null = null;
 
-export async function GET(): Promise<Response> {
+/**
+ * GET /api/market-influence
+ *
+ *   normal   → composed `CrossMarketRaw` payload (12s in-memory cache)
+ *   ?health=1 → per-symbol feed diagnostics + market calendars (no payload work)
+ */
+export async function GET(req: Request): Promise<Response> {
+  const url = new URL(req.url);
+
+  if (url.searchParams.get("health") === "1") {
+    const health = feedHealth();
+    return NextResponse.json({
+      health,
+      at: Date.now(),
+      calendars: {
+        equityNote: "wall-to-wall via marketStatus engine (ET, DST-aware)",
+      },
+    }, {
+      headers: { "X-Market-Feed": health.provider },
+    });
+  }
+
   const payload = await cached(PAYLOAD_CACHE_KEY, ROUTE_CACHE_TTL_MS, composePayload);
   return NextResponse.json(payload, {
     headers: lastFeedProvider ? { "X-Market-Feed": lastFeedProvider } : undefined,

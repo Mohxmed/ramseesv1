@@ -6,7 +6,7 @@ import type {
   SeriesPoint,
 } from "@/features/market-influence/intelligence";
 import { Badge, DataRow, Progress } from "@/components/ui/index";
-import { fmtNum, fmtPct, statusMeta } from "../format";
+import { assetStatusMeta, fmtNum, fmtPct } from "../format";
 import { Sparkline } from "../Sparkline";
 
 /** Liquidity-related monitored factors, in display order. */
@@ -34,11 +34,13 @@ function changeOf(f: MarketInfluenceFactor): { value: number | null; label: stri
 function LiquidityCard({
   f,
   spark,
+  nowMs,
 }: {
   f: MarketInfluenceFactor;
   spark: SeriesPoint[];
+  nowMs: number;
 }) {
-  const st = statusMeta(f.status);
+  const st = assetStatusMeta(f, nowMs);
   const chg = changeOf(f);
   const imp = f.impactScore;
 
@@ -95,10 +97,12 @@ export function LiquidityPanel({
   state,
   factors,
   sparklines,
+  nowMs,
 }: {
   state: CrossMarketState;
   factors: Record<string, MarketInfluenceFactor>;
   sparklines: Record<string, SeriesPoint[]>;
+  nowMs: number;
 }) {
   const liq = liqTone(state);
   const cards = LIQ_IDS.map((id) => factors[id]).filter(Boolean);
@@ -118,7 +122,7 @@ export function LiquidityPanel({
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {cards.map((f) => (
-          <LiquidityCard key={f.id} f={f} spark={sparklines[f.id] ?? []} />
+          <LiquidityCard key={f.id} f={f} spark={sparklines[f.id] ?? []} nowMs={nowMs} />
         ))}
       </div>
 

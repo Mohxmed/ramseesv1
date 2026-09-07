@@ -14,7 +14,8 @@ import {
 } from "./aggregation";
 import { buildInsights, type Leader } from "./insights";
 import { scoreFactor } from "./impact";
-import { statusFor } from "./freshness";
+import { assetFreshnessFor } from "./freshness";
+import { marketSessionFor } from "./marketStatus";
 import { buildRegime } from "./regime";
 import type {
   CrossMarketRaw,
@@ -54,6 +55,14 @@ function assembleUnavailableFactor(id: string): MarketInfluenceFactor {
     confidence: null,
     status: "unavailable",
     updatedAt: null,
+    marketTimestamp: null,
+    fetchedAt: null,
+    marketStatus: null,
+    freshness: "ERROR",
+    dataAgeMs: null,
+    isLive: false,
+    isDelayed: false,
+    isStale: false,
     latencySec: null,
     spark: [],
   };
@@ -89,9 +98,23 @@ export function buildCrossMarketState(
       continue;
     }
     const series = entry.series;
-    const updatedAt = entry.updatedAt ?? entry.fetchedAt;
-    const status = statusFor(entry.source, updatedAt, nowMs);
-    const stats = scoreFactor(def, series, btc ?? [], status, nowMs, updatedAt);
+    const ts = entry.updatedAt ?? entry.fetchedAt;
+    const marketStatus = marketSessionFor(def.sessionKind, nowMs);
+    const freshness = assetFreshnessFor({
+      source: entry.source,
+      kind: def.sessionKind,
+      updatedAt: ts,
+      nowMs,
+      marketStatus,
+    });
+    const stats = scoreFactor(def, series, btc ?? [], {
+      nowMs,
+      updatedAt: ts,
+      marketTimestamp: entry.updatedAt,
+      fetchedAt: entry.fetchedAt,
+      freshness,
+      marketStatus,
+    });
     allFactors[id] = {
       ...stats,
       id,
@@ -148,6 +171,10 @@ export function buildCrossMarketState(
       status: f.status,
       provider: f.provider,
       updatedAt: f.updatedAt,
+      fetchedAt: f.fetchedAt,
+      freshness: f.freshness,
+      marketStatus: f.marketStatus,
+      dataAgeMs: f.dataAgeMs,
       latencySec: f.latencySec,
     })),
   };

@@ -4,6 +4,7 @@ import type { MarketInfluenceFactor } from "@/features/market-influence/intellig
 import { Badge, Dot, Status } from "@/components/ui/index";
 import { Sparkline } from "./Sparkline";
 import {
+  assetStatusMeta,
   corrLabel,
   corrStatusMeta,
   corrTone,
@@ -11,7 +12,6 @@ import {
   fmtPct,
   impactTone,
   roleMeta,
-  statusMeta,
 } from "./format";
 
 const categoryLabel: Record<string, string> = {
@@ -27,11 +27,12 @@ const categoryLabel: Record<string, string> = {
 export interface FactorCardProps {
   factor: MarketInfluenceFactor;
   onOpen: (id: string) => void;
+  nowMs: number;
 }
 
-export function FactorCard({ factor: f, onOpen }: FactorCardProps) {
+export function FactorCard({ factor: f, onOpen, nowMs }: FactorCardProps) {
   const role = roleMeta(f.role);
-  const st = statusMeta(f.status);
+  const st = assetStatusMeta(f, nowMs);
   const sparkTone =
     f.direction === "up" ? "up" : f.direction === "down" ? "down" : "neutral";
 

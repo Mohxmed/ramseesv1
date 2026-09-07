@@ -67,8 +67,21 @@ function dxyDef(): FactorDef {
     unit: "point",
     source: "realtime",
     provider: "yahoo",
+    sessionKind: "fx",
     fetch: { yahooSymbol: "DX-Y.NYB" },
     tooltip: "",
+  };
+}
+
+/** Session-aware scoreFactor opts with system-clock purity (no renders). */
+function scoreOpts(overrides: Partial<Parameters<typeof scoreFactor>[3]> = {}): Parameters<typeof scoreFactor>[3] {
+  return {
+    nowMs: NOW,
+    updatedAt: NOW - 60_000,
+    fetchedAt: NOW,
+    freshness: "LIVE",
+    marketStatus: "OPEN",
+    ...overrides,
   };
 }
 
@@ -113,7 +126,7 @@ describe("freshness", () => {
 describe("impact — scoreFactor", () => {
   it("late upward pump with positive BTC correlation yields positive impact", () => {
     const { fx, btc } = pumpPair();
-    const f = scoreFactor(dxyDef(), fx, btc, "live", NOW, NOW - 60_000);
+    const f = scoreFactor(dxyDef(), fx, btc, scoreOpts());
     expect(f.impactScore).not.toBeNull();
     expect(f.impactScore!).toBeGreaterThan(0);
     expect(f.corr["4h"]).not.toBeNull();
@@ -127,7 +140,7 @@ describe("impact — scoreFactor", () => {
     // Factor up, BTC up in phase ⇒ corr strongly positive, z positive
     // ⇒ impact positive (DXY strength pulls BTC same way in this regime).
     const { fx, btc } = pumpPair();
-    const f = scoreFactor(dxyDef(), fx, btc, "live", NOW, NOW - 60_000);
+    const f = scoreFactor(dxyDef(), fx, btc, scoreOpts());
     expect(f.impactScore).not.toBeNull();
     expect(f.corr["4h"]!).toBeGreaterThan(0.5);
     expect(f.impactScore!).toBeGreaterThan(0);
@@ -138,29 +151,53 @@ describe("impact — scoreFactor", () => {
     // Classic mirrors: factor up (+z) while BTC moves opposite (−corr)
     // ⇒ impact negative: the move pressures BTC.
     const { fx } = pumpPair();
-    const f = scoreFactor(
-      dxyDef(),
-      fx,
-      btcExactInverse(fx),
-      "live",
-      NOW,
-      NOW - 60_000
-    );
+    const f = scoreFactor(dxyDef(), fx, btcExactInverse(fx), scoreOpts());
     expect(f.impactScore).not.toBeNull();
     expect(f.corr["4h"]!).toBeLessThan(-0.8);
     expect(f.impactScore!).toBeLessThan(0);
   });
 
-  it("stale data is penalized", () => {
-    const live = scoreFactor(dxyDef(), latePumpSeries(), btcUp(), "live", NOW, NOW - 60_000);
-    const stale = scoreFactor(dxyDef(), latePumpSeries(), btcUp(), "stale", NOW, NOW - 20 * 60_000);
-    expect(stale.impactScore).not.toBeNull();
-    expect(Math.abs(stale.impactScore!)).toBeLessThan(Math.abs(live.impactScore!));
+  it("stale data is EXCLUDED — null impact, zeroed correlation (spec gate)", () => {
+    // Spec: a STALE feed (market open, ~30m-old data) is quarantined from the
+    // correlation and impact layers entirely; the UI renders N/A. A CLOSED
+    // market at the same age is NOT stale — its close is still valid.
+    const live = scoreFactor(dxyDef(), latePumpSeries(), btcUp(), scoreOpts());
+    const stale = scoreFactor(dxyDef(), latePumpSeries(), btcUp(), scoreOpts({
+      freshness: "STALE",
+      updatedAt: NOW - 30 * 60_000,
+    }));
+    const closed = scoreFactor(dxyDef(), latePumpSeries(), btcUp(), scoreOpts({
+      freshness: "CLOSED",
+      marketStatus: "CLOSED",
+      updatedAt: NOW - 30 * 60_000,
+    }));
+    expect(stale.impactScore).toBeNull();
+    expect(stale.corr["4h"]).toBeUndefined();
+    expect(stale.status).toBe("stale");
+    expect(live.impactScore).not.toBeNull();
+    expect(closed.impactScore).not.toBeNull();
+    expect(Math.abs(closed.impactScore!)).toBeLessThanOrEqual(Math.abs(live.impactScore!));
   });
 
   it("reports latency in seconds", () => {
-    const f = scoreFactor(dxyDef(), latePumpSeries(), btcUp(), "live", NOW, NOW - 10_000);
+    const f = scoreFactor(dxyDef(), latePumpSeries(), btcUp(), scoreOpts({
+      updatedAt: NOW - 10_000,
+    }));
     expect(f.latencySec).toBeCloseTo(10, 3);
+  });
+
+  it("propagates session-aware freshness fields", () => {
+    const f = scoreFactor(dxyDef(), latePumpSeries(), btcUp(), scoreOpts({
+      freshness: "CLOSED",
+      marketStatus: "CLOSED",
+      updatedAt: NOW - 5 * 86_400_000,
+    }));
+    expect(f.freshness).toBe("CLOSED");
+    expect(f.marketStatus).toBe("CLOSED");
+    expect(f.isLive).toBe(false);
+    expect(f.isStale).toBe(false);
+    expect(f.dataAgeMs).toBe(5 * 86_400_000);
+    expect(f.marketTimestamp).toBe(NOW - 5 * 86_400_000);
   });
 });
 

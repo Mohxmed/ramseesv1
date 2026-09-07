@@ -1,4 +1,5 @@
 export type {
+  AssetFreshness,
   ConflictLevel,
   CorrByWindow,
   CorrStatus,
@@ -13,7 +14,10 @@ export type {
   FactorTier,
   MacroDaily,
   MacroDailyAssets,
+  MarketData,
   MarketInfluenceFactor,
+  MarketSessionKind,
+  MarketSessionStatus,
   MomentumStats,
   RegimeDims,
   RegimeState,
@@ -34,6 +38,7 @@ export {
   FACTOR_WEIGHTS,
   FETCH_TIMEOUT_MS,
   IMPACT_Z_SCALE,
+  MARKET_DATA_CONFIG,
   MOMENTUM_WINDOW_WEIGHTS,
   POLL_REFRESH_MS,
   REGIME_THRESHOLDS,
@@ -47,6 +52,27 @@ export {
 } from "./config";
 
 export { buildCrossMarketState } from "./engine";
+
+export {
+  assetFreshnessFor,
+  factorStatusOf,
+  marketDataFor,
+  PERIODIC_MAX_AGE_MS,
+  REALTIME_WINDOWS,
+  statusFor,
+} from "./freshness";
+
+export {
+  dstInEffect,
+  etDateKey,
+  etMinutesOfDay,
+  etOffsetMinutes,
+  etWeekday,
+  isTradingSession,
+  marketSessionFor,
+  sessionCode,
+  usEquityCalendar,
+} from "./marketStatus";
 
 export {
   accelerationOf,
@@ -115,9 +141,3 @@ export {
 } from "./macro";
 
 export { buildInsights, type Leader } from "./insights";
-
-export {
-  PERIODIC_MAX_AGE_MS,
-  REALTIME_WINDOWS,
-  statusFor,
-} from "./freshness";

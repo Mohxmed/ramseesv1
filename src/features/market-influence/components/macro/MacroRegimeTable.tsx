@@ -5,7 +5,7 @@ import type {
   SeriesPoint,
 } from "@/features/market-influence/intelligence";
 import { Badge } from "@/components/ui/index";
-import { corrLabel, fmtNum, fmtPct, statusMeta } from "../format";
+import { assetStatusMeta, corrLabel, fmtNum, fmtPct } from "../format";
 import { corrKind, dirLabel, factorReason } from "./format";
 import { Sparkline } from "../Sparkline";
 
@@ -18,6 +18,11 @@ const TABLE_IDS = [
   "vix",
   "gold",
   "oil",
+  "nq-futures",
+  "es-futures",
+  "rty-futures",
+  "vix-futures",
+  "rut2000",
   "us30y",
   "us2y",
   "spread",
@@ -26,13 +31,15 @@ const TABLE_IDS = [
 function Row({
   f,
   spark,
+  nowMs,
 }: {
   f: MarketInfluenceFactor;
   spark: SeriesPoint[];
+  nowMs: number;
 }) {
   const dir = dirLabel(f.direction);
   const cs = corrKind(f.corr["24h"]);
-  const st = statusMeta(f.status);
+  const st = assetStatusMeta(f, nowMs);
   const impact = f.impactScore;
 
   return (
@@ -121,9 +128,11 @@ function Row({
 export function MacroRegimeTable({
   factors,
   sparklines,
+  nowMs,
 }: {
   factors: Record<string, MarketInfluenceFactor>;
   sparklines: Record<string, SeriesPoint[]>;
+  nowMs: number;
 }) {
   const rows = TABLE_IDS.map((id) => factors[id]).filter(Boolean);
 
@@ -141,7 +150,7 @@ export function MacroRegimeTable({
           <span className="hidden lg:block">سبب التغير</span>
         </div>
         {rows.map((f) => (
-          <Row key={f.id} f={f} spark={sparklines[f.id] ?? []} />
+          <Row key={f.id} f={f} spark={sparklines[f.id] ?? []} nowMs={nowMs} />
         ))}
       </div>
     </div>

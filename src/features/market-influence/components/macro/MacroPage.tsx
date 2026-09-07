@@ -119,6 +119,7 @@ export function MacroPage() {
             <MacroRegimeTable
               factors={state.factors}
               sparklines={sparklines}
+              nowMs={nowMs}
             />
           </Card>
 
@@ -153,6 +154,7 @@ export function MacroPage() {
               state={state}
               factors={state.factors}
               sparklines={sparklines}
+              nowMs={nowMs}
             />
           </div>
 

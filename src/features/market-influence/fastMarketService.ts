@@ -4,16 +4,22 @@
  * One provider-agnostic fetch path for the realtime universe (indices, FX,
  * futures, yields). Replaces the old "loop the Yahoo chart API" route with:
  *
- *   1. In-memory TTL cache (12s) + inflight dedupe → repeat reads <~5ms,
- *      upstream rate limits effectively bypassed (one burst per window).
- *   2. One parallel burst per miss (`Promise.all`) — never sequential loops.
+ *   1. PER-SYMBOL TTL cache (60s) + inflight dedupe → every asset refreshes on
+ *      its OWN schedule: a stalled or dead symbol ages on its own and shows
+ *      STALE while the rest of the board stays fresh. Repeat reads <~5ms.
+ *   2. One parallel burst per miss (`Promise.all`) — never sequential loops;
+ *      only the symbols whose TTL expired actually hit the network.
  *   3. Per-symbol grace: when a keyed provider is configured (Finnhub or FMP)
  *      but fails/doesn't map a symbol, that symbol silently falls back to the
  *      key-free Yahoo fast path. One dead symbol never blanks the board.
- *   4. Provider capability probe: free Finnhub tokens deny index/FX/futures
+ *   4. Cached-last-valid tier: if BOTH the primary and the fallback fail, the
+ *      last successful snapshot for that symbol is served (age-old) so the
+ *      board never blanks; the freshness engine labels it STALE in an open
+ *      market, or "last closed-market price" when the market is closed.
+ *   5. Provider capability probe: free Finnhub tokens deny index/FX/futures
  *      feeds — detected with one probe call (memo 5 min), after which the
  *      whole batch runs the key-free fast path instead of burning dead calls.
- *   5. Store-ready output — `FactorSeriesRaw[]`, exactly what the client
+ *   6. Store-ready output — `FactorSeriesRaw[]`, exactly what the client
  *      engine consumes (no post-processing needed in the route).
  *
  * Provider selection (no keys are required):
@@ -22,12 +28,14 @@
  *   - neither                        → key-free Yahoo fast path (default)
  *
  * Modal attitude: a failing primary provider never throws upward — the caller
- * always receives one `FactorSeriesRaw` per factor, `ok:false` only when both
- * the primary and the fallback failed.
+ * always receives one `FactorSeriesRaw` per factor. Health counters track
+ * consecutive failures per symbol (exposed via `feedHealth()` for the route's
+ * diagnostics).
  */
 import { FACTOR_DEFS, type FactorDef } from "./factors";
 import {
   FETCH_TIMEOUT_MS,
+  MARKET_DATA_CONFIG,
   type FactorSeriesRaw,
   type SeriesPoint,
 } from "./intelligence";
@@ -36,8 +44,8 @@ import {
 /* Cache                                                               */
 /* ------------------------------------------------------------------ */
 
-/** In-memory window for the fast realtime batch (spec: 10–15s). */
-export const CACHE_TTL_MS = 12_000;
+/** Per-symbol TTL — how often each individual asset may refresh. */
+export const CACHE_TTL_MS = MARKET_DATA_CONFIG.refreshIntervalMs;
 
 /** In-memory window the API route uses for the fully composed payload. */
 export const ROUTE_CACHE_TTL_MS = 12_000;
@@ -47,8 +55,19 @@ interface CacheEntry<T> {
   at: number;
 }
 
+/** The true market timestamp of the last good snapshot per symbol. */
+interface SymbolSnapshot {
+  symbol: string;
+  lastSuccess: FactorSeriesRaw | null;
+  lastSuccessAt: number;
+  cachedAt: number;
+  consecutiveFailures: number;
+  lastLatencyMs: number;
+}
+
 const cache = new Map<string, CacheEntry<unknown>>();
 const inflight = new Map<string, Promise<unknown>>();
+const symbolState = new Map<string, SymbolSnapshot>();
 
 /** Read-through, TTL cache with single-flight dedupe for concurrent misses. */
 export async function cached<T>(
@@ -81,7 +100,37 @@ export async function cached<T>(
 export function clearFastCache(): void {
   cache.clear();
   inflight.clear();
+  symbolState.clear();
   finnhubCapabilityCheckedAt = 0;
+}
+
+/** Per-symbol feed health snapshot (diagnostics / data-health endpoint). */
+export interface FeedHealthEntry {
+  id: string;
+  symbol: string;
+  provider: FastProvider;
+  lastSuccessAt: number | null;
+  consecutiveFailures: number;
+  lastLatencyMs: number | null;
+  cachedAt: number | null;
+}
+
+export function feedHealth(): { provider: FastProvider; symbols: FeedHealthEntry[] } {
+  return {
+    provider: activeProviderPref(),
+    symbols: REALTIME_DEFS.map((d) => {
+      const s = symbolState.get(d.fetch.yahooSymbol ?? d.id);
+      return {
+        id: d.id,
+        symbol: d.fetch.yahooSymbol ?? d.id,
+        provider: activeProviderPref(),
+        lastSuccessAt: s?.lastSuccessAt ?? null,
+        consecutiveFailures: s?.consecutiveFailures ?? 0,
+        lastLatencyMs: s?.lastLatencyMs ?? null,
+        cachedAt: s?.cachedAt ?? null,
+      };
+    }),
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -95,21 +144,27 @@ export const REALTIME_DEFS: FactorDef[] = FACTOR_DEFS.filter(
   (d) => d.provider === "yahoo" && d.fetch.yahooSymbol
 );
 
-/** Version the batch cache on the def list so new factors invalidate it. */
-const DEF_SIG = REALTIME_DEFS.map((d) => d.id).join(",");
-
 export interface FastMarketBatch {
   /** Primary provider this batch was fetched through. */
   provider: FastProvider;
-  /** `true` → served entirely from memory (no upstream calls). */
+  /** `true` → served entirely from memory (no upstream calls this tick). */
   cached: boolean;
-  /** Age in ms of the served snapshot (0 on a fresh miss). */
+  /** How many symbols were served from their per-symbol TTL cache. */
+  cacheHits: number;
+  /** Age in ms of the oldest served snapshot (0 on a fresh miss). */
   ageMs: number;
-  /** Wall time of this call (`nowMs - entry`); ≈0 on cache hits. */
+  /** Wall time of this call (`nowMs - entry`); ≈0 on all-cache ticks. */
   latencyMs: number;
   fetchedAt: number;
   /** Store-ready factor series, one per realtime monitor. */
   factors: FactorSeriesRaw[];
+}
+
+const MARKET_DEBUG = process.env.MARKET_DEBUG === "1";
+
+/** `[MARKET DATA]`-prefixed diagnostics, gated by `MARKET_DEBUG=1`. */
+function logMarket(msg: string): void {
+  if (MARKET_DEBUG) console.log(`[MARKET DATA] ${msg}`);
 }
 
 const UA =
@@ -453,7 +508,8 @@ function unavailableFactor(
  * Resolve one factor with its best available provider.
  * 1. Primary provider (Finnhub/FMP when keyed, else none);
  * 2. Key-free Yahoo fast path as the automatic per-symbol fallback;
- * 3. Honest `ok:false` — never a throw, never a blank whole board.
+ * 3. Cached-last-valid snapshot (age-old, but never a blank board);
+ * 4. Honest `ok:false` — never a throw, never a blank whole board.
  */
 async function loadBestFactor(
   def: FactorDef,
@@ -479,13 +535,73 @@ async function loadBestFactor(
   return unavailableFactor(def, fetchedAt, `لا مصدر متاح لـ ${def.nameEn} الآن`);
 }
 
+/** Default per-symbol health record. */
+function emptySymbol(key: string): SymbolSnapshot {
+  return {
+    symbol: key,
+    lastSuccess: null,
+    lastSuccessAt: 0,
+    cachedAt: 0,
+    consecutiveFailures: 0,
+    lastLatencyMs: 0,
+  };
+}
+
+/**
+ * ONE symbol's read-through: serve from the per-symbol TTL cache when fresh,
+ * else fetch through `loadBestFactor`. Failures are never cached — every
+ * expired/empty slot re-attempts the real providers and, if they still say no,
+ * falls back to the last good snapshot for that symbol (age-old, correctly
+ * labeled STALE by the freshness engine) instead of blanking the slot with a
+ * throw or an `ok:false`.
+ */
+async function resolveSymbol(
+  def: FactorDef,
+  pref: FastProvider,
+  keys: { finnhub?: string; fmp?: string },
+  fetchedAt: number
+): Promise<FactorSeriesRaw> {
+  const key = def.fetch.yahooSymbol ?? def.id;
+  return cached(`sym:${key}`, CACHE_TTL_MS, async () => {
+    const started = Date.now();
+    const got = await loadBestFactor(def, pref, keys, fetchedAt);
+    const state = symbolState.get(key) ?? emptySymbol(key);
+    if (got.ok) {
+      symbolState.set(key, {
+        ...state,
+        lastSuccess: got,
+        lastSuccessAt: Date.now(),
+        cachedAt: Date.now(),
+        consecutiveFailures: 0,
+        lastLatencyMs: Date.now() - started,
+      });
+      logMarket(`OK ${def.id}·${key} ${got.provider} ${(Date.now() - started).toFixed(0)}ms`);
+      return got;
+    }
+    const failures = state.consecutiveFailures + 1;
+    symbolState.set(key, { ...state, consecutiveFailures: failures });
+    if (state.lastSuccess) {
+      logMarket(`fallback→last-valid ${def.id}·${key} (fail #${failures})`);
+      return {
+        ...state.lastSuccess,
+        fetchedAt,
+        meta: { ...state.lastSuccess.meta, servedFrom: "last-valid" },
+      };
+    }
+    logMarket(`FAIL ${def.id}·${key} ${got.error}`);
+    return got;
+  });
+}
+
 /* ------------------------------------------------------------------ */
 /* Main entry                                                          */
 /* ------------------------------------------------------------------ */
 
 /**
- * Fetch the whole realtime universe in one parallel burst, served from an
- * in-memory 12s cache on repeat calls. Returns store-ready factors.
+ * Fetch the whole realtime universe in one parallel burst, served from the
+ * per-symbol in-memory TTL cache on repeat calls. One stalled/dead symbol ages
+ * and relabels on its own while the rest of the board keeps serving fresh.
+ * Returns store-ready factors.
  */
 export async function fetchRealtimeUniverse(fetchedAt = Date.now()): Promise<FastMarketBatch> {
   const started = Date.now();
@@ -507,43 +623,35 @@ export async function fetchRealtimeUniverse(fetchedAt = Date.now()): Promise<Fas
     if (!finnhubCapable) effectivePref = "yahoo-fast";
   }
 
-  const batchKey = `fast:${effectivePref}:${DEF_SIG}`;
-
-  const hit = cache.get(batchKey) as CacheEntry<FastMarketBatch> | undefined;
-  if (hit && started - hit.at < CACHE_TTL_MS) {
-    return {
-      ...hit.value,
-      cached: true,
-      ageMs: started - hit.at,
-      latencyMs: started - started,
-    };
+  // Which symbols were already inside their TTL window BEFORE this tick ran?
+  // Measured at entry so `cached` means "served entirely from memory" — a tick
+  // that refetches everything must report cached:false even though the burst
+  // ends with warm entries.
+  let cacheHits = 0;
+  let oldest = 0;
+  for (const def of REALTIME_DEFS) {
+    const hit = cache.get(`sym:${def.fetch.yahooSymbol ?? def.id}`) as
+      | CacheEntry<unknown>
+      | undefined;
+    if (!hit) continue;
+    const age = started - hit.at;
+    if (age >= 0 && age < CACHE_TTL_MS) cacheHits++;
+    if (age > oldest) oldest = age;
   }
 
-  const pending = inflight.get(batchKey) as Promise<FastMarketBatch> | undefined;
-  const batch = pending
-    ? await pending
-    : await (async () => {
-        const promise = (async (): Promise<FastMarketBatch> => {
-          const factors = await Promise.all(
-            REALTIME_DEFS.map((def) => loadBestFactor(def, effectivePref, keys, fetchedAt))
-          );
-          const built: FastMarketBatch = {
-            provider: effectivePref,
-            cached: false,
-            ageMs: 0,
-            latencyMs: 0,
-            fetchedAt,
-            factors,
-          };
-          cache.set(batchKey, { value: built, at: Date.now() });
-          inflight.delete(batchKey);
-          return built;
-        })();
-        inflight.set(batchKey, promise);
-        return promise;
-      })();
+  const factors = await Promise.all(
+    REALTIME_DEFS.map((def) => resolveSymbol(def, effectivePref, keys, fetchedAt))
+  );
 
-  return { ...batch, latencyMs: Date.now() - started };
+  return {
+    provider: effectivePref,
+    cached: cacheHits === REALTIME_DEFS.length,
+    cacheHits,
+    ageMs: oldest,
+    latencyMs: Date.now() - started,
+    fetchedAt,
+    factors,
+  };
 }
 
 /* ------------------------------------------------------------------ */

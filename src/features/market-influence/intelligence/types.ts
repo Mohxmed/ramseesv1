@@ -22,6 +22,36 @@ export type SourceTier = "realtime" | "near-realtime" | "periodic" | "computed" 
 
 export type FactorStatus = "live" | "near" | "delayed" | "stale" | "unavailable";
 
+/** Trading-session model an asset belongs to (drives market-status math). */
+export type MarketSessionKind =
+  | "equity" // NYSE / Nasdaq indices (regular session only — indices don't print after hours)
+  | "future" // CME Globex near-24/5 (NQ/ES/RTY/VX/GC/CL)
+  | "fx" // spot FX 24/5 (Sun 17:00 ET → Fri 17:00 ET, no daily break)
+  | "derived" // computed/derived series inherits the parent's session (10Y−2Y ⇒ equity)
+  | "periodic"; // FRED / DefiLlama — no session, judged on cadence only
+
+/** Session state of an asset's exchange at a moment in time (ET). */
+export type MarketSessionStatus =
+  | "PRE_MARKET"
+  | "OPEN"
+  | "AFTER_HOURS"
+  | "CLOSED"
+  | "HOLIDAY"
+  | "NONE";
+
+/**
+ * Honest per-asset freshness label.
+ *
+ *  - LIVE     — session open and data younger than `liveThresholdMs`.
+ *  - DELAYED  — session open but data between live/delayed thresholds.
+ *  - STALE    — session open and data older than `staleThresholdMs`;
+ *               these factors are EXCLUDED from correlation and impact.
+ *  - CLOSED   — session closed/holiday so the last price IS the final close:
+ *               expected to be old, never labeled "قديم", still contributes.
+ *  - ERROR    — no usable series/price at all.
+ */
+export type AssetFreshness = "LIVE" | "DELAYED" | "STALE" | "CLOSED" | "ERROR";
+
 export type WindowKey = "30m" | "1h" | "4h" | "24h" | "7d";
 
 /** Effect of the factor on BTC in the current environment. */
@@ -111,6 +141,28 @@ export type MacroDailyAssets = Partial<
   Record<"ndx" | "spx" | "dxy" | "gold" | "vix" | "us10y", SeriesPoint[] | null>
 >;
 
+/**
+ * Provider-agnostic view of one asset's current quote (spec: MarketData).
+ * Always BOTH timestamps: `timestamp` is the REAL market time of the price,
+ * never the response-arrival time.
+ */
+export interface MarketData {
+  symbol: string;
+  price: number | null;
+  previousClose: number | null;
+  /** Same-session change % (last vs previous close), null when unknown. */
+  changePercent: number | null;
+  /** Real market timestamp of `price` (e.g. Yahoo `regularMarketTime`). */
+  timestamp: number | null;
+  /** Where the price came from (provider id / "cache"). */
+  source: string;
+  marketStatus: MarketSessionStatus | null;
+  dataAgeMs: number | null;
+  isLive: boolean;
+  isDelayed: boolean;
+  isStale: boolean;
+}
+
 /* ------------------------------------------------------------------ */
 /* Per-factor computed stats                                           */
 /* ------------------------------------------------------------------ */
@@ -147,6 +199,18 @@ export interface FactorStats extends MomentumStats, ImpactStats {
   corrStability: number | null;
   corrStatus: CorrStatus;
   updatedAt: number | null;
+  /** Real market timestamp of the last bar (NOT the response-arrival time). */
+  marketTimestamp: number | null;
+  /** When the provider last served this asset (response arrival). */
+  fetchedAt: number | null;
+  /** Session state of the asset's exchange at `nowMs`. */
+  marketStatus: MarketSessionStatus | null;
+  freshness: AssetFreshness;
+  /** `nowMs − marketTimestamp` (null when no market timestamp). */
+  dataAgeMs: number | null;
+  isLive: boolean;
+  isDelayed: boolean;
+  isStale: boolean;
   latencySec: number | null;
   status: FactorStatus;
   spark: SeriesPoint[];
@@ -210,6 +274,10 @@ export type SourceHealthEntry = {
     | "fmp"
     | "unavailable";
   updatedAt: number | null;
+  fetchedAt: number | null;
+  freshness: AssetFreshness;
+  marketStatus: MarketSessionStatus | null;
+  dataAgeMs: number | null;
   latencySec: number | null;
 };
 

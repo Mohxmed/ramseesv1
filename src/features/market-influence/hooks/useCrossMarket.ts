@@ -59,9 +59,16 @@ export function useCrossMarket() {
     // synchronously within the effect body (keeps eslint's purity rule happy).
     const first = window.setTimeout(() => load(), 0);
     const id = window.setInterval(() => load(), POLL_REFRESH_MS);
+    // Same on tab-refocus: pops to a foreground tab (e.g. after a long
+    // background stay) with a fresh payload instead of a stale-cache read.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       window.clearTimeout(first);
       window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [load]);
 

@@ -1,4 +1,9 @@
-import type { FactorCategory, FactorTier, SourceTier } from "./intelligence/types";
+import type {
+  FactorCategory,
+  FactorTier,
+  MarketSessionKind,
+  SourceTier,
+} from "./intelligence/types";
 
 /**
  * Factor registry — single source of truth for which external markets we
@@ -36,6 +41,11 @@ export interface FactorDef {
   unit: "point" | "percent";
   source: SourceTier;
   provider: Provider;
+  /**
+   * Trading-session model the asset's exchange follows. Indices/derived use
+   * "equity"; futures use "future"; FX "fx"; periodic sources "periodic".
+   */
+  sessionKind: MarketSessionKind;
   fetch: {
     yahooSymbol?: string;
     /** Optional alternates used by fastMarketService when a Finnhub/FMP key
@@ -60,6 +70,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "point",
     source: "realtime",
     provider: "yahoo",
+    sessionKind: "fx",
     fetch: { yahooSymbol: "DX-Y.NYB" },
     tooltip:
       "مؤشر الدولار يقيس قوة الدولار مقابل سلة عملات. ارتفاعه التاريخي يضغط على الأصول المرتفعة المخاطر مثل BTC عبر قنوات السيولة والاستثمار.",
@@ -74,6 +85,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "point",
     source: "realtime",
     provider: "yahoo",
+    sessionKind: "equity",
     fetch: { yahooSymbol: "^NDX", finnhubSymbol: "^NDX", fmpSymbol: "^NDX" },
     tooltip:
       "مؤشر أكبر 100 شركة تكنولوجية — وكيل شهية المخاطرة عالمياً والأكثر ارتباطاً تاريخياً بحركة BTC.",
@@ -88,6 +100,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "point",
     source: "realtime",
     provider: "yahoo",
+    sessionKind: "equity",
     fetch: { yahooSymbol: "^GSPC", finnhubSymbol: "^GSPC", fmpSymbol: "^GSPC" },
     tooltip:
       "مؤشر السوق الأمريكي الواسع. حركته تعكس الحالة العامة للسيولة والثقة في الأصول الخطرة.",
@@ -102,6 +115,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "percent",
     source: "realtime",
     provider: "yahoo",
+    sessionKind: "equity",
     fetch: { yahooSymbol: "^TNX", finnhubSymbol: "^TNX", fmpSymbol: "^TNX" },
     tooltip:
       "عائد سندات الخزانة الأمريكية لأجل 10 سنوات. عادةً ترتفع مع توقعات رفع الفائدة أو التضخم، مما يضغط على أصول مثل BTC.",
@@ -116,6 +130,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "point",
     source: "realtime",
     provider: "yahoo",
+    sessionKind: "equity",
     fetch: { yahooSymbol: "^VIX", finnhubSymbol: "^VIX", fmpSymbol: "^VIX" },
     tooltip:
       "مؤشر التقلب CBOE — يقيس الخوف المتوقع في السوق. ارتفاعه يشير لنفور من المخاطرة يدفع الاستثمار بعيداً عن BTC.",
@@ -130,6 +145,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "point",
     source: "realtime",
     provider: "yahoo",
+    sessionKind: "future",
     fetch: { yahooSymbol: "GC=F" },
     tooltip:
       "الذهب كأصل ملاذ بديل للدولار. أحياناً يرتبط إيجاباً بـ BTC كملاذ ضد التضخم، وأحياناً يتنافس معه على نفس التدفقات.",
@@ -144,6 +160,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "point",
     source: "periodic",
     provider: "fred",
+    sessionKind: "periodic",
     fetch: { fredId: "WALCL" },
     tooltip:
       "إجمالي أصول الاحتياطي الفيدرالي — الوكيل القياسي للسيولة العالمية. توسعها يساند الأصول الخطرة، وانكماشها يضغط عليها.",
@@ -158,6 +175,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "point",
     source: "periodic",
     provider: "fred",
+    sessionKind: "periodic",
     fetch: { fredId: "M2SL" },
     tooltip:
       "المعروض النقدي الأمريكي الواسع M2 — مؤشر كمية السيولة في النظام المالي، يتغير شهرياً.",
@@ -172,9 +190,73 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "point",
     source: "realtime",
     provider: "yahoo",
+    sessionKind: "equity",
     fetch: { yahooSymbol: "^RUT", finnhubSymbol: "^RUT", fmpSymbol: "^RUT" },
     tooltip:
       "مؤشر الشركات الصغيرة الأمريكية — الأكثر حساسية لسيولة السوق وشهية المخاطرة المحلية.",
+  },
+  {
+    id: "nq-futures",
+    nameAr: "عقود ناسداك المستقبلية",
+    nameEn: "Nasdaq 100 Futures (NQ)",
+    category: "equities",
+    tier: "secondary",
+    weight: 0.55,
+    unit: "point",
+    source: "realtime",
+    provider: "yahoo",
+    sessionKind: "future",
+    fetch: { yahooSymbol: "NQ=F" },
+    tooltip:
+      "عقود مؤشر ناسداك 100 الآجلة (CME Globex) — تداول شبه مستمر يُظهر توقع السوق لحركة الأسهم التكنولوجية خارج جلسة المؤشر، ويعمل ليلاً وفى الإجازات. الخلاصة المجانية قد تكون متأخرة ~10 دقائق.",
+  },
+  {
+    id: "es-futures",
+    nameAr: "عقود S&P 500 المستقبلية",
+    nameEn: "S&P 500 Futures (ES)",
+    category: "equities",
+    tier: "secondary",
+    weight: 0.5,
+    unit: "point",
+    source: "realtime",
+    provider: "yahoo",
+    sessionKind: "future",
+    fetch: { yahooSymbol: "ES=F" },
+    tooltip:
+      "عقود مؤشر S&P 500 الآجلة (CME Globex) — القراءة الشاملة لشهية المخاطرة الأمريكية على مدار الساعة خارج الجلسة النظامية للمؤشر.",
+  },
+  {
+    id: "rty-futures",
+    nameAr: "عقود راسل 2000 المستقبلية",
+    nameEn: "Russell 2000 Futures (RTY)",
+    category: "equities",
+    tier: "secondary",
+    weight: 0.4,
+    unit: "point",
+    source: "realtime",
+    provider: "yahoo",
+    sessionKind: "future",
+    fetch: { yahooSymbol: "RTY=F" },
+    tooltip:
+      "عقود مؤشر راسل 2000 الآجلة — نافذة مبكرة لمعنويات الشركات الصغيرة والسيولة المحلية خارج جلسة المؤشر نفسه.",
+  },
+  {
+    id: "vix-futures",
+    nameAr: "عقود فيكس المستقبلية",
+    nameEn: "VXX · VIX Futures",
+    category: "volatility",
+    tier: "secondary",
+    weight: 0.5,
+    unit: "point",
+    source: "realtime",
+    provider: "yahoo",
+    // VXX lists on NYSE Arca → equity hours (a weekend is a CLOSED market,
+    // not a stale futures feed). Kept under `volatility` category + future-like
+    // naming so the futures layer reads as one board.
+    sessionKind: "equity",
+    fetch: { yahooSymbol: "VXX" },
+    tooltip:
+      "ETN يقف على العقود الآجلة القصيرة الأجل لمؤشر VIX (VXX) — التوقع الصريح للمضاربين على مستوى الخوف المستقبلي، وأسرع من المؤشر النقدي في التقاط النفور من المخاطرة. (لا يوفر Yahoo سلسلة VX=F مجانية؛ VXX هو البديل الحي الأدق.)",
   },
   {
     id: "us2y",
@@ -186,6 +268,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "percent",
     source: "periodic",
     provider: "fred",
+    sessionKind: "periodic",
     fetch: { fredId: "DGS2" },
     tooltip:
       "عائد سندات السنتين (إصدار يومي من الاحتياطي الفيدرالي) — الأنسب لقياس توقعات مسار أسعار الفائدة القصيرة.",
@@ -200,6 +283,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "point",
     source: "realtime",
     provider: "yahoo",
+    sessionKind: "fx",
     fetch: { yahooSymbol: "EURUSD=X", finnhubSymbol: "EURUSD", fmpSymbol: "EURUSD" },
     tooltip:
       "زوج العملة الأوروبية مقابل الدولار — عملة الدولار نفسه من زاوية أخرى؛ انخفاضه يعكس قوة الدولار.",
@@ -214,6 +298,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "point",
     source: "realtime",
     provider: "yahoo",
+    sessionKind: "fx",
     fetch: { yahooSymbol: "JPY=X", finnhubSymbol: "USDJPY", fmpSymbol: "USDJPY" },
     tooltip:
       "الين عملة تمويل شهيرة (carry). ارتفاعه ينذر بتفكيك مراكز المخاطرة الممولة بالين — ضغط على BTC.",
@@ -228,6 +313,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "point",
     source: "realtime",
     provider: "yahoo",
+    sessionKind: "future",
     fetch: { yahooSymbol: "CL=F" },
     tooltip:
       "خام غرب تكساس — مؤشر التضخم وأسعار الطاقة. تقلبه ينتقل أحياناً إلى أسواق الأصول الخطرة.",
@@ -242,6 +328,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "point",
     source: "periodic",
     provider: "defillama",
+    sessionKind: "periodic",
     fetch: { llama: true },
     tooltip:
       "إجمالي قيمة العملات المستقرة المتداولة (DefiLlama) — وكيل سيولة الدخول إلى الأصول الرقمية؛ تحديث يومي مجاني مباشر.",
@@ -256,6 +343,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "percent",
     source: "computed",
     provider: "derived",
+    sessionKind: "derived",
     fetch: { derived: true },
     tooltip:
       "فارق العوائد 10 سنوات ناقص سنتين — مؤشر المعنويات الاقتصادية. انعكاسه (سلبي) سبق أن أنذر بركود وأثر سلباً على الأصول الخطرة.",
@@ -270,6 +358,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "percent",
     source: "realtime",
     provider: "yahoo",
+    sessionKind: "equity",
     fetch: { yahooSymbol: "^TYX", finnhubSymbol: "^TYX", fmpSymbol: "^TYX" },
     tooltip:
       "عائد سندات الخزانة لأجل 30 سنة — الطرف الطويل لمنحنى العائد. ارتفاعه يعكس مخاوف التضخم طويلة الأجل وتدهور أوضاع المالية العامة.",
@@ -284,6 +373,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "percent",
     source: "periodic",
     provider: "fred",
+    sessionKind: "periodic",
     fetch: { fredId: "DFII10" },
     tooltip:
       "عائد سندات الخزانة المحمية من التضخم (TIPS) — معدل العائد الحقيقي. ارتفاعه يكلف الأصول البديلة مثل BTC تكلفة فرصة مرتفعة.",
@@ -298,6 +388,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "point",
     source: "periodic",
     provider: "fred",
+    sessionKind: "periodic",
     fetch: { fredId: "RRPONTSYD" },
     tooltip:
       "حجم السيولة المحتجزة في تسهيل الريبو العكسي للفيدرالي — هبوطه يعني تدفق السيولة من السقف النقدي نحو الأصول الخطرة (إيجابي).",
@@ -312,6 +403,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "point",
     source: "periodic",
     provider: "fred",
+    sessionKind: "periodic",
     fetch: { fredId: "WTREGEN" },
     tooltip:
       "رصيد وزارة الخزانة الأمريكية لدى الفيدرالي — انخفاضه يضخ سيولة في النظام المصرفي، وارتفاعه الجمعي يسحبها.",
@@ -326,6 +418,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "point",
     source: "periodic",
     provider: "fred",
+    sessionKind: "periodic",
     fetch: { fredId: "NFCI" },
     tooltip:
       "مؤشر شيكاغو للأوضاع المالية — ارتفاعه يعني تقييداً مالياً يضغط على الأصول الخطرة، وانخفاضه يعني اتساعاً في السيولة.",
@@ -341,6 +434,7 @@ export const FACTOR_DEFS: FactorDef[] = [
     unit: "point",
     source: "unsupported",
     provider: "unavailable",
+    sessionKind: "periodic",
     fetch: {},
     tooltip: "صافي تدفقات صناديق بيتكوين المتداولة — لا مصدر مجاني موثوق متاح حاليًا؛ يظهر كغير متاح ولا يدخل الحساب.",
   },

@@ -4,6 +4,7 @@ import type { MarketInfluenceFactor, WindowKey } from "@/features/market-influen
 import { Badge, DataRow, Modal, Status } from "@/components/ui/index";
 import { AreaChart } from "@/components/charts/ChartContainer";
 import {
+  assetStatusMeta,
   corrLabel,
   corrStatusMeta,
   fmtNum,
@@ -11,7 +12,6 @@ import {
   fmtSigned,
   impactTone,
   roleMeta,
-  statusMeta,
   timeAgo,
 } from "./format";
 
@@ -34,7 +34,7 @@ export interface FactorDetailModalProps {
 export function FactorDetailModal({ factor: f, nowMs, onClose }: FactorDetailModalProps) {
   if (!f) return null;
   const role = roleMeta(f.role);
-  const st = statusMeta(f.status);
+  const st = assetStatusMeta(f, nowMs);
   const cs = corrStatusMeta(f.corrStatus);
 
   const chartData = f.spark.map((p) => ({ t: p.t, v: p.v }));
@@ -99,7 +99,7 @@ export function FactorDetailModal({ factor: f, nowMs, onClose }: FactorDetailMod
           value={f.timeframeAgreement != null ? `${Math.round(f.timeframeAgreement * 100)}%` : "—"}
         />
         <DataRow label="استقرار الارتباط" value={f.corrStability != null ? fmtNum(f.corrStability, 2) : "—"} />
-        <DataRow label="آخر تحديث" value={timeAgo(nowMs, f.updatedAt)} />
+        <DataRow label="آخر تحديث" value={timeAgo(nowMs, f.marketTimestamp ?? f.updatedAt)} />
       </div>
 
       <div className="mt-4">

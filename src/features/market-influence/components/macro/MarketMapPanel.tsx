@@ -7,7 +7,7 @@ import type {
 } from "@/features/market-influence/intelligence";
 import { Badge, Tabs } from "@/components/ui/index";
 import { ArrowDownRightIcon, ArrowUpRightIcon } from "@/components/icons/icons";
-import { corrLabel, corrTone, fmtNum, fmtPct, statusMeta } from "../format";
+import { assetStatusMeta, corrLabel, corrTone, fmtNum, fmtPct } from "../format";
 import { Sparkline } from "../Sparkline";
 import { FactorDetailModal } from "../FactorDetailModal";
 
@@ -33,6 +33,10 @@ const MAP_ORDER = [
   "gold",
   "oil",
   "rut2000",
+  "nq-futures",
+  "es-futures",
+  "rty-futures",
+  "vix-futures",
   "us2y",
   "spread",
   "us30y",
@@ -63,13 +67,15 @@ const CRYPTO_IDS = ["stablecoin-supply", "etf-flows"];
 function MapCard({
   f,
   spark,
+  nowMs,
   onOpen,
 }: {
   f: MarketInfluenceFactor;
   spark: SeriesPoint[];
+  nowMs: number;
   onOpen: (id: string) => void;
 }) {
-  const st = statusMeta(f.status);
+  const st = assetStatusMeta(f, nowMs);
   const chg = f.change24hPct;
   const corrToneCls = corrTone(f.corr["24h"]);
   const imp = f.impactScore;
@@ -171,7 +177,7 @@ export function MarketMapPanel({
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {rows.map((f) => (
-            <MapCard key={f.id} f={f} spark={sparklines[f.id] ?? []} onOpen={setOpenId} />
+            <MapCard key={f.id} f={f} spark={sparklines[f.id] ?? []} nowMs={nowMs} onOpen={setOpenId} />
           ))}
         </div>
       )}

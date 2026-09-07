@@ -4,7 +4,6 @@ import {
   CORR_KNEE,
   IMPACT_Z_SCALE,
   MOMENTUM_WINDOW_WEIGHTS,
-  STALE_IMPACT_PENALTY,
   WINDOWS,
   type WindowKey,
 } from "./config";
@@ -26,9 +25,11 @@ import {
   corrStabilityDaily,
   corrStatusOf,
 } from "./correlation";
+import { factorStatusOf } from "./freshness";
 import type {
-  FactorStatus,
+  AssetFreshness,
   MarketInfluenceFactor,
+  MarketSessionStatus,
   SeriesPoint,
 } from "./types";
 import type { FactorDef } from "../factors";
@@ -58,15 +59,15 @@ export const INTRADAY_LOOKBACK: Partial<Record<WindowKey, number>> = {
   "7d": 1440,
 };
 
-function freshnessWeight(status: FactorStatus): number {
-  switch (status) {
-    case "live":
+function freshnessWeight(freshness: AssetFreshness): number {
+  switch (freshness) {
+    case "LIVE":
       return 1;
-    case "near":
+    case "DELAYED":
       return 0.85;
-    case "delayed":
-      return 0.7;
-    case "stale":
+    case "CLOSED":
+      return 0.85;
+    case "STALE":
       return 0.5;
     default:
       return 0.2;
@@ -90,18 +91,33 @@ function directionFromRocs(
   return "flat";
 }
 
+export interface ScoreFactorOpts {
+  nowMs: number;
+  updatedAt: number | null;
+  /** Real market timestamp of the last bar (falls back to `updatedAt`). */
+  marketTimestamp?: number | null;
+  fetchedAt: number | null;
+  /** Session-aware freshness — derived in engine, never stale on a closed market. */
+  freshness: AssetFreshness;
+  marketStatus: MarketSessionStatus | null;
+}
+
 /**
  * Computes everything the engine needs about a single factor from its raw
  * series + the reference BTC series. Pure: no time reads, no external state.
+ *
+ * Spec-critical gating: a STALE or ERROR factor is EXCLUDED from both
+ * correlation and impact (all corr windows null, impactScore null) — the UI
+ * then renders "N/A". A CLOSED market keeps its last-close reading instead.
  */
 export function scoreFactor(
   def: FactorDef,
   points: SeriesPoint[],
   btcSeries: SeriesPoint[],
-  status: FactorStatus,
-  nowMs: number,
-  updatedAt: number | null
+  opts: ScoreFactorOpts
 ): Omit<MarketInfluenceFactor, "weight" | "tier" | "category" | "nameAr" | "nameEn" | "unit" | "source" | "provider" | "tooltip" | "id"> {
+  const { nowMs, updatedAt, freshness, marketStatus, fetchedAt } = opts;
+  const marketTimestamp = opts.marketTimestamp ?? updatedAt;
   const kind: SeriesKind =
     def.provider === "fred" || def.provider === "defillama"
       ? "periodic"
@@ -119,9 +135,14 @@ export function scoreFactor(
   const direction = directionFromRocs(rocs);
 
   // Correlations: daily alignment for periodic sources, 5m grid for intraday.
+  // STALE/ERROR assets are quarantined from the correlation layer entirely —
+  // no stale bar ever feeds corr/impact.
   let corr;
   let stability: number | null;
-  if (kind === "periodic") {
+  if (freshness === "STALE" || freshness === "ERROR") {
+    corr = {};
+    stability = null;
+  } else if (kind === "periodic") {
     corr = corrDaily(points, btcSeries);
     stability = corrStabilityDaily(points, btcSeries);
   } else {
@@ -158,8 +179,10 @@ export function scoreFactor(
   let impactScore: number | null =
     impactZ == null ? null : clamp(impactZ * IMPACT_Z_SCALE, -100, 100);
 
-  if (impactScore != null && status === "stale") impactScore *= STALE_IMPACT_PENALTY;
-  if (impactScore != null && status === "delayed") impactScore *= 0.85;
+  // Freshness damping (never applied to a closed market's last close as
+  // "stale"; CLOSED/DELAYED only scale the magnitude, they don't null it).
+  if (impactScore != null && freshness === "DELAYED") impactScore *= 0.85;
+  if (impactScore != null && freshness === "CLOSED") impactScore *= 0.9;
 
   const role =
     impactScore == null
@@ -178,7 +201,7 @@ export function scoreFactor(
       ? null
       : Math.round(
           100 *
-            (0.25 * freshnessWeight(status) +
+            (0.25 * freshnessWeight(freshness) +
               0.3 * corrStrengthAvg +
               0.25 * (stability ?? 0.5) +
               0.2 * (agreement ?? 0.5)) *
@@ -186,6 +209,7 @@ export function scoreFactor(
         );
 
   const latencySec = updatedAt != null ? Math.max(0, (nowMs - updatedAt) / 1000) : null;
+  const dataAgeMs = updatedAt != null ? Math.max(0, nowMs - updatedAt) : null;
 
   return {
     price: points.length > 0 ? points[points.length - 1].v : null,
@@ -203,8 +227,16 @@ export function scoreFactor(
     role,
     direction,
     confidence,
-    status,
+    status: factorStatusOf(freshness),
     updatedAt,
+    marketTimestamp,
+    fetchedAt,
+    marketStatus,
+    freshness,
+    dataAgeMs,
+    isLive: freshness === "LIVE",
+    isDelayed: freshness === "DELAYED",
+    isStale: freshness === "STALE" || freshness === "ERROR",
     latencySec,
     spark: downsample(points),
   };

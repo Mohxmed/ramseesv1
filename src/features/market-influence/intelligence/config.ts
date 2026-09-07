@@ -77,6 +77,10 @@ export const FACTOR_WEIGHTS: Record<string, number> = {
   "reverse-repo": 0.4,
   tga: 0.35,
   nfci: 0.4,
+  "nq-futures": 0.55,
+  "es-futures": 0.5,
+  "rty-futures": 0.4,
+  "vix-futures": 0.5,
 };
 
 /** Impact score thresholds for global classification. */
@@ -135,3 +139,22 @@ export const REGIME_THRESHOLDS = {
 
 export const POLL_REFRESH_MS = 60_000;
 export const FETCH_TIMEOUT_MS = 12_000;
+
+/**
+ * Per-asset market-data freshness thresholds (spec: config, not UI code).
+ *
+ *  - `refreshIntervalMs`   — how often each asset is allowed to hit upstream
+ *                            (the client still drives the poll cadence; the
+ *                            per-symbol TTL cache enforces independence).
+ *  - `liveThresholdMs`     — data younger than this while the market is open
+ *                            is labeled LIVE (tone: good, pulsing).
+ *  - `delayedThresholdMs`  — between live and delayed the asset is DELAYED.
+ *  - `staleThresholdMs`    — older while the session is open ⇒ STALE, which
+ *                            EXCLUDES the factor from correlation + impact.
+ */
+export const MARKET_DATA_CONFIG = {
+  refreshIntervalMs: 60_000,
+  liveThresholdMs: 90_000,
+  delayedThresholdMs: 15 * 60_000,
+  staleThresholdMs: 15 * 60_000,
+} as const;

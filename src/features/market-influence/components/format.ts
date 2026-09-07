@@ -3,8 +3,114 @@ import type {
   CorrStatus,
   CrossScoreClass,
   FactorStatus,
+  MarketInfluenceFactor,
   Role,
 } from "@/features/market-influence/intelligence";
+
+/** Session-aware display status for an asset card/row. */
+export function assetStatusMeta(
+  f: MarketInfluenceFactor,
+  nowMs: number
+): {
+  label: string;
+  tone: "good" | "warn" | "down" | "quiet";
+  pulse?: boolean;
+  detail?: string;
+} {
+  const ts = f.marketTimestamp ?? f.updatedAt;
+  const lastUpdate = ts != null ? timeAgo(nowMs, ts) : null;
+
+  switch (f.freshness) {
+    case "ERROR":
+      return { label: "غير متاح", tone: "quiet", detail: "لا توجد بيانات حالية" };
+    case "STALE":
+      return {
+        label: "قديم",
+        tone: "down",
+        detail: lastUpdate ? `آخر تحديث ${lastUpdate}` : undefined,
+      };
+    case "LIVE":
+      return {
+        label: "مباشر",
+        tone: "good",
+        pulse: true,
+        detail: lastUpdate ? `آخر تحديث ${lastUpdate}` : undefined,
+      };
+    case "DELAYED":
+      // Periodic prints (FRED/DefiLlama) run on their own real cadence — a
+      // day-old FRED figure is healthy, not "delayed". Non-periodic DELAYED
+      // means the market is open but the feed is behind.
+      if (f.marketStatus === "NONE") {
+        return {
+          label: "بيانات دورية",
+          tone: "quiet",
+          detail: lastUpdate ? `آخر تحديث ${lastUpdate}` : undefined,
+        };
+      }
+      return {
+        label: "متأخر",
+        tone: "warn",
+        detail: lastUpdate ? `آخر تحديث ${lastUpdate}` : undefined,
+      };
+    case "CLOSED":
+      break;
+    default:
+      break;
+  }
+
+  // CLOSED — the market's own last print; honest, never "قديم".
+  switch (f.marketStatus) {
+    case "HOLIDAY":
+      return {
+        label: "عطلة رسمية",
+        tone: "quiet",
+        detail: lastUpdate ? `آخر إغلاق ${lastUpdate}` : undefined,
+      };
+    case "PRE_MARKET":
+      return {
+        label: "ما قبل الافتتاح",
+        tone: "quiet",
+        detail: lastUpdate ? `آخر سعر ${lastUpdate}` : undefined,
+      };
+    case "AFTER_HOURS":
+      return {
+        label: "بعد الإغلاق",
+        tone: "quiet",
+        detail: lastUpdate ? `آخر إغلاق ${lastUpdate}` : undefined,
+      };
+    case "OPEN":
+      return {
+        label: "متأخر",
+        tone: "warn",
+        detail: lastUpdate ? `آخر تحديث ${lastUpdate}` : undefined,
+      };
+    default:
+      return {
+        label: "سوق مغلق",
+        tone: "quiet",
+        detail: lastUpdate ? `آخر إغلاق ${lastUpdate}` : undefined,
+      };
+  }
+}
+
+export function statusMeta(s: FactorStatus): {
+  label: string;
+  tone: "good" | "warn" | "down" | "quiet";
+  pulse?: boolean;
+} {
+  switch (s) {
+    case "live":
+      return { label: "مباشر", tone: "good", pulse: true };
+    case "near":
+      return { label: "قريب", tone: "good" };
+    case "delayed":
+      return { label: "متأخر", tone: "warn" };
+    case "stale":
+      return { label: "قديم", tone: "down" };
+    default:
+      return { label: "غير متاح", tone: "quiet" };
+  }
+}
 
 /** Number → compact string (kept LTR digits). */
 export function fmtNum(v: number | null | undefined, digits = 2): string {
@@ -42,25 +148,6 @@ export function corrTone(v: number | null | undefined): Tone {
 export function corrLabel(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return "—";
   return v.toFixed(2);
-}
-
-export function statusMeta(s: FactorStatus): {
-  label: string;
-  tone: "good" | "warn" | "down" | "quiet";
-  pulse?: boolean;
-} {
-  switch (s) {
-    case "live":
-      return { label: "مباشر", tone: "good", pulse: true };
-    case "near":
-      return { label: "قريب", tone: "good" };
-    case "delayed":
-      return { label: "متأخر", tone: "warn" };
-    case "stale":
-      return { label: "قديم", tone: "down" };
-    default:
-      return { label: "غير متاح", tone: "quiet" };
-  }
 }
 
 export function roleMeta(r: Role | null): { label: string; tone: Tone } {
