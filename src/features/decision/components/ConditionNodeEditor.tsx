@@ -1,5 +1,6 @@
 "use client";
 
+import { MenuItem } from "@mui/material";
 import type { ConditionEval, ConditionLeaf, ConditionNode, Operator, Signal } from "../types";
 import { NUMERIC_OPERATORS, OPERATOR_LABELS, STATE_META } from "../constants";
 import { SIGNAL_CATALOG, catalogById } from "../catalog";
@@ -110,9 +111,9 @@ function LeafRow({
 
         <FieldSelect value={node.signalId} onChange={changeSignal} className="min-w-[190px] flex-1">
           {SIGNAL_CATALOG.map((s) => (
-            <option key={s.id} value={s.id}>
+            <MenuItem key={s.id} value={s.id}>
               {s.name}
-            </option>
+            </MenuItem>
           ))}
         </FieldSelect>
 
@@ -128,9 +129,9 @@ function LeafRow({
           className="w-[132px]"
         >
           {operators.map((op) => (
-            <option key={op} value={op}>
+            <MenuItem key={op} value={op}>
               {OPERATOR_LABELS[op]}
-            </option>
+            </MenuItem>
           ))}
         </FieldSelect>
 

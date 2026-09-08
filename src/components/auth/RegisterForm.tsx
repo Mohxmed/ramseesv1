@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { TextField } from "@mui/material";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 
 export function RegisterForm() {
@@ -48,18 +49,19 @@ export function RegisterForm() {
         >
           البريد الإلكتروني
         </label>
-        <input
+        <TextField
           id="email"
           type="email"
           required
+          fullWidth
           value={email}
           onChange={(e) => {
             setEmail(e.target.value);
             clearError();
             setLocalError(null);
           }}
-          className="mt-1 block w-full rounded-panel border border-line bg-surface-2/60 px-3 py-2 text-sm text-zinc-100 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
-          dir="ltr"
+          className="mt-1"
+          slotProps={{ htmlInput: { autoComplete: "email" } }}
         />
       </div>
 
@@ -70,18 +72,19 @@ export function RegisterForm() {
         >
           كلمة المرور
         </label>
-        <input
+        <TextField
           id="password"
           type="password"
           required
+          fullWidth
           value={password}
           onChange={(e) => {
             setPassword(e.target.value);
             clearError();
             setLocalError(null);
           }}
-          className="mt-1 block w-full rounded-panel border border-line bg-surface-2/60 px-3 py-2 text-sm text-zinc-100 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
-          dir="ltr"
+          className="mt-1"
+          slotProps={{ htmlInput: { autoComplete: "new-password" } }}
         />
       </div>
 
@@ -92,18 +95,19 @@ export function RegisterForm() {
         >
           تأكيد كلمة المرور
         </label>
-        <input
+        <TextField
           id="confirmPassword"
           type="password"
           required
+          fullWidth
           value={confirmPassword}
           onChange={(e) => {
             setConfirmPassword(e.target.value);
             clearError();
             setLocalError(null);
           }}
-          className="mt-1 block w-full rounded-panel border border-line bg-surface-2/60 px-3 py-2 text-sm text-zinc-100 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
-          dir="ltr"
+          className="mt-1"
+          slotProps={{ htmlInput: { autoComplete: "new-password" } }}
         />
       </div>
 

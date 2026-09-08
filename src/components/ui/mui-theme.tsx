@@ -52,6 +52,132 @@ export const muiTheme: Theme = createTheme({
   },
   shape: { borderRadius: 6 },
   components: {
+    /* ------------------------------------------------------------------ */
+    /* Input system — the app-wide default for every MUI form field.       */
+    /* Small outlined fields, zinc chrome, Cairo type, right-anchored RTL. */
+    /* ------------------------------------------------------------------ */
+    MuiTextField: {
+      defaultProps: { variant: "outlined", size: "small" },
+    },
+    MuiFormControl: {
+      styleOverrides: {
+        root: {
+          fontFamily: "inherit",
+        },
+      },
+    },
+    MuiInputBase: {
+      styleOverrides: {
+        root: {
+          fontFamily: "inherit",
+          direction: "rtl",
+        },
+        input: {
+          direction: "rtl",
+          textAlign: "right",
+          fontFamily: "inherit",
+          fontSize: 13,
+          padding: "8px 12px",
+          "&::placeholder": { color: colors.muted, opacity: 1 },
+          "&::-webkit-outer-spin-button, &::-webkit-inner-spin-button": {
+            WebkitAppearance: "none",
+            margin: 0,
+          },
+          "&[type='number']": { MozAppearance: "textfield" },
+        },
+      },
+    },
+    MuiOutlinedInput: {
+      styleOverrides: {
+        root: {
+          borderRadius: radius.panel,
+          backgroundColor: "rgba(39, 39, 42, 0.4)",
+          transition: "border-color 150ms ease, background-color 150ms ease",
+          "& .MuiOutlinedInput-notchedOutline": {
+            borderColor: colors.line,
+          },
+          "&:hover .MuiOutlinedInput-notchedOutline": {
+            borderColor: colors.surface3,
+          },
+          "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+            borderColor: colors.accent,
+            borderWidth: 1,
+          },
+          "&.Mui-error .MuiOutlinedInput-notchedOutline": {
+            borderColor: colors.danger,
+          },
+          "&.Mui-disabled": {
+            backgroundColor: "rgba(24, 24, 27, 0.5)",
+            opacity: 0.6,
+          },
+        },
+      },
+    },
+    MuiInputLabel: {
+      styleOverrides: {
+        root: {
+          fontFamily: "inherit",
+          fontSize: 12,
+          color: colors.muted,
+          "&.Mui-focused": { color: colors.accent },
+          "&.Mui-error": { color: colors.danger },
+        },
+      },
+    },
+    MuiFormHelperText: {
+      styleOverrides: {
+        root: {
+          fontFamily: "inherit",
+          fontSize: 11,
+          marginInline: 0,
+          textAlign: "right",
+        },
+        error: { color: colors.downFg },
+      },
+    },
+    MuiSelect: {
+      styleOverrides: {
+        root: { fontSize: 13 },
+      },
+    },
+    MuiMenuItem: {
+      styleOverrides: {
+        root: { fontSize: 12, minHeight: 32 },
+      },
+    },
+    MuiAutocomplete: {
+      defaultProps: { size: "small" },
+    },
+    MuiCheckbox: {
+      styleOverrides: {
+        root: { color: colors.muted, "&.Mui-checked": { color: colors.accent } },
+      },
+    },
+    MuiRadio: {
+      styleOverrides: {
+        root: { color: colors.muted, "&.Mui-checked": { color: colors.accent } },
+      },
+    },
+    MuiSwitch: {
+      styleOverrides: {
+        switchBase: {
+          color: colors.surface3,
+          "&.Mui-checked": { color: colors.accent },
+          "&.Mui-checked + .MuiSwitch-track": { backgroundColor: colors.accent },
+        },
+        track: { backgroundColor: colors.surface3 },
+      },
+    },
+    MuiSlider: {
+      styleOverrides: {
+        root: { color: colors.accent },
+      },
+    },
+    MuiButtonBase: {
+      styleOverrides: {
+        root: { fontFamily: "inherit" },
+      },
+    },
     MuiPaper: {
       styleOverrides: {
         root: {
@@ -96,11 +222,6 @@ export const muiTheme: Theme = createTheme({
         },
       },
     },
-    MuiSelect: {
-      styleOverrides: {
-        root: { fontSize: "12px" },
-      },
-    },
     MuiToggleButton: {
       styleOverrides: {
         root: {
@@ -119,8 +240,9 @@ export const muiTheme: Theme = createTheme({
 });
 
 /**
- * Local theming gate so MUI primitives stay consistent anywhere they are used
- * without requiring the root layout to be edited.
+ * Root theming gate. Mounted once in the root layout so the styled MUI theme
+ * (dark zinc + Cairo + RTL + the input system above) applies anywhere in the
+ * app without each page having to opt in.
  */
 export function ThemeGate({ children }: { children: ReactNode }) {
   return <ThemeProvider theme={muiTheme}>{children}</ThemeProvider>;

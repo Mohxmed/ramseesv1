@@ -1,6 +1,11 @@
 "use client";
 
 import type { ReactNode } from "react";
+import {
+  Select as MuiSelect,
+  TextField,
+  InputAdornment,
+} from "@mui/material";
 
 /** Compact segmented control (e.g. مطلوب/اختياري). */
 export function Segmented<T extends string>({
@@ -80,13 +85,16 @@ export function FieldSelect({
   className?: string;
 }) {
   return (
-    <select
+    <MuiSelect
       value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className={`h-7 rounded-md border border-line bg-surface-1 px-2 text-xs text-zinc-100 focus:border-up/60 focus:outline-none ${className}`}
+      size="small"
+      onChange={(e) => onChange(e.target.value as string)}
+      displayEmpty
+      className={className}
+      sx={{ fontSize: 13, "& .MuiOutlinedInput-input": { py: "6px" } }}
     >
       {children}
-    </select>
+    </MuiSelect>
   );
 }
 
@@ -103,24 +111,27 @@ export function ValueInput({
   onCommit: (v: number) => void;
 }) {
   return (
-    <div className="inline-flex items-center gap-1">
-      <input
-        type="number"
-        step="any"
-        dir="ltr"
-        value={value == null ? "" : value}
-        onChange={(e) => {
-          const n = Number(e.target.value);
-          if (!Number.isNaN(n)) onCommit(n);
-        }}
-        title={hint}
-        className="h-7 w-20 rounded-md border border-line bg-surface-1 px-2 text-right text-xs font-mono text-zinc-100 focus:border-up/60 focus:outline-none"
-      />
-      {unit && (
-        <span className="w-4 text-xs font-semibold text-muted" dir="ltr">
-          {unit}
-        </span>
-      )}
-    </div>
+    <TextField
+      type="number"
+      value={value == null ? "" : value}
+      onChange={(e) => {
+        const n = Number(e.target.value);
+        if (!Number.isNaN(n)) onCommit(n);
+      }}
+      aria-label={hint}
+      size="small"
+      sx={{ width: 88 }}
+      slotProps={{
+        htmlInput: { step: "any", title: hint },
+        input: {
+          sx: { py: "6px" },
+          endAdornment: unit ? (
+            <InputAdornment position="end" sx={{ fontSize: 11, color: "text.secondary" }}>
+              {unit}
+            </InputAdornment>
+          ) : undefined,
+        },
+      }}
+    />
   );
 }

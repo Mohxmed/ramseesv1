@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { TextField } from "@mui/material";
 import type {
   ConditionEval,
   ConditionNode,
@@ -45,13 +46,9 @@ export function StrategyBuilder({
 
   // Refresh the draft whenever the persisted strategy changes externally.
   useEffect(() => {
-    setDraft(strategy);
+    void Promise.resolve().then(() => setDraft(strategy));
   }, [strategy]);
 
-  const activeIndex = Math.max(
-    0,
-    STRATEGY_TYPES.findIndex((t) => t === tab)
-  );
   const activeFlow = useMemo(
     () => draft.flows.find((f) => f.type === tab) ?? draft.flows[0],
     [draft.flows, tab]
@@ -165,11 +162,12 @@ export function StrategyBuilder({
     >
       {/* Strategy header: name + global enabled */}
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <input
+        <TextField
+          size="small"
           value={draft.name}
           onChange={(e) => setName(e.target.value)}
-          className="rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1 text-sm text-zinc-100 focus:border-emerald-500/60 focus:outline-none"
           placeholder="اسم الاستراتيجية"
+          sx={{ width: 240 }}
         />
         <label className="flex items-center gap-1.5 text-[11px] text-zinc-400">
           <input

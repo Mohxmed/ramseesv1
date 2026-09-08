@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { TextField } from "@mui/material";
 import type {
   GoldenTargetMove,
   ProgressCheckInput,
   ProgressCheckResult,
 } from "../types";
-import { evaluateCheck, formatNumber, calculateGrowth } from "../utils";
+import { formatNumber, calculateGrowth } from "../utils";
 
 type ProgressCheckProps = {
   move: GoldenTargetMove;
@@ -104,16 +105,15 @@ export function ProgressCheck({
               >
                 قيمة البداية
               </label>
-              <input
+              <TextField
                 id="startingValue"
                 type="number"
-                step="any"
-                min="0"
                 required
+                fullWidth
                 value={startingValue}
                 onChange={(e) => handleChange("start", e.target.value)}
-                className="mt-1 block w-full rounded-panel border border-line bg-surface-2/60 px-3 py-2 text-sm text-zinc-100 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
-                dir="ltr"
+                className="mt-1"
+                slotProps={{ htmlInput: { step: "any", min: 0 } }}
               />
             </div>
             <div>
@@ -123,16 +123,15 @@ export function ProgressCheck({
               >
                 قيمة النهاية
               </label>
-              <input
+              <TextField
                 id="endingValue"
                 type="number"
-                step="any"
-                min="0"
                 required
+                fullWidth
                 value={endingValue}
                 onChange={(e) => handleChange("end", e.target.value)}
-                className="mt-1 block w-full rounded-panel border border-line bg-surface-2/60 px-3 py-2 text-sm text-zinc-100 focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-zinc-500"
-                dir="ltr"
+                className="mt-1"
+                slotProps={{ htmlInput: { step: "any", min: 0 } }}
               />
             </div>
           </div>

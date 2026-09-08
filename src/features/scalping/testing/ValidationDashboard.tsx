@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Select as MuiSelect, MenuItem } from "@mui/material";
 import {
   Section,
   Tag,
@@ -97,19 +98,22 @@ export function ValidationDashboard({
       {/* Golden baseline picker */}
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <span className="text-2xs text-muted">المعيار الذهبي (Golden Baseline):</span>
-        <select
+        <MuiSelect
           value={baselineRunId ?? ""}
-          onChange={(e) => setBaselineRunId(e.target.value || null)}
-          className="rounded-panel border border-line bg-surface-2 px-2 py-1 text-2xs text-zinc-300 ltr"
-          dir="ltr"
+          onChange={(e) => setBaselineRunId((e.target.value as string) || null)}
+          size="small"
+          displayEmpty
+          sx={{ minWidth: 220 }}
         >
-          <option value="">—</option>
+          <MenuItem value="" disabled>
+            —
+          </MenuItem>
           {summaries.map((h) => (
-            <option key={h.runId} value={h.runId}>
+            <MenuItem key={h.runId} value={h.runId}>
               {h.runId} · acc60 {h.accuracy60?.toFixed(1)}%
-            </option>
+            </MenuItem>
           ))}
-        </select>
+        </MuiSelect>
         {comparison.baseline ? (
           <Tag
             tone={comparison.baseline.improved === true ? "good" : comparison.baseline.improved === false ? "short" : "quiet"}

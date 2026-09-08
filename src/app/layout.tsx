@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Cairo } from "next/font/google";
 import { AuthProvider } from "@/features/auth/context/AuthProvider";
+import { ThemeGate } from "@/components/ui/mui-theme";
 import "./globals.css";
 
 const cairo = Cairo({
@@ -35,7 +36,9 @@ export default function RootLayout({
         <link rel="shortcut icon" href="/favicon.jpg" />
       </head>
       <body className="min-h-full bg-zinc-950 text-zinc-100">
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <ThemeGate>{children}</ThemeGate>
+        </AuthProvider>
       </body>
     </html>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { TextField, Select as MuiSelect, MenuItem } from "@mui/material";
 import { useFeatureResearch } from "./hooks/useFeatureResearch";
 import {
   Section,
@@ -178,45 +179,47 @@ function LayerResearchControl(props: {
       <div className="grid gap-3 md:grid-cols-5">
         <label className="block">
           <span className="text-[10px] text-zinc-500">من</span>
-          <input
+          <TextField
             type="date"
-            dir="ltr"
             value={props.from}
             onChange={(e) => props.onChange.setFrom(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-zinc-200"
+            fullWidth
+            className="mt-1"
           />
         </label>
         <label className="block">
           <span className="text-[10px] text-zinc-500">إلى</span>
-          <input
+          <TextField
             type="date"
-            dir="ltr"
             value={props.to}
             onChange={(e) => props.onChange.setTo(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-zinc-200"
+            fullWidth
+            className="mt-1"
           />
         </label>
         <label className="block">
           <span className="text-[10px] text-zinc-500">ملف التحقق</span>
-          <select
+          <MuiSelect
+            size="small"
             value={props.profileId}
             onChange={(e) => props.onChange.setProfileId(e.target.value as ValidationProfileId)}
-            className="mt-1 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-zinc-200"
+            fullWidth
+            className="mt-1"
           >
             {PROFILE_IDS.map((p) => (
-              <option key={p} value={p}>
+              <MenuItem key={p} value={p}>
                 {p.replace(/_/g, " ")}
-              </option>
+              </MenuItem>
             ))}
-          </select>
+          </MuiSelect>
         </label>
         <label className="block">
           <span className="text-[10px] text-zinc-500">إصدار الخصائص</span>
-          <input
-            dir="ltr"
+          <TextField
             value={props.featureVersion}
             onChange={(e) => props.onChange.setFeatureVersion(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-zinc-200"
+            fullWidth
+            className="mt-1"
           />
         </label>
         <div className="flex items-end">

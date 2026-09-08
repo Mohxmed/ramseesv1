@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { TextField } from "@mui/material";
 import { Modal, Select } from "@/components/ui";
 import {
   PORTFOLIO_IMPACT_LABELS,
@@ -9,9 +10,6 @@ import {
   type PortfolioImpact,
   type PortfolioTxType,
 } from "../types";
-
-const inputCls =
-  "w-full rounded-panel border border-line bg-surface-2/40 px-3 py-2 text-sm text-zinc-100 transition-colors focus:border-accent/60 focus:outline-none";
 
 function toLocalInputValue(ms: number): string {
   const d = new Date(ms);
@@ -110,52 +108,47 @@ export function AddTransactionModal({
 
         <div>
           <label className="mb-1 block text-2xs font-semibold text-muted">المبلغ ($)</label>
-          <input
+          <TextField
             type="number"
-            min="0"
-            step="any"
-            inputMode="decimal"
-            dir="ltr"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder="0.00"
-            className={inputCls}
+            fullWidth
+            slotProps={{ htmlInput: { min: 0, step: "any", inputMode: "decimal" } }}
           />
         </div>
 
         {type === "trade" ? (
           <div>
             <label className="mb-1 block text-2xs font-semibold text-muted">الرمز (اختياري)</label>
-            <input
+            <TextField
               type="text"
-              dir="ltr"
               value={symbol}
               onChange={(e) => setSymbol(e.target.value)}
               placeholder="BTCUSDT"
-              className={inputCls}
+              fullWidth
             />
           </div>
         ) : null}
 
         <div>
           <label className="mb-1 block text-2xs font-semibold text-muted">الوصف (اختياري)</label>
-          <input
+          <TextField
             type="text"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="ملاحظة على العملية"
-            className={inputCls}
+            fullWidth
           />
         </div>
 
         <div>
           <label className="mb-1 block text-2xs font-semibold text-muted">التاريخ والوقت</label>
-          <input
+          <TextField
             type="datetime-local"
-            dir="ltr"
             value={dateTime}
             onChange={(e) => setDateTime(e.target.value)}
-            className={inputCls}
+            fullWidth
           />
         </div>
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { TextField } from "@mui/material";
 import { useValidationLab } from "./hooks/useValidationLab";
 import {
   Section,
@@ -153,36 +154,35 @@ function LayerControl({
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
               <span className="text-2xs text-muted">من</span>
-              <input
+              <TextField
                 type="date"
                 value={from}
                 onChange={(e) => onChange.setFrom(e.target.value)}
-                className="mt-1 w-full rounded-panel border border-line bg-surface-2 px-3 py-2 text-xs text-zinc-200 ltr"
-                dir="ltr"
+                fullWidth
+                className="mt-1"
               />
             </label>
             <label className="block">
               <span className="text-2xs text-muted">إلى</span>
-              <input
+              <TextField
                 type="date"
                 value={to}
                 onChange={(e) => onChange.setTo(e.target.value)}
-                className="mt-1 w-full rounded-panel border border-line bg-surface-2 px-3 py-2 text-xs text-zinc-200 ltr"
-                dir="ltr"
+                fullWidth
+                className="mt-1"
               />
             </label>
           </div>
           <div className="grid grid-cols-1 gap-3">
             <label className="block">
               <span className="text-2xs text-muted">حدّ أدنى للثقة لتسجيل قرار اتجاهي</span>
-              <input
+              <TextField
                 type="number"
-                min={0}
-                max={100}
                 value={minConfidence}
                 onChange={(e) => onChange.setMinConfidence(parseInt(e.target.value) || 0)}
-                className="mt-1 w-full rounded-panel border border-line bg-surface-2 px-3 py-2 text-xs text-zinc-200 ltr"
-                dir="ltr"
+                fullWidth
+                className="mt-1"
+                slotProps={{ htmlInput: { min: 0, max: 100 } }}
               />
             </label>
             <div className="text-2xs text-muted">

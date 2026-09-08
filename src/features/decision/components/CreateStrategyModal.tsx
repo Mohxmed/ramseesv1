@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { TextField, Select as MuiSelect, MenuItem } from "@mui/material";
 import { STRATEGY_TEMPLATES } from "../templates";
 import { Modal } from "@/components/ui/index";
 
@@ -45,8 +46,8 @@ export function CreateStrategyModal({
           <label className="mb-1 block text-2xs font-semibold text-muted">
             اسم الاستراتيجية
           </label>
-          <input
-            ref={nameRef}
+          <TextField
+            inputRef={nameRef}
             value={name}
             onChange={(e) => {
               setName(e.target.value);
@@ -56,7 +57,7 @@ export function CreateStrategyModal({
               if (e.key === "Enter") handleSubmit();
             }}
             placeholder="مثال: استراتيجيتي اليومية"
-            className="w-full rounded-md border border-line bg-surface-1 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-up/60 focus:outline-none"
+            fullWidth
           />
         </div>
 
@@ -64,18 +65,22 @@ export function CreateStrategyModal({
           <label className="mb-1 block text-2xs font-semibold text-muted">
             قالب مبدئي (اختياري)
           </label>
-          <select
+          <MuiSelect
             value={templateId}
-            onChange={(e) => setTemplateId(e.target.value)}
-            className="w-full rounded-md border border-line bg-surface-1 px-3 py-2 text-sm text-zinc-100 focus:border-up/60 focus:outline-none"
+            onChange={(e) => setTemplateId(e.target.value as string)}
+            fullWidth
+            displayEmpty
+            size="small"
           >
-            <option value="">بدون قالب — ابدأ من استراتيجية افتراضية</option>
+            <MenuItem value="" disabled>
+              بدون قالب — ابدأ من استراتيجية افتراضية
+            </MenuItem>
             {STRATEGY_TEMPLATES.map((t) => (
-              <option key={t.id} value={t.id}>
+              <MenuItem key={t.id} value={t.id}>
                 {t.name}
-              </option>
+              </MenuItem>
             ))}
-          </select>
+          </MuiSelect>
         </div>
 
         <label className="flex items-center gap-2 text-sm text-zinc-300">

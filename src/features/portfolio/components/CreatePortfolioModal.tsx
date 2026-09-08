@@ -1,10 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { TextField } from "@mui/material";
 import { Modal } from "@/components/ui";
-
-const inputCls =
-  "w-full rounded-panel border border-line bg-surface-2/40 px-3 py-2 text-sm text-zinc-100 transition-colors focus:border-accent/60 focus:outline-none";
 
 /** Keyed from the parent so every open starts from an empty form. */
 export function CreatePortfolioModal({
@@ -45,16 +43,13 @@ export function CreatePortfolioModal({
       <div className="mt-3 space-y-3">
         <div>
           <label className="mb-1 block text-2xs font-semibold text-muted">رأس المال الابتدائي ($)</label>
-          <input
+          <TextField
             type="number"
-            min="0"
-            step="any"
-            inputMode="decimal"
-            dir="ltr"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder="0.00"
-            className={inputCls}
+            fullWidth
+            slotProps={{ htmlInput: { min: 0, step: "any", inputMode: "decimal" } }}
           />
         </div>
 
