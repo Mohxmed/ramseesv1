@@ -7,6 +7,7 @@ import { SystemStatus } from "./SystemStatus";
 import { NotificationCenter } from "./NotificationCenter";
 import { UserMenu } from "./UserMenu";
 import { MenuIcon } from "@/components/icons/icons";
+import { HeaderStrategyLink } from "./HeaderStrategyLink";
 import { HeaderWalletLink } from "./HeaderWalletLink";
 
 /**
@@ -25,11 +26,12 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
   return (
     <header className="sticky top-0 z-30 h-12 shrink-0 border-b border-line bg-surface-1/85 backdrop-blur">
       <div className="flex h-full items-center gap-1.5 px-2 sm:gap-2 sm:px-4">
-        {/* Right cluster — user (outermost), notifications, system status, wallet */}
+        {/* Right cluster — user (outermost), notifications, system status, strategy, wallet */}
         <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
           <UserMenu />
           <NotificationCenter />
           <SystemStatus />
+          <HeaderStrategyLink />
           <HeaderWalletLink />
         </div>
 

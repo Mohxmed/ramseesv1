@@ -9,6 +9,7 @@ import {
   MarketIcon,
   LinkIcon,
   GlobeIcon,
+  NetworkIcon,
   type IconProps,
 } from "@/components/icons/icons";
 
@@ -58,6 +59,11 @@ export const NAVIGATION: NavItem[] = [
     label: "الاستراتيجيات",
     href: "/strategies",
     icon: StrategyIcon,
+  },
+  {
+    label: "مركز الاستراتيجيات",
+    href: "/strategy",
+    icon: NetworkIcon,
   },
   {
     label: "الإعدادات",

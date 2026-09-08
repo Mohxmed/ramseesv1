@@ -38,6 +38,7 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   ArrowRight,
+  ArrowLeft,
   ArrowUpDown,
   Wallet,
   Download,
@@ -45,6 +46,18 @@ import {
   RotateCw,
   Globe,
   CalendarDays,
+  Network,
+  Calculator,
+  Layers,
+  GitCompareArrows,
+  Copy,
+  Trash2,
+  Pencil,
+  Check,
+  Save,
+  RotateCcw,
+  Scale,
+  History,
   type LucideProps,
 } from "lucide-react";
 
@@ -100,6 +113,7 @@ export const TrophyIcon = wrap(Trophy);
 export const ArrowUpRightIcon = wrap(ArrowUpRight);
 export const ArrowDownRightIcon = wrap(ArrowDownRight);
 export const ArrowRightIcon = wrap(ArrowRight);
+export const ArrowLeftIcon = wrap(ArrowLeft);
 export const ArrowUpDownIcon = wrap(ArrowUpDown, "h-3.5 w-3.5");
 export const WalletIcon = wrap(Wallet);
 export const DownloadIcon = wrap(Download, "h-4 w-4");
@@ -107,3 +121,15 @@ export const PlusIcon = wrap(Plus);
 export const RefreshIcon = wrap(RotateCw, "h-4 w-4");
 export const GlobeIcon = wrap(Globe);
 export const CalendarIcon = wrap(CalendarDays);
+export const NetworkIcon = wrap(Network);
+export const CalculatorIcon = wrap(Calculator);
+export const LayersIcon = wrap(Layers);
+export const GitCompareIcon = wrap(GitCompareArrows);
+export const CopyIcon = wrap(Copy);
+export const TrashIcon = wrap(Trash2);
+export const PencilIcon = wrap(Pencil, "h-4 w-4");
+export const CheckIcon = wrap(Check);
+export const SaveIcon = wrap(Save);
+export const RotateIcon = wrap(RotateCcw);
+export const ScaleIcon = wrap(Scale);
+export const HistoryIcon = wrap(History);
