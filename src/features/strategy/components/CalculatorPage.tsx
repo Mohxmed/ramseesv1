@@ -57,6 +57,7 @@ import { useScenarios } from "../hooks/useScenarios";
 import { buildSnapshot, scenarioNameSuggestion, type SavedScenario } from "../lib/scenario";
 import { CalculatorResults } from "./CalculatorResults";
 import { formatQty } from "../lib/format";
+import { Badge } from "@/components/ui";
 
 type SizeMode = "size" | "quantity";
 
@@ -85,6 +86,17 @@ const INITIAL = {
   takerFee: "0.05",
   slippagePercent: "0.03",
 };
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <Box sx={{ mb: 1.5, mt: 2, "&:first-of-type": { mt: 0 }, display: "flex", alignItems: "center", gap: 1.5 }}>
+      <Box sx={{ fontSize: 12, fontWeight: 800, color: "text.primary", whiteSpace: "nowrap" }}>
+        {children}
+      </Box>
+      <Box sx={{ flex: 1, height: 1, bgcolor: "divider", opacity: 0.8 }} />
+    </Box>
+  );
+}
 
 function asNum(v: string): number {
   const n = Number.parseFloat(v);
@@ -162,7 +174,7 @@ export function CalculatorPage() {
 
   const presetChip = (key: string) =>
     preset ? (
-      <FormHelperText sx={{ mx: 0.5, mt: 0.5, fontSize: 9 }}>
+      <FormHelperText sx={{ mx: 0.5, mt: 0.5, fontSize: 10 }}>
         {inheriting(key) ? "موروثة من الاستراتيجية" : "قيمة مخصصة"}
       </FormHelperText>
     ) : null;
@@ -351,9 +363,7 @@ export function CalculatorPage() {
         {/* Inputs — first column in RTL flow */}
         <Box sx={{ gridColumn: { xs: "span 12", md: "span 5" }, display: "flex", flexDirection: "column", gap: 2 }}>
           <Paper variant="outlined" sx={{ p: 2.5, backgroundImage: "none", bgcolor: "rgba(24,24,27,0.6)" }}>
-            <Typography sx={{ fontSize: 11, fontWeight: 800, color: "text.secondary", mb: 1.5 }}>
-              الاستراتيجية
-            </Typography>
+            <SectionTitle>الاستراتيجية</SectionTitle>
             <UiSelect
               value={preset?.strategyId ?? ""}
               onChange={choosePreset}
@@ -380,9 +390,7 @@ export function CalculatorPage() {
           </Paper>
 
           <Paper variant="outlined" sx={{ p: 2.5, backgroundImage: "none", bgcolor: "rgba(24,24,27,0.6)" }}>
-            <Typography sx={{ fontSize: 11, fontWeight: 800, color: "text.secondary", mb: 1.5 }}>
-              الحساب والصفقة
-            </Typography>
+            <SectionTitle>الحساب والصفقة</SectionTitle>
             <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 1.75 }}>
               <NumField label="رصيد الحساب ($)" value={accountBalance} onChange={setAccountBalance} error={errors.accountBalance} />
               <NumField label="اسم الأصل / العقد" value={asset} onChange={setAsset} text />
@@ -450,9 +458,7 @@ export function CalculatorPage() {
           </Paper>
 
           <Paper variant="outlined" sx={{ p: 2.5, backgroundImage: "none", bgcolor: "rgba(24,24,27,0.6)" }}>
-            <Typography sx={{ fontSize: 11, fontWeight: 800, color: "text.secondary", mb: 1 }}>
-              نسب العائد إلى المخاطرة (TP تلقائي)
-            </Typography>
+            <SectionTitle>نسب العائد إلى المخاطرة (TP تلقائي)</SectionTitle>
             <ToggleButtonGroup size="small" exclusive value={activeRR ?? ""} onChange={(_, v) => v && applyRR(Number(v))}>
               {RR_PRESETS.map((rr) => (
                 <ToggleButton key={rr} value={rr}>
@@ -466,18 +472,14 @@ export function CalculatorPage() {
           </Paper>
 
           <Paper variant="outlined" sx={{ p: 2.5, backgroundImage: "none", bgcolor: "rgba(24,24,27,0.6)" }}>
-            <Typography sx={{ fontSize: 11, fontWeight: 800, color: "text.secondary", mb: 1 }}>
-              أوامر الدخول والخروج
-            </Typography>
+            <SectionTitle>أوامر الدخول والخروج</SectionTitle>
             <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 1.75 }}>
               <TypeSelect label="أمر الدخول" value={entryOrderType} onChange={(v) => { setEntryOrderType(v); markCustom("entryOrderType"); }} chip={presetChip("entryOrderType")} />
               <TypeSelect label="أمر الخروج عند الهدف" value={tpOrderType} onChange={setTpOrderType} />
               <TypeSelect label="أمر الخروج عند الوقف" value={slOrderType} onChange={setSlOrderType} />
             </Box>
             <Divider sx={{ my: 2 }} />
-            <Typography sx={{ fontSize: 11, fontWeight: 800, color: "text.secondary", mb: 1 }}>
-              الرسوم والانزلاق
-            </Typography>
+            <SectionTitle>الرسوم والانزلاق</SectionTitle>
             <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 1.75 }}>
               <NumField label="عمولة صانع (%)" value={makerFee} onChange={(v) => { setMakerFee(v); markCustom("makerFee"); }} chip={presetChip("makerFee")} />
               <NumField label="عمولة مستحوذ (%)" value={takerFee} onChange={(v) => { setTakerFee(v); markCustom("takerFee"); }} chip={presetChip("takerFee")} />
@@ -506,52 +508,65 @@ export function CalculatorPage() {
 
           {/* Saved scenarios */}
           <Paper variant="outlined" sx={{ mt: 2.5, p: 2.5, backgroundImage: "none", bgcolor: "rgba(24,24,27,0.6)" }}>
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <Typography sx={{ fontSize: 11, fontWeight: 800, color: "text.secondary" }}>
-                سيناريوهات محفوظة
-              </Typography>
-              <Status label={`${scenarios.scenarios.length}`} tone="good" />
-            </Box>
+            <SectionTitle>
+              سيناريوهات محفوظة
+              <Badge tone="good" ltr>{scenarios.scenarios.length}</Badge>
+            </SectionTitle>
             {scenarios.scenarios.length === 0 ? (
               <Typography sx={{ mt: 1.5, fontSize: 12, color: "text.secondary" }}>
                 لا توجد سيناريوهات محفوظة بعد. احفظ حسابًا لاسترجاعه لاحقًا.
               </Typography>
             ) : (
-              <Box sx={{ mt: 1, display: "flex", flexDirection: "column", gap: 1 }}>
-                {scenarios.scenarios.map((sc) => (
-                  <Box
-                    key={sc.id}
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 1,
-                      border: (t) => `1px solid ${t.palette.divider}`,
-                      borderRadius: 1,
-                      px: 1.5,
-                      py: 1,
-                    }}
-                  >
-                    <Box sx={{ minWidth: 0 }}>
-                      <Typography sx={{ fontSize: 12, fontWeight: 700, color: "text.primary", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {sc.name}
-                      </Typography>
-                      <Typography sx={{ fontSize: 10, color: "text.secondary", direction: "ltr", textAlign: "right" }}>
-                        {new Date(sc.createdAt).toLocaleString("ar")}
-                      </Typography>
+              <Box sx={{ mt: 1.5, display: "flex", flexDirection: "column", gap: 1 }}>
+                {scenarios.scenarios.map((sc) => {
+                  const snap = sc.snapshot;
+                  return (
+                    <Box
+                      key={sc.id}
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 1,
+                        border: (t) => `1px solid ${t.palette.divider}`,
+                        borderRadius: 1.5,
+                        px: 1.5,
+                        py: 1.25,
+                        transition: "border-color 150ms ease, background-color 150ms ease",
+                        "&:hover": { borderColor: "rgba(16,185,129,0.35)", bgcolor: "rgba(16,185,129,0.04)" },
+                      }}
+                    >
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: "text.primary", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {sc.name}
+                        </Typography>
+                        <Box sx={{ mt: 0.5, display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                          <Badge tone={snap.direction === "LONG" ? "up" : "down"} ltr>
+                            {snap.direction}
+                          </Badge>
+                          <Badge tone="quiet" ltr>
+                            {snap.asset || "BTC"}
+                          </Badge>
+                          <Typography sx={{ fontSize: 10, color: "text.disabled", direction: "ltr", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                            {new Date(sc.createdAt).toLocaleString("ar")}
+                          </Typography>
+                        </Box>
+                      </Box>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                        <Tooltip title="تحميل السيناريو">
+                          <IconButton size="small" onClick={() => loadScenario(sc)}>
+                            <ArrowLeftIcon className="h-4 w-4" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="حذف السيناريو">
+                          <IconButton size="small" onClick={() => scenarios.deleteScenario(sc.id)} sx={{ color: "error.main" }}>
+                            <TrashIcon className="h-4 w-4" />
+                          </IconButton>
+                        </Tooltip>
+                      </Box>
                     </Box>
-                    <Tooltip title="تحميل السيناريو">
-                      <IconButton size="small" onClick={() => loadScenario(sc)}>
-                        <ArrowLeftIcon className="h-4 w-4" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="حذف السيناريو">
-                      <IconButton size="small" onClick={() => scenarios.deleteScenario(sc.id)} sx={{ color: "error.main" }}>
-                        <TrashIcon className="h-4 w-4" />
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
-                ))}
+                  );
+                })}
               </Box>
             )}
           </Paper>
@@ -625,9 +640,16 @@ function NumField({
         slotProps={{
           input: {
             readOnly,
-            sx: { fontSize: 13, fontFamily: text ? "inherit" : "monospace" },
-            startAdornment: adornment ? (
-              <InputAdornment position="start" sx={{ fontSize: 11, color: "text.secondary" }}>
+            dir: text ? "auto" : "ltr",
+            sx: {
+              fontSize: 13,
+              fontFamily: "inherit",
+              fontWeight: 600,
+              fontVariantNumeric: "tabular-nums",
+              textAlign: "right",
+            },
+            endAdornment: adornment ? (
+              <InputAdornment position="end" sx={{ fontSize: 11, color: "text.secondary" }}>
                 {adornment}
               </InputAdornment>
             ) : undefined,

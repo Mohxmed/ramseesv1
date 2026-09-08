@@ -34,25 +34,44 @@ export function RiskRewardBar({
         }}
       >
         <Box sx={{ width: `${riskW}%`, bgcolor: tokens.colors.down }} />
-        <Box
-          sx={{
-            width: `${rewardW}%`,
-            bgcolor: tokens.colors.up,
-            backgroundImage: safeRr >= 4 ? undefined : undefined,
-          }}
-        />
+        <Box sx={{ width: `${rewardW}%`, bgcolor: tokens.colors.up }} />
       </Box>
-      <Box sx={{ display: "flex", justifyContent: "space-between", mt: 0.75 }}>
-        <Typography sx={{ fontSize: 10, color: "text.secondary", fontFamily: "monospace", direction: "ltr" }}>
-          SL
-          {Number.isFinite(riskPercent) ? ` −${riskPercent.toFixed(2)}%` : ""}
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 1 }}>
+        <Typography
+          sx={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: "error.main",
+            fontFamily: "inherit",
+            fontVariantNumeric: "tabular-nums",
+            direction: "ltr",
+          }}
+        >
+          وقف {Number.isFinite(riskPercent) ? ` -${riskPercent.toFixed(2)}%` : ""}
         </Typography>
-        <Typography sx={{ fontSize: 10, color: "text.secondary", fontFamily: "monospace", direction: "ltr" }}>
+        <Typography
+          sx={{
+            fontSize: 11,
+            fontWeight: 800,
+            color: "text.primary",
+            fontFamily: "inherit",
+            fontVariantNumeric: "tabular-nums",
+            direction: "ltr",
+          }}
+        >
           1 : {Number.isFinite(rr) ? rr.toFixed(2) : "—"}
         </Typography>
-        <Typography sx={{ fontSize: 10, color: "text.secondary", fontFamily: "monospace", direction: "ltr" }}>
-          TP
-          {Number.isFinite(rewardPercent) ? ` +${rewardPercent.toFixed(2)}%` : ""}
+        <Typography
+          sx={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: "success.main",
+            fontFamily: "inherit",
+            fontVariantNumeric: "tabular-nums",
+            direction: "ltr",
+          }}
+        >
+          هدف {Number.isFinite(rewardPercent) ? ` +${rewardPercent.toFixed(2)}%` : ""}
         </Typography>
       </Box>
     </Box>

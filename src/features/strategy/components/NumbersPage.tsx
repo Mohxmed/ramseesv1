@@ -78,12 +78,12 @@ export function NumbersPage() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-8">
       <PageHeader
         eyebrow="Strategy Numbers"
         icon={<LayersIcon className="h-5 w-5" />}
         title="أرقام الاستراتيجية"
-        description="إصدارات كاملة من أرقام المخاطر والتداول والتنفيذ. كل نسخة لقطة مستقلة — تعديل نسخة لا يمس غيرها والنسخة النشطة هي مصدر الحاسبة."
+        description="إصدارات كاملة من أرقام المخاطر والتداول والتنفيذ. كل نسخة لقطة مستقلة — تعديل نسخة لا يمس غيرها، والنسخة النشطة هي مصدر الحاسبة."
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <Status
@@ -135,11 +135,13 @@ export function NumbersPage() {
           ))}
         </Box>
       ) : (
-        <div className="mt-6 flex flex-col items-center gap-4 rounded-card border border-line bg-surface-1/40 p-10 text-center">
-          <LayersIcon className="h-10 w-10 text-muted" />
+        <div className="mt-2 flex flex-col items-center gap-4 rounded-card border border-line bg-surface-1/40 p-12 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-panel bg-up/10 text-up-fg ring-1 ring-inset ring-up/20">
+            <LayersIcon className="h-7 w-7" />
+          </div>
           <div>
             <h2 className="text-base font-bold text-zinc-100">لا توجد استراتيجيات بعد</h2>
-            <p className="mt-1 text-xs text-muted">
+            <p className="mt-1.5 text-xs leading-relaxed text-muted">
               أنشئ أول استراتيجية لتبدأ جمع أرقام التداول في نسخ مستقلة.
             </p>
           </div>

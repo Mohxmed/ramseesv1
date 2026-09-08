@@ -34,6 +34,12 @@ export function StrategyVersionTable({
   const sorted = [...versions].sort((a, b) => b.version.localeCompare(a.version));
   const canDelete = versions.length > 1;
 
+  const numCell = {
+    ...cellSx,
+    fontVariantNumeric: "tabular-nums",
+    textAlign: "right",
+  } as const;
+
   return (
     <Box>
       <TableContainer
@@ -62,8 +68,8 @@ export function StrategyVersionTable({
               const active = v.id === activeVersionId;
               return (
                 <TableRow key={v.id} hover sx={{ "&:last-child td": { borderBottom: 0 } }}>
-                  <TableCell sx={{ ...cellSx, dir: "ltr", fontFamily: "monospace" }}>
-                    <Box sx={{ fontWeight: 700, color: active ? "success.main" : "text.primary" }}>
+                  <TableCell sx={cellSx} dir="ltr">
+                    <Box sx={{ fontWeight: 700, color: active ? "success.main" : "text.primary", fontVariantNumeric: "tabular-nums" }}>
                       {v.version}
                     </Box>
                     {v.createdFrom ? (
@@ -71,19 +77,19 @@ export function StrategyVersionTable({
                     ) : null}
                   </TableCell>
                   <TableCell sx={cellSx}>{v.name}</TableCell>
-                  <TableCell sx={cellSx} dir="ltr">
+                  <TableCell sx={numCell} dir="ltr">
                     {v.riskPerTrade}%
                   </TableCell>
-                  <TableCell sx={cellSx} dir="ltr">
+                  <TableCell sx={numCell} dir="ltr">
                     {v.targetPercent}%
                   </TableCell>
-                  <TableCell sx={cellSx} dir="ltr">
+                  <TableCell sx={numCell} dir="ltr">
                     {v.stopLossPercent}%
                   </TableCell>
-                  <TableCell sx={cellSx} dir="ltr">
+                  <TableCell sx={numCell} dir="ltr">
                     1:{v.defaultRR}
                   </TableCell>
-                  <TableCell sx={cellSx} dir="ltr" style={{ direction: "ltr" }}>
+                  <TableCell sx={numCell} dir="ltr">
                     {v.leverage}x
                   </TableCell>
                   <TableCell sx={cellSx}>

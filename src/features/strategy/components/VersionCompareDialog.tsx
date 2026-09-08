@@ -111,44 +111,34 @@ export function VersionCompareDialog({
                   <TableCell sx={{ fontWeight: 800, fontSize: 12 }}>
                     <span dir="ltr">{a.version}</span>
                     {a.id === activeVersionId ? (
-                      <Chip size="small" label="نشط" sx={{ ml: 1, height: 18, fontSize: 10 }} />
+                      <Chip size="small" label="نشط" sx={{ mr: 1, height: 18, fontSize: 10 }} />
                     ) : null}
                   </TableCell>
                   <TableCell sx={{ fontWeight: 800, fontSize: 12 }}>
                     <span dir="ltr">{b.version}</span>
                     {b.id === activeVersionId ? (
-                      <Chip size="small" label="نشط" sx={{ ml: 1, height: 18, fontSize: 10 }} />
+                      <Chip size="small" label="نشط" sx={{ mr: 1, height: 18, fontSize: 10 }} />
                     ) : null}
                   </TableCell>
                 </TableRow>
                 {ROWS.map((r, i) => {
                   const diff = diffs.has(i);
+                  const valueSx = {
+                    fontSize: 12,
+                    fontWeight: diff ? 800 : 500,
+                    color: diff ? "error.main" : "text.primary",
+                    fontFamily: "inherit",
+                    fontVariantNumeric: "tabular-nums",
+                    textAlign: "right",
+                  } as const;
                   return (
                     <TableRow key={r.label} sx={diff ? { bgcolor: "action.hover" } : undefined} hover>
                       <TableCell sx={{ fontSize: 12, color: "text.secondary" }}>{r.label}</TableCell>
-                      <TableCell
-                        sx={{
-                          fontSize: 12,
-                          fontWeight: diff ? 800 : 400,
-                          color: diff ? "error.main" : "text.primary",
-                          fontFamily: "monospace",
-                          direction: "ltr",
-                          textAlign: "right",
-                        }}
-                      >
+                      <TableCell sx={valueSx} dir="ltr">
                         {diff ? "● " : ""}
                         {r.render(a)}
                       </TableCell>
-                      <TableCell
-                        sx={{
-                          fontSize: 12,
-                          fontWeight: diff ? 800 : 400,
-                          color: diff ? "success.main" : "text.primary",
-                          fontFamily: "monospace",
-                          direction: "ltr",
-                          textAlign: "right",
-                        }}
-                      >
+                      <TableCell sx={{ ...valueSx, color: diff ? "success.main" : "text.primary" }} dir="ltr">
                         {diff ? "● " : ""}
                         {r.render(b)}
                       </TableCell>

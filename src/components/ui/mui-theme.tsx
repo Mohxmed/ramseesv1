@@ -17,12 +17,21 @@ import { colors, radius } from "./design-tokens";
  * zinc house style so the two stacks blend seamlessly.
  */
 export const muiTheme: Theme = createTheme({
-  // Match the app's system-UI font stack so MUI surfaces (Tooltip, Popover,
-  // Tabs, …) render in the same typeface as the rest of the terminal instead
-  // of MUI's default Roboto, which made tooltip text look inconsistently heavy.
+  // The whole app is RTL-first (Cairo + dir="rtl"). Telling MUI the direction
+  // here keeps its internal layout assumptions (ToggleButtonGroup order, Tabs
+  // indicator, Select menus, Table cell alignment) mirrored to match the page.
+  direction: "rtl",
+  // Use the site's base typeface (Cairo, via `--font-cairo`) for EVERY MUI
+  // surface — dialogs, tooltips, selects, chips, tables — so no surface slips
+  // back to MUI's default Roboto or a system stack.
   typography: {
     fontFamily:
-      "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Noto Kufi Arabic', sans-serif",
+      "var(--font-cairo), Arial, 'Segoe UI', 'Noto Kufi Arabic', sans-serif",
+    button: {
+      textTransform: "none",
+    },
+    h6: { fontWeight: 800 },
+    subtitle1: { fontSize: "15px", fontWeight: 700 },
   },
   palette: {
     mode: "dark",

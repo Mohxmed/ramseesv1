@@ -4,7 +4,6 @@ import { useState } from "react";
 import {
   Paper,
   Box,
-  Chip,
   Tooltip,
   IconButton,
   Button,
@@ -17,7 +16,6 @@ import {
   PencilIcon,
   TrashIcon,
   PlusIcon,
-  CheckIcon,
 } from "@/components/icons/icons";
 import {
   Badge,
@@ -78,10 +76,10 @@ export function StrategyCard({
         borderColor: open ? "rgba(16,185,129,0.4)" : tokens.colors.line,
       }}
     >
-      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, alignItems: "flex-start", justifyContent: "space-between" }}>
-        <Box sx={{ minWidth: 0, flex: "1 1 280px" }}>
-          <Box sx={{ display: "flex", flexDirection: "row", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
-            <Typography sx={{ fontSize: 15, fontWeight: 800, color: "text.primary" }}>
+      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2.5, alignItems: "flex-start", justifyContent: "space-between" }}>
+        <Box sx={{ minWidth: 260, flex: "1 1 280px" }}>
+          <Box sx={{ display: "flex", flexDirection: "row", gap: 1.5, alignItems: "center", flexWrap: "wrap" }}>
+            <Typography sx={{ fontSize: 16, fontWeight: 800, color: "text.primary" }}>
               {strategy.name}
             </Typography>
             <Badge tone="neutral" ltr>
@@ -97,29 +95,26 @@ export function StrategyCard({
             )}
           </Box>
           {strategy.description ? (
-            <Typography sx={{ mt: 0.75, fontSize: 12, color: "text.secondary" }}>
+            <Typography sx={{ mt: 1, fontSize: 12.5, color: "text.secondary" }}>
               {strategy.description}
             </Typography>
           ) : null}
-          <Box sx={{ mt: 1.5 }}>
+          <Box sx={{ mt: 2 }}>
             <Status label={`النشطة: ${active.version}`} tone="good" />
           </Box>
         </Box>
 
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
           {summary.map((s) => (
-            <Chip
+            <div
               key={s.label}
-              label={
-                <Box sx={{ fontSize: 11, display: "flex", alignItems: "center", gap: 0.75 }}>
-                  <Box component="span" sx={{ color: "text.secondary" }}>{s.label}</Box>
-                  <Box component="span" dir="ltr" sx={{ fontWeight: 800 }}>{s.value}</Box>
-                </Box>
-              }
-              size="small"
-              variant="outlined"
-              sx={{ borderColor: tokens.colors.line, height: 26 }}
-            />
+              className="inline-flex items-baseline gap-1.5 rounded-chip border border-line bg-surface-2/40 px-2 py-1 text-2xs leading-4"
+            >
+              <span className="text-muted">{s.label}</span>
+              <span dir="ltr" className="font-bold tabular-nums text-zinc-100">
+                {s.value}
+              </span>
+            </div>
           ))}
         </Box>
       </Box>
@@ -167,7 +162,6 @@ export function StrategyCard({
             <Button size="small" onClick={() => setConfirmDelete(false)}>
               إلغاء
             </Button>
-            <CheckIcon className="h-3.5 w-3.5 text-muted" />
           </Box>
         )}
       </Box>
@@ -175,7 +169,7 @@ export function StrategyCard({
       {open ? (
         <Box sx={{ mt: 2.5 }}>
           <Box sx={{ mb: 1.5, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <Box sx={{ fontSize: 12, fontWeight: 800, color: "text.primary" }}>
+            <Box sx={{ fontSize: 13, fontWeight: 800, color: "text.primary" }}>
               سجل الإصدارات
             </Box>
             <Button size="small" startIcon={<PlusIcon className="h-4 w-4" />} onClick={onCreateVersion}>

@@ -39,7 +39,7 @@ export function StrategyNavigation() {
     : "/strategy";
 
   return (
-    <div className="mb-4 flex items-center justify-between gap-3 rounded-panel border border-line bg-surface-1/40 px-3 py-1.5">
+    <div className="mb-6 flex items-center justify-between gap-3 rounded-panel border border-line bg-surface-1/50 px-3 py-1.5">
       <Tabs
         value={value}
         onChange={(v) => router.push(v)}

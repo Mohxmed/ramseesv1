@@ -9,9 +9,19 @@ import { RiskRewardBar } from "./RiskRewardBar";
 function Row({ label, value, tone }: { label: string; value: string; tone?: "up" | "down" | "neutral" }) {
   const color = tone === "up" ? "success.main" : tone === "down" ? "error.main" : "text.primary";
   return (
-    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", py: 0.75 }}>
-      <Typography sx={{ fontSize: 11, color: "text.secondary" }}>{label}</Typography>
-      <Typography sx={{ fontSize: 12, fontWeight: 700, color, fontFamily: "monospace", direction: "ltr" }}>
+    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 2, py: 0.7 }}>
+      <Typography sx={{ fontSize: 12, color: "text.secondary" }}>{label}</Typography>
+      <Typography
+        sx={{
+          fontSize: 13,
+          fontWeight: 700,
+          color,
+          fontFamily: "inherit",
+          fontVariantNumeric: "tabular-nums",
+          direction: "ltr",
+          textAlign: "right",
+        }}
+      >
         {value}
       </Typography>
     </Box>
@@ -22,9 +32,9 @@ function ResultCard({ title, children }: { title: string; children: React.ReactN
   return (
     <Paper
       variant="outlined"
-      sx={{ p: 2, backgroundImage: "none", bgcolor: "rgba(24,24,27,0.6)" }}
+      sx={{ p: 2.25, backgroundImage: "none", bgcolor: "rgba(24,24,27,0.6)" }}
     >
-      <Typography sx={{ fontSize: 11, fontWeight: 800, color: "text.secondary", mb: 1 }}>{title}</Typography>
+      <Typography sx={{ fontSize: 12, fontWeight: 800, color: "text.primary", mb: 1 }}>{title}</Typography>
       {children}
     </Paper>
   );
@@ -96,18 +106,18 @@ export function CalculatorResults({
         variant="outlined"
         sx={{ p: 2.5, backgroundImage: "none", bgcolor: "rgba(24,24,27,0.6)", borderColor: (t) => t.palette.divider }}
       >
-        <Typography sx={{ fontSize: 11, fontWeight: 800, color: "text.secondary", mb: 1 }}>
+        <Typography sx={{ fontSize: 12, fontWeight: 800, color: "text.primary", mb: 1.25 }}>
           صافي النتيجة
         </Typography>
         <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 2 }}>
-          <Box>
-            <Typography sx={{ fontSize: 11, color: "success.main", fontWeight: 700 }}>عند الوصول للهدف (TP)</Typography>
+          <Box sx={{ p: 1.5, borderRadius: 1.5, bgcolor: "rgba(16,185,129,0.05)", border: "1px solid rgba(16,185,129,0.18)" }}>
+            <Typography sx={{ fontSize: 11, color: "success.main", fontWeight: 800 }}>عند الوصول للهدف (TP)</Typography>
             <Row label="الربح الإجمالي" value={formatMoney(r.profit.gross)} tone="up" />
             <Row label="الرسوم + الانزلاق" value={`${formatMoney(r.profit.fees + r.profit.slippage)} (${formatPercent(r.profit.costPercent)})`} tone="down" />
             <Row label="صافي الربح" value={formatMoney(r.profit.net)} tone="up" />
           </Box>
-          <Box>
-            <Typography sx={{ fontSize: 11, color: "error.main", fontWeight: 700 }}>عند الوصول لوقف الخسارة (SL)</Typography>
+          <Box sx={{ p: 1.5, borderRadius: 1.5, bgcolor: "rgba(239,68,68,0.05)", border: "1px solid rgba(239,68,68,0.18)" }}>
+            <Typography sx={{ fontSize: 11, color: "error.main", fontWeight: 800 }}>عند الوصول لوقف الخسارة (SL)</Typography>
             <Row label="الخسارة الإجمالية" value={formatMoney(r.loss.gross)} tone="down" />
             <Row label="الرسوم + الانزلاق" value={`${formatMoney(r.loss.fees + r.loss.slippage)} (${formatPercent(r.loss.costPercent)})`} tone="down" />
             <Row label="صافي الخسارة" value={formatMoney(r.loss.net)} tone="down" />
