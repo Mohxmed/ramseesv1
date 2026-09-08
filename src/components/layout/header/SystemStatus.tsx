@@ -5,6 +5,7 @@ import {
   useSystemStatus,
   type SystemLiveState,
 } from "@/features/system/useSystemStatus";
+import { useOnlineStatus } from "@/features/system/useOnlineStatus";
 import { timeLabel } from "@/features/bitcoin/utils";
 import { Dot, Popover, type Tone } from "@/components/ui";
 import { num } from "@/components/ui/design-tokens";
@@ -20,10 +21,13 @@ const STATE_META: Record<SystemLiveState, { tone: Tone; label: string }> = {
 /** Compact connection status pill; click opens source diagnostics. */
 export function SystemStatus() {
   const status = useSystemStatus();
+  const { online } = useOnlineStatus();
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const open = Boolean(anchorEl);
 
-  const meta = STATE_META[status.state];
+  // No network → always report offline, regardless of what cached state says.
+  const effectiveState: SystemLiveState = online ? status.state : "offline";
+  const meta = STATE_META[effectiveState];
   const latency =
     status.latencyMs != null ? `${Math.round(status.latencyMs)}ms` : "—";
 
@@ -37,7 +41,7 @@ export function SystemStatus() {
         aria-label="حالة النظام"
         className="flex h-8 items-center gap-1.5 rounded-panel border border-line/80 bg-surface-2/30 px-2 text-2xs font-semibold text-zinc-300 transition-colors hover:bg-surface-2"
       >
-        <Dot tone={meta.tone} pulse={status.state === "live"} />
+        <Dot tone={meta.tone} pulse={effectiveState === "live"} />
         <span className="hidden lg:inline">{meta.label}</span>
         <span className={`${num} hidden text-muted xl:inline`}>
           · {status.connectedSources}/{status.totalSources} · {latency}
@@ -54,7 +58,7 @@ export function SystemStatus() {
           <div className="mb-2 flex items-center justify-between">
             <h3 className="text-sm font-bold text-zinc-100">حالة النظام</h3>
             <span className="inline-flex items-center gap-1.5 text-2xs font-semibold text-zinc-300">
-              <Dot tone={meta.tone} pulse={status.state === "live"} />
+              <Dot tone={meta.tone} pulse={effectiveState === "live"} />
               {meta.label}
             </span>
           </div>
@@ -89,6 +93,12 @@ export function SystemStatus() {
           {status.stale && (
             <p className="mt-2 rounded-panel bg-warn/10 px-2 py-1.5 text-2xs font-medium text-warn-fg">
               بعض مصادر البيانات متأخرة (STALE) — جارٍ استعادة الاتصال.
+            </p>
+          )}
+
+          {!online && (
+            <p className="mt-2 rounded-panel bg-warn/10 px-2 py-1.5 text-2xs font-medium text-warn-fg">
+              لا يوجد اتصال بالإنترنت — تُعرض آخر حالة معروفة وتُستأنف المزامنة تلقائيًا.
             </p>
           )}
 

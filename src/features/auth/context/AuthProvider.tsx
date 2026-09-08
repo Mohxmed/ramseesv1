@@ -14,12 +14,19 @@ import { getAuthErrorMessage } from "@/lib/utils/auth-errors";
 import type {
   AuthUser,
   AuthState,
+  AuthStatus,
   LoginCredentials,
   RegisterCredentials,
-  AuthError,
 } from "../types";
+import { recordBootStep } from "@/features/boot/diagnostics";
+
+/** Max time Firebase may take to resolve the initial session before we fail. */
+const AUTH_RESOLVE_TIMEOUT_MS = 8_000;
 
 type AuthContextValue = AuthState & {
+  status: AuthStatus;
+  authError: string | null;
+  retry: () => void;
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (credentials: RegisterCredentials) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
@@ -42,16 +49,49 @@ function mapUser(user: User | null): AuthUser | null {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState<AuthStatus>("unknown");
   const [error, setError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     const auth = getAuthInstance();
+    let settled = false;
+
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      settled = true;
       setUser(mapUser(firebaseUser));
-      setLoading(false);
+      setStatus(firebaseUser ? "authenticated" : "unauthenticated");
+      setAuthError(null);
     });
-    return unsubscribe;
+
+    // Never hang: if Firebase cannot resolve the session, surface a real error
+    // so the boot layer can offer a retry instead of an eternal spinner.
+    const timer = window.setTimeout(() => {
+      if (settled) return;
+      setStatus("error");
+      setAuthError(
+        "تعذّر التحقق من الجلسة في الوقت المتوقع — تحقق من اتصال الإنترنت وحاول مجددًا."
+      );
+    }, AUTH_RESOLVE_TIMEOUT_MS);
+
+    return () => {
+      unsubscribe();
+      window.clearTimeout(timer);
+    };
+  }, [attempt]);
+
+  useEffect(() => {
+    if (status === "authenticated" || status === "unauthenticated") {
+      recordBootStep("authResolved");
+    }
+  }, [status]);
+
+  const retry = useCallback(() => {
+    setStatus("unknown");
+    setAuthError(null);
+    setError(null);
+    setAttempt((a) => a + 1);
   }, []);
 
   const login = useCallback(async (credentials: LoginCredentials) => {
@@ -106,12 +146,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const clearError = useCallback(() => setError(null), []);
+  const clearError = useCallback(() => {
+    setError(null);
+    setAuthError(null);
+  }, []);
+
+  const loading = status === "unknown";
 
   const value: AuthContextValue = {
     user,
     loading,
-    isAuthenticated: user !== null,
+    isAuthenticated: status === "authenticated",
+    status,
+    authError,
+    retry,
     login,
     register,
     loginWithGoogle,

@@ -21,6 +21,8 @@ import {
   SignalPanel,
   ScalpScore,
 } from "@/components/trading/index";
+import { ErrorBox } from "@/components/ui/index";
+import { PageSkeleton } from "@/components/loading/PageSkeleton";
 
 const fmtPct = (v: number | null | undefined, d = "—"): string =>
   v == null || !isFinite(v) ? d : `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
@@ -97,9 +99,14 @@ export default function MarketPage() {
       />
 
       {!ready ? (
-        <Card className="py-10 text-center text-xs text-muted">
-          {data.status === "error" ? data.message : "جارٍ تحميل بيانات السوق..."}
-        </Card>
+        data.status === "error" ? (
+          <ErrorBox
+            message={`${data.message} — تحقق من اتصال الإنترنت وحاول التحديث`}
+            onRetry={refresh}
+          />
+        ) : (
+          <PageSkeleton title metrics={6} chart={false} />
+        )
       ) : (
         <>
           <MarketHeader

@@ -18,7 +18,8 @@ import { MarketAlerts } from "@/features/bitcoin/components/MarketAlerts";
 import { HistoricalContext } from "@/features/bitcoin/components/HistoricalContext";
 import { DataHealthPanel, SystemStatusBar } from "@/features/bitcoin/components/DataHealth";
 import { useNow } from "@/features/bitcoin/hooks/useNow";
-import { PageHeader, Status } from "@/components/ui/index";
+import { PageHeader, ErrorBox } from "@/components/ui/index";
+import { PageSkeleton } from "@/components/loading/PageSkeleton";
 import { BitcoinIcon } from "@/components/icons/icons";
 
 export default function BitcoinPage() {
@@ -55,15 +56,14 @@ export default function BitcoinPage() {
       />
 
       {p.data.status === "error" && (
-        <div className="rounded-card border border-down/40 bg-down/10 p-5 text-center text-sm text-down-fg">
-          {p.data.message} — تحقق من اتصال الإنترنت وحاول تحديث البيانات.
-        </div>
+        <ErrorBox
+          message={`${p.data.message} — تحقق من اتصال الإنترنت وحاول تحديث البيانات`}
+          onRetry={p.refresh}
+        />
       )}
 
       {p.data.status === "loading" && !ready && (
-        <div className="flex h-40 items-center justify-center">
-          <Status label="جارٍ تحميل بيانات السوق..." tone="quiet" pulse />
-        </div>
+        <PageSkeleton title metrics={4} chart />
       )}
 
       {ready && (

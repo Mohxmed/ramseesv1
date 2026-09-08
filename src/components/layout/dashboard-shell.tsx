@@ -5,6 +5,8 @@ import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
+import { OfflineToast } from "./offline-toast";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { CloseIcon, PanelLeftIcon } from "@/components/icons/icons";
 
 const DESKTOP_COLLAPSED_KEY = "ramsees:sidebar-collapsed";
@@ -154,9 +156,12 @@ export function DashboardShell({
 
         {/* Content */}
         <main className="flex-1 overflow-x-hidden p-4 sm:p-6 lg:p-8">
-          {children}
+          <ErrorBoundary resetKey={pathname}>{children}</ErrorBoundary>
         </main>
       </div>
+
+      {/* Global connection indicator (offline pill / restored toast) */}
+      <OfflineToast />
     </div>
   );
 }

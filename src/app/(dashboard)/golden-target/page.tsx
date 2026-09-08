@@ -12,6 +12,7 @@ import { GOLDEN_TARGET_CONFIG } from "@/features/golden-target/constants";
 import { formatNumber } from "@/features/golden-target/utils";
 import type { ProgressCheckInput } from "@/features/golden-target/types";
 import { Badge, Card } from "@/components/ui/index";
+import { PageSkeleton } from "@/components/loading/PageSkeleton";
 import { TrophyIcon } from "@/components/icons/icons";
 
 export default function GoldenTargetPage() {
@@ -20,7 +21,6 @@ export default function GoldenTargetPage() {
     loading,
     progress,
     saveState,
-    projected,
     previewCheck,
     completeMove,
     reset,
@@ -48,11 +48,7 @@ export default function GoldenTargetPage() {
   );
 
   if (loading) {
-    return (
-      <div className="flex h-[60vh] items-center justify-center">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-zinc-700 border-t-zinc-100" />
-      </div>
-    );
+    return <PageSkeleton title metrics={2} chart={false} />;
   }
 
   if (!data || !progress) {
