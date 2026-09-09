@@ -7,18 +7,21 @@ import {
 } from "@/features/system/useSystemStatus";
 import { useOnlineStatus } from "@/features/system/useOnlineStatus";
 import { timeLabel } from "@/features/bitcoin/utils";
-import { Dot, Popover, type Tone } from "@/components/ui";
+import { Dot, Popover, Tooltip, type Tone } from "@/components/ui";
 import { num } from "@/components/ui/design-tokens";
 import { ClockIcon, WifiIcon } from "@/components/icons/icons";
 
-const STATE_META: Record<SystemLiveState, { tone: Tone; label: string }> = {
-  live: { tone: "good", label: "متصل (LIVE)" },
-  degraded: { tone: "warn", label: "جزئي (DEGRADED)" },
-  offline: { tone: "down", label: "غير متصل" },
-  connecting: { tone: "quiet", label: "جارٍ الاتصال" },
+const STATE_META: Record<
+  SystemLiveState,
+  { tone: Tone; label: string; icon: string }
+> = {
+  live: { tone: "good", label: "متصل (LIVE)", icon: "text-up-fg" },
+  degraded: { tone: "warn", label: "جزئي (DEGRADED)", icon: "text-warn-fg" },
+  offline: { tone: "down", label: "غير متصل", icon: "text-down-fg" },
+  connecting: { tone: "quiet", label: "جارٍ الاتصال", icon: "text-muted" },
 };
 
-/** Compact connection status pill; click opens source diagnostics. */
+/** Compact connection wifi icon; click opens source diagnostics. */
 export function SystemStatus() {
   const status = useSystemStatus();
   const { online } = useOnlineStatus();
@@ -33,20 +36,25 @@ export function SystemStatus() {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={(e) => setAnchorEl(e.currentTarget)}
-        aria-haspopup="true"
-        aria-expanded={open}
-        aria-label="حالة النظام"
-        className="flex h-8 items-center gap-1.5 rounded-panel border border-line/80 bg-surface-2/30 px-2 text-2xs font-semibold text-zinc-300 transition-colors hover:bg-surface-2"
-      >
-        <Dot tone={meta.tone} pulse={effectiveState === "live"} />
-        <span className="hidden lg:inline">{meta.label}</span>
-        <span className={`${num} hidden text-muted xl:inline`}>
-          · {status.connectedSources}/{status.totalSources} · {latency}
-        </span>
-      </button>
+      <Tooltip title={meta.label}>
+        <button
+          type="button"
+          onClick={(e) => setAnchorEl(e.currentTarget)}
+          aria-haspopup="true"
+          aria-expanded={open}
+          aria-label={`حالة النظام: ${meta.label}`}
+          title={`${meta.label} · ${status.connectedSources}/${status.totalSources} · ${latency}`}
+          className={`flex h-9 w-9 items-center justify-center rounded-panel transition-colors hover:bg-surface-2 ${
+            open ? "bg-surface-2" : ""
+          }`}
+        >
+          <WifiIcon
+            className={`h-[18px] w-[18px] ${meta.icon} ${
+              effectiveState === "connecting" ? "animate-pulse" : ""
+            }`}
+          />
+        </button>
+      </Tooltip>
 
       <Popover
         open={open}

@@ -3,21 +3,21 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Tooltip } from "@/components/ui";
-import { WalletIcon } from "@/components/icons/icons";
+import { TrophyIcon } from "@/components/icons/icons";
 
 /**
- * Global wallet entry — first tool in the header's right cluster (RTL).
- * Tracks the active section so the current destination reads at a glance.
+ * Global goals entry — part of the header's right tool cluster (RTL).
+ * Tracks the active section like the wallet control.
  */
-export function HeaderWalletLink() {
+export function HeaderGoalsLink() {
   const pathname = usePathname();
-  const active = pathname.startsWith("/portfolio");
+  const active = pathname.startsWith("/goals");
 
   return (
-    <Tooltip title="المحفظة">
+    <Tooltip title="الأهداف">
       <Link
-        href="/portfolio"
-        aria-label="المحفظة"
+        href="/goals"
+        aria-label="الأهداف"
         aria-current={active ? "page" : undefined}
         className={`relative flex h-9 w-9 items-center justify-center rounded-panel transition-colors ${
           active
@@ -25,7 +25,7 @@ export function HeaderWalletLink() {
             : "text-zinc-300 hover:bg-surface-2 hover:text-zinc-100"
         }`}
       >
-        <WalletIcon className="h-[18px] w-[18px]" />
+        <TrophyIcon className="h-[18px] w-[18px]" />
       </Link>
     </Tooltip>
   );

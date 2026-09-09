@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { Popover, Badge } from "@/components/ui";
 import {
-  ChevronDownIcon,
   LogoutIcon,
   SettingsIcon,
   SlidersIcon,
@@ -43,24 +42,23 @@ export function UserMenu() {
         aria-haspopup="true"
         aria-expanded={open}
         aria-label="قائمة المستخدم"
-        className="flex h-8 items-center gap-2 rounded-panel px-1.5 text-zinc-300 transition-colors hover:bg-surface-2"
+        title={displayName}
+        className={`flex h-9 w-9 items-center justify-center rounded-panel transition-colors ${
+          open ? "bg-surface-2" : "hover:bg-surface-2"
+        }`}
       >
         {user?.photoURL ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={user.photoURL}
             alt=""
-            className="h-6 w-6 shrink-0 rounded-full border border-line object-cover"
+            className="h-7 w-7 shrink-0 rounded-full border border-line object-cover"
           />
         ) : (
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-line bg-surface-3/70 text-[10px] font-bold text-zinc-100">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-up/15 text-xs font-bold text-up-fg ring-1 ring-up/25">
             {letter}
           </span>
         )}
-        <span className="hidden max-w-[120px] truncate text-left text-xs font-semibold text-zinc-100 lg:block">
-          {displayName}
-        </span>
-        <ChevronDownIcon className="hidden h-3.5 w-3.5 text-muted lg:block" />
       </button>
 
       <Popover

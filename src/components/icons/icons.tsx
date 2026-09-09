@@ -58,6 +58,8 @@ import {
   RotateCcw,
   Scale,
   History,
+  BookOpenText,
+  ListOrdered,
   type LucideProps,
 } from "lucide-react";
 
@@ -133,3 +135,5 @@ export const SaveIcon = wrap(Save);
 export const RotateIcon = wrap(RotateCcw);
 export const ScaleIcon = wrap(Scale);
 export const HistoryIcon = wrap(History);
+export const TradesIcon = wrap(BookOpenText);
+export const ListNumbersIcon = wrap(ListOrdered);

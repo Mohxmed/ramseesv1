@@ -74,9 +74,9 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
 
   return (
     <div className="flex h-full flex-col">
-      {/* Brand */}
+      {/* Brand — same height band as the header so the top rails align */}
       <div
-        className={`group relative flex items-center border-b border-line py-5 ${
+        className={`group relative flex h-16 items-center border-b border-line ${
           collapsed ? "justify-center px-0" : "px-5"
         }`}
       >
