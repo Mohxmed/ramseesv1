@@ -14,13 +14,29 @@
  */
 
 import { createHmac } from "node:crypto";
-import { ExchangeError } from "../core/ExchangeErrors";
+import { ExchangeError, type ExchangeErrorKind } from "../core/ExchangeErrors";
 import { isRetryableHttpStatus } from "../core/ExchangeErrors";
 import type { ExchangeCredentials } from "../core/ExchangeAdapter";
 
 export const BINANCE_SPOT_URL = "https://api.binance.com";
 export const BINANCE_FUTURES_URL = "https://fapi.binance.com";
 export const BINANCE_WS_BASE = "wss://stream.binance.com:9443/ws";
+
+/** Descriptive UA: Binance historically throttles clients without one. */
+const USER_AGENT = "ramsees-v1/0.1.0 (portfolio sync)";
+
+/**
+ * Classify a non-retryable upstream HTTP status into a user-safe kind.
+ * 404 → CONNECTION (an endpoint/API mismatch is an upstream problem, NOT a
+ * rate limit) so dev-facing bugs never masquerade as "limit exceeded".
+ */
+export function binanceHttpErrorKind(status: number): ExchangeErrorKind {
+  if (status === 401) return "AUTHENTICATION";
+  if (status === 403) return "PERMISSION";
+  if (status === 451) return "GEO_BLOCKED";
+  if (status === 400) return "VALIDATION";
+  return "CONNECTION";
+}
 
 export interface BinanceRestOptions {
   spotUrl?: string;
@@ -118,6 +134,7 @@ export class BinanceRestClient {
       method: "GET",
       headers: {
         "X-MBX-APIKEY": creds.apiKey,
+        "User-Agent": USER_AGENT,
         Accept: "application/json",
       },
     });
@@ -136,6 +153,7 @@ export class BinanceRestClient {
       method: "POST",
       headers: {
         "X-MBX-APIKEY": creds.apiKey,
+        "User-Agent": USER_AGENT,
         Accept: "application/json",
         "Content-Type": "application/x-www-form-urlencoded",
       },
@@ -155,6 +173,7 @@ export class BinanceRestClient {
       method: "PUT",
       headers: {
         "X-MBX-APIKEY": creds.apiKey,
+        "User-Agent": USER_AGENT,
         Accept: "application/json",
       },
     });
@@ -165,7 +184,7 @@ export class BinanceRestClient {
     const query = new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString();
     return this.request<T>(`${this.spotUrl}${path}${query ? `?${query}` : ""}`, {
       method: "GET",
-      headers: { Accept: "application/json" },
+      headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
     });
   }
 
@@ -215,19 +234,12 @@ export class BinanceRestClient {
   }
 
   private mapHttpError(status: number): ExchangeError {
-    // 400 with -2015 => invalid api key / signature; -2014 => api key format.
-    if (status === 401) return ExchangeError.auth("unauthorized", { httpStatus: status });
-    if (status === 403) {
-      return new ExchangeError("permission denied", {
-        kind: "PERMISSION",
-        code: "PERMISSION_DENIED",
-        context: { httpStatus: status },
-      });
-    }
-    // 451 = geo-blocked region (Binance restricts entire countries/DC IPs).
-    if (status === 451) return ExchangeError.geoBlocked({ httpStatus: status });
-    if (status === 400) return ExchangeError.validation({ httpStatus: status });
-    return ExchangeError.rateLimit({ httpStatus: status });
+    const kind = binanceHttpErrorKind(status);
+    return new ExchangeError(`upstream http ${status}`, {
+      kind,
+      code: kind === "AUTHENTICATION" ? "AUTH_FAILED" : `UPSTREAM_${status}`,
+      context: { httpStatus: status },
+    });
   }
 
   /** Exponential backoff + full jitter, honoring an upstream Retry-After. */

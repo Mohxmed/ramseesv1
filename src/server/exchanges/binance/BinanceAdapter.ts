@@ -96,8 +96,10 @@ export class BinanceAdapter implements ExchangeAdapter {
   }
 
   async testConnection(creds: ExchangeCredentials): Promise<ConnectionTestResult> {
-    // 1) system status (public) — cheap reachability probe
-    const status = await this.rest.publicGet<{ status: number; msg?: string }>("/api/v3/system/status");
+    // 1) system status (public) — cheap reachability + maintenance probe.
+    //    NOTE: this is /sapi/v1/system/status, NOT /api/v3/system/status
+    //    (the /api/v3 path is 404 — a past "rate limit" misdiagnosis).
+    const status = await this.rest.publicGet<{ status: number; msg?: string }>("/sapi/v1/system/status");
     if (status !== undefined && status?.status !== 0) {
       throw new ExchangeError("binance system degraded", {
         kind: "CONNECTION",

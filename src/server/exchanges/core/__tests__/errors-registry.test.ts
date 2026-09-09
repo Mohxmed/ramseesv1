@@ -5,6 +5,7 @@ import {
   exchangeErrorHttpStatus,
   isRetryableHttpStatus,
 } from "../ExchangeErrors";
+import { binanceHttpErrorKind } from "../../binance/BinanceRestClient";
 import { ExchangeRegistryImpl } from "../ExchangeRegistry";
 
 describe("ExchangeError taxonomy", () => {
@@ -38,6 +39,20 @@ describe("ExchangeError taxonomy", () => {
     expect(isRetryableHttpStatus(500)).toBe(true);
     expect(isRetryableHttpStatus(429)).toBe(true);
     expect(isRetryableHttpStatus(400)).toBe(false);
+  });
+});
+
+describe("binanceHttpErrorKind", () => {
+  it("maps known statuses to their kinds", () => {
+    expect(binanceHttpErrorKind(401)).toBe("AUTHENTICATION");
+    expect(binanceHttpErrorKind(403)).toBe("PERMISSION");
+    expect(binanceHttpErrorKind(451)).toBe("GEO_BLOCKED");
+    expect(binanceHttpErrorKind(400)).toBe("VALIDATION");
+  });
+
+  it("never mislabels unknown statuses as rate limits", () => {
+    expect(binanceHttpErrorKind(404)).toBe("CONNECTION");
+    expect(binanceHttpErrorKind(405)).toBe("CONNECTION");
   });
 });
 
