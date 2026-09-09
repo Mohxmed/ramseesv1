@@ -21,7 +21,7 @@ export function BootFailure({
       <div className="relative w-full max-w-sm px-6 text-center">
         <div className="mx-auto flex h-14 w-14 items-center justify-center overflow-hidden rounded-card border border-down/30 bg-surface-1 shadow-pop">
           <Image
-            src="/favicon.jpg"
+            src="/favicon.avif"
             alt=""
             width={56}
             height={56}

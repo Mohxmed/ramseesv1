@@ -10,7 +10,7 @@ export default function LoginPage() {
       <div className="space-y-6">
         <div className="flex flex-col items-center text-center">
           <Image
-            src="/favicon.jpg"
+            src="/favicon.avif"
             alt="شعار RAMSEES"
             width={64}
             height={64}

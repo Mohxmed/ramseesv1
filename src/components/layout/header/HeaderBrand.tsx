@@ -13,7 +13,7 @@ export function HeaderBrand() {
     >
       <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-md border border-line">
         <Image
-          src="/favicon.jpg"
+          src="/favicon.avif"
           alt="شعار RAMSEES"
           width={28}
           height={28}

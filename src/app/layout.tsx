@@ -14,8 +14,8 @@ export const metadata: Metadata = {
   title: "RAMSEES - نظام تداول البيتكوين",
   description: "نظام شخصي لتداول وتحليل البيتكوين",
   icons: {
-    icon: "/favicon.jpg",
-    shortcut: "/favicon.jpg",
+    icon: "/favicon.avif",
+    shortcut: "/favicon.avif",
   },
 };
 
@@ -32,8 +32,8 @@ export default function RootLayout({
     >
       <head>
         <meta charSet="UTF-8" />
-        <link rel="icon" href="/favicon.jpg" />
-        <link rel="shortcut icon" href="/favicon.jpg" />
+        <link rel="icon" href="/favicon.avif" />
+        <link rel="shortcut icon" href="/favicon.avif" />
       </head>
       <body className="min-h-full bg-zinc-950 text-zinc-100">
         <AuthProvider>

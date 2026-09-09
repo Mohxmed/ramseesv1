@@ -86,7 +86,7 @@ export function BootScreen({
       <div className="relative flex flex-col items-center px-6">
         <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-card border border-line/80 bg-surface-1 shadow-pop">
           <Image
-            src="/favicon.jpg"
+            src="/favicon.avif"
             alt=""
             width={64}
             height={64}
