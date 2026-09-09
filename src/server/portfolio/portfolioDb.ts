@@ -11,6 +11,7 @@
  */
 
 import { getAdminDb } from "../firebase/admin";
+import type { CollectionReference, DocumentData, DocumentReference } from "firebase-admin/firestore";
 import { idempotentId } from "./ids";
 import type {
   ReconciliationEvent,
@@ -149,6 +150,32 @@ export async function syncImportedPortfolioMeta(
   };
   if (state.financials) patch.financials = state.financials;
   await portfolioCol(uid).doc("meta").update(patch);
+}
+
+/**
+ * Remove the manual wallet (meta + ledger) entirely. Used only when REPLACING
+ * the manual wallet with an imported one — the client cannot do this itself
+ * (rules keep meta deletes closed), so it goes through this admin write.
+ * Runs recursively so any nested subcollections under ledger are wiped too.
+ */
+export async function deleteManualPortfolio(uid: string): Promise<void> {
+  const wallet = portfolioCol(uid);
+
+  async function wipeDocument(ref: DocumentReference<DocumentData>): Promise<void> {
+    const subCols = await ref.listCollections();
+    await Promise.all(subCols.map((col) => wipeCollection(col)));
+    await ref.delete().catch(() => undefined); // already gone is fine
+  }
+  async function wipeCollection(col: CollectionReference<DocumentData>): Promise<void> {
+    const docs = await col.listDocuments();
+    await Promise.all(docs.map((doc) => wipeDocument(doc)));
+  }
+
+  // meta / ledger are DOCUMENTS under the portfolio collection; their entries
+  // live in subcollections (ledger.transactions), so wiping each document
+  // recursively removes the entries too.
+  await wipeDocument(wallet.doc("meta"));
+  await wipeDocument(wallet.doc("ledger"));
 }
 
 /* ─── Balances (current state, overwrite per asset) ───────────────── */

@@ -41,10 +41,17 @@ export function ImportPortfolioModal({
   open,
   onClose,
   onImported,
+  replaceManual = false,
 }: {
   open: boolean;
   onClose: () => void;
   onImported: () => void;
+  /**
+   * The manual wallet is being replaced: the server deletes it when the import
+   * succeeds (this modal shows a heads-up; the delete itself stays atomic with
+   * the successful connect, so a failed import leaves the wallet untouched).
+   */
+  replaceManual?: boolean;
 }) {
   const [platform, setPlatform] = useState<PlatformInfo | null>(null);
   const [apiKey, setApiKey] = useState("");
@@ -91,6 +98,7 @@ export function ImportPortfolioModal({
         secret: secret.trim(),
         name: name.trim() || undefined,
         createPortfolio: true,
+        replaceManual,
       });
       if (!res.portfolio) {
         setError("تعذر تسجيل المحفظة كحساب مستورد.");
@@ -113,6 +121,12 @@ export function ImportPortfolioModal({
     >
       {platform == null ? (
         <div className="space-y-2">
+          {replaceManual ? (
+            <p className="rounded-panel border border-down/30 bg-down/10 px-3 py-2 text-2xs leading-5 text-down-fg">
+              سيتم حذف المحفظة اليدوية (الرصيد المُدخل يدويًا وسجلّها) واستبدالها
+              بالمحفظة المستوردة. الحذف يحدث فقط عند نجاح الربط والاستيراد.
+            </p>
+          ) : null}
           <p className="text-2xs leading-5 text-muted">
             اختر المنصة — سيتم استيراد كامل سجل العمليات (إيداعات، سحوبات، صفقات،
             رسوم) وبناء رصيد المحفظة منها، وتُسجَّل العمليات الجديدة تلقائيًا.

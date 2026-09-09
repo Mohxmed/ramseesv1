@@ -7,8 +7,10 @@
  *            testConnection → permissions → vault-encrypt → create credential
  *            + account → fire an INITIAL background sync (returns STARTED
  *            immediately; the UI polls freshness). With `createPortfolio: true`
- *            the account BECOMES the user's wallet (imported portfolio); the
- *            request is rejected with 409 when the user already has a wallet.
+ *            the account BECOMES the user's wallet (imported portfolio) — but
+ *            only when the user has no wallet yet, or (with `replaceManual: true`)
+ *            when the existing wallet is manual, in which case it is deleted
+ *            first. Imported-wallet conflicts are rejected with 409.
  *
  * The plaintext API secret is used ONLY to encrypt it into the server vault
  * (AES-256-GCM, key via EXCHANGE_CREDENTIALS_ENC_KEY). It is never returned,
@@ -38,6 +40,7 @@ import {
   createAccount as persistAccount,
   createCredential as persistCredential,
   createImportedPortfolioMeta,
+  deleteManualPortfolio,
   getPortfolioMeta,
   listAccounts,
   syncImportedPortfolioMeta,
@@ -68,6 +71,12 @@ interface ConnectBody {
   name?: string;
   /** When true the account becomes the wallet source (imported portfolio). */
   createPortfolio?: boolean;
+  /**
+   * With createPortfolio: when the existing wallet is MANUAL (or a legacy
+   * source-less doc), delete it and import instead. Never honored against an
+   * imported wallet.
+   */
+  replaceManual?: boolean;
 }
 
 const allowedAccountType = (v: string): AccountType | null =>
@@ -107,6 +116,29 @@ export async function POST(req: Request): Promise<Response> {
 
     const creds = createCredentials(body.apiKey ?? "", body.secret ?? ""); // throws on empty
     const adapter = getAdapter(exchangeType as never);
+
+    // Resolve the single-wallet rule BEFORE anything is persisted, so a failed
+    // or rejected import never leaks an orphan account/credential.
+    const wantPortfolio = body.createPortfolio === true;
+    let replacingManual = false;
+    if (wantPortfolio) {
+      const existing = await getPortfolioMeta(uid);
+      if (existing != null) {
+        const ownedByExchange = existing.source === "binance";
+        const mayReplace = !ownedByExchange && body.replaceManual === true;
+        if (!mayReplace) {
+          return NextResponse.json(
+            {
+              error: existing.source === "binance"
+                ? "محفظتك مستوردة من منصة تداول — لا يمكن استبدالها من هنا."
+                : "لديك محفظة بالفعل — إن أردت استبدالها بالمحفظة المستوردة اختر الاستيراد من صفحة المحفظة.",
+            },
+            { status: 409 }
+          );
+        }
+        replacingManual = true;
+      }
+    }
 
     const test = await adapter.testConnection(creds);
     if (!test.ok || !test.accountInfo) {
@@ -160,23 +192,16 @@ export async function POST(req: Request): Promise<Response> {
     await persistAccount(account);
 
     // Imported wallet: this account becomes the source of the single wallet.
-    // Rejected when the user already has ANY wallet (manual or imported).
-    if (body.createPortfolio === true) {
-      const existing = await getPortfolioMeta(uid);
-      if (existing != null) {
-        return NextResponse.json(
-          {
-            error: "لديك محفظة بالفعل — احذفها ثم أعد الاستيراد إذا أردت استبدالها.",
-          },
-          { status: 409 }
-        );
+    if (wantPortfolio) {
+      if (replacingManual) {
+        await deleteManualPortfolio(uid); // manual meta + ledger, admin-only
       }
       await createImportedPortfolioMeta(uid, account);
     }
 
     const sync = await startBackgroundSync(uid, accountId, "INITIAL");
     await patchAccountStatus(uid, accountId, sync);
-    if (sync.inProgress && body.createPortfolio === true) {
+    if (sync.inProgress && wantPortfolio) {
       await syncImportedPortfolioMeta(uid, accountId, {
         status: "SYNCING",
         financials: account.financials,
@@ -189,7 +214,7 @@ export async function POST(req: Request): Promise<Response> {
         account,
         credentialHint: { id: credId, apiKeyHint: credential.apiKeyHint },
         sync: { status: sync.status, inProgress: sync.inProgress },
-        portfolio: body.createPortfolio === true ? { source: "binance", accountId } : null,
+        portfolio: wantPortfolio ? { source: "binance", accountId } : null,
       },
       { status: 201 }
     );

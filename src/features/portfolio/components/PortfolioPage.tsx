@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { PageHeader, Status, Tooltip } from "@/components/ui";
+import { PageHeader, Status, Tooltip, Modal } from "@/components/ui";
 import { PlusIcon, LinkIcon, WalletIcon } from "@/components/icons/icons";
 import { usePortfolio } from "../hooks/usePortfolio";
 import { buildEquitySeries } from "../utils";
@@ -34,6 +34,7 @@ export function PortfolioPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [replaceOpen, setReplaceOpen] = useState(false);
   const [addFormNonce, setAddFormNonce] = useState(0);
   const [createFormNonce, setCreateFormNonce] = useState(0);
   const [importFormNonce, setImportFormNonce] = useState(0);
@@ -57,6 +58,12 @@ export function PortfolioPage() {
       nowMs,
     });
   }, [meta, transactions, nowMs]);
+
+  const openReplaceImport = () => {
+    setReplaceOpen(false);
+    setImportFormNonce((n) => n + 1);
+    setImportOpen(true);
+  };
 
   const openAdd = (type: PortfolioTxType) => {
     setDefaultTxTs(Date.now());
@@ -197,6 +204,17 @@ export function PortfolioPage() {
               tone={saving ? "warn" : saveState === "error" ? "down" : "good"}
               pulse={saving}
             />
+            <Tooltip title="استيراد محفظة من منصة تداول — تُحذف المحفظة اليدوية الحالية">
+              <button
+                type="button"
+                onClick={() => setReplaceOpen(true)}
+                disabled={saving}
+                className="flex h-8 items-center gap-1.5 rounded-panel border border-line px-3 text-xs font-semibold text-muted transition-colors hover:border-gold/40 hover:text-zinc-200 disabled:opacity-60"
+              >
+                <LinkIcon className="h-3.5 w-3.5" />
+                استيراد من منصة
+              </button>
+            </Tooltip>
             <Tooltip title="إضافة عملية جديدة">
               <button
                 type="button"
@@ -231,6 +249,32 @@ export function PortfolioPage() {
         onLoadOlder={() => void loadOlder()}
       />
 
+      <Modal open={replaceOpen} onClose={() => setReplaceOpen(false)} title="استبدال المحفظة اليدوية بمحفظة مستوردة؟">
+        <div className="space-y-3">
+          <p className="text-2xs leading-5 text-muted">
+            سيُحذف الرصيد اليدوي وسجلّ المحفظة الحالية نهائيًا عند نجاح الربط، وتُبنى
+            المحفظة الجديدة تلقائيًا من سجلّ Binance (إيداعات، سحوبات، صفقات، رسوم)
+            وتُسجَّل العمليات اللاحقة تلقائيًا. لا يمكن التراجع عن الحذف بعد النجاح.
+          </p>
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setReplaceOpen(false)}
+              className="rounded-panel border border-line px-3 py-1.5 text-xs font-semibold text-muted transition-colors hover:text-zinc-200"
+            >
+              إلغاء
+            </button>
+            <button
+              type="button"
+              onClick={openReplaceImport}
+              className="rounded-panel bg-down/15 px-3 py-1.5 text-xs font-semibold text-down-fg ring-1 ring-down/40 transition-colors hover:bg-down/25"
+            >
+              استبدال والاستيراد
+            </button>
+          </div>
+        </div>
+      </Modal>
+
       <AddTransactionModal
         key={addFormNonce}
         open={addOpen}
@@ -240,6 +284,14 @@ export function PortfolioPage() {
         defaultTimestampMs={defaultTxTs}
         initialType={initialTxType}
         onSubmit={recordTransaction}
+      />
+
+      <ImportPortfolioModal
+        key={importFormNonce}
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => setImportOpen(false)}
+        replaceManual
       />
     </div>
   );

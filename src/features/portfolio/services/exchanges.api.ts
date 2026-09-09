@@ -49,6 +49,8 @@ export interface ConnectInput {
   name?: string;
   /** When true the account becomes the single imported wallet. */
   createPortfolio?: boolean;
+  /** With createPortfolio: delete an existing MANUAL wallet and import instead. */
+  replaceManual?: boolean;
 }
 
 export const exchangesApi = {
