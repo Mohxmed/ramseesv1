@@ -13,6 +13,7 @@ import {
   evaluateCheck,
   applyCompletedMove,
   resetData,
+  reanchorToWallet,
   calculateProgress,
   getNextTarget,
   totalGrowthForMonth,
@@ -49,10 +50,23 @@ export function useGoals() {
     [strategies]
   );
 
-  const [data, setData] = useState<GoalsData | null>(null);
+  const [rawData, setRawData] = useState<GoalsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [projected, setProjected] = useState<ProgressCheckResult | null>(null);
+
+  // Live wallet anchor: the ladder is re-anchored during render whenever the
+  // portfolio value materially changed, so goals automatically follow the
+  // wallet's current size (exchange equity or ledger balance). Completed moves
+  // keep their historical records; reanchorToWallet returns the same reference
+  // when the anchor is unchanged.
+  const data = useMemo(
+    () =>
+      rawData && walletSeed != null
+        ? reanchorToWallet(rawData, walletSeed)
+        : rawData,
+    [rawData, walletSeed]
+  );
 
   useEffect(() => {
     async function load() {
@@ -72,17 +86,17 @@ export function useGoals() {
             updatedAt: doc.updatedAt,
           };
           const adapted = adaptTargets(dataOnly, derived);
-          setData(adapted);
+          setRawData(adapted);
           if (sourceChanged(dataOnly, derived)) {
             await goalsService.saveProgress(userId, adapted);
           }
         } else {
           const initial = createInitialData(derived, walletSeed);
-          setData(initial);
+          setRawData(initial);
           await goalsService.saveProgress(userId, initial);
         }
       } catch {
-        setData(null);
+        setRawData(null);
       } finally {
         setLoading(false);
       }
@@ -92,6 +106,14 @@ export function useGoals() {
       load();
     }
   }, [userId, authLoading, derived, walletSeed]);
+
+  // Persist the re-anchored ladder (wallet-driven target values) whenever it
+  // diverges from the raw state, e.g. right after a stale doc loads or the
+  // wallet value changes.
+  useEffect(() => {
+    if (!userId || !data || data === rawData) return;
+    goalsService.saveProgress(userId, data).catch(() => {});
+  }, [userId, data, rawData]);
 
   const previewCheck = useCallback(
     (input: ProgressCheckInput) => {
@@ -114,7 +136,7 @@ export function useGoals() {
       try {
         const result = evaluateCheck(input, data.perMoveGrowthPercent);
         const next = applyCompletedMove(data, input, result);
-        setData(next);
+        setRawData(next);
         setProjected(null);
         await goalsService.saveProgress(userId, next);
         setSaveState("success");
@@ -130,7 +152,7 @@ export function useGoals() {
     setSaveState("saving");
     try {
       const initial = resetData(derived, walletSeed);
-      setData(initial);
+      setRawData(initial);
       setProjected(null);
       await goalsService.saveProgress(userId, initial);
       setSaveState("success");

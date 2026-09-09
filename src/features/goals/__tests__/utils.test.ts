@@ -3,6 +3,9 @@ import {
   createInitialData,
   resetData,
   calculateGrowth,
+  reanchorToWallet,
+  applyCompletedMove,
+  evaluateCheck,
 } from "../utils";
 import { GOALS_CONFIG, targetForMove } from "../constants";
 import type { DerivedGoalGrowth } from "../types";
@@ -55,5 +58,61 @@ describe("calculateGrowth", () => {
   it("guards against a non-positive base", () => {
     expect(calculateGrowth(0, 100)).toBe(0);
     expect(calculateGrowth(-10, 100)).toBe(0);
+  });
+});
+
+describe("reanchorToWallet", () => {
+  function ladderWithCompletions(completedMoves: number) {
+    let data = createInitialData(derived, 1000);
+    for (let i = 1; i <= completedMoves; i++) {
+      const input = {
+        move: i,
+        startingValue: data.currentValue,
+        endingValue: data.moves[i - 1].targetValue,
+      };
+      data = applyCompletedMove(data, input, evaluateCheck(input, data.perMoveGrowthPercent));
+    }
+    return data;
+  }
+
+  it("re-centers the ladder on the wallet value, keeping completed records", () => {
+    const data = ladderWithCompletions(4);
+    const wallet = 5000;
+    const next = reanchorToWallet(data, wallet);
+
+    expect(next.startingValue).toBe(wallet);
+    expect(next.currentValue).toBe(wallet);
+    expect(next.completedMoves).toBe(4);
+    expect(next.currentMove).toBe(5);
+
+    const completed = next.moves.slice(0, 4);
+    const remaining = next.moves.slice(4);
+    expect(completed.every((m) => m.completed && m.targetValue < wallet)).toBe(true);
+    remaining.forEach((m, idx) => {
+      expect(m.targetValue).toBeCloseTo(
+        targetForMove(idx + 1, wallet, data.perMoveGrowthPercent),
+        6
+      );
+    });
+    expect(next.moves[4].targetValue).toBeCloseTo(wallet * 1.01, 6);
+  });
+
+  it("keeps the growth percent and strategy source untouched", () => {
+    const data = ladderWithCompletions(2);
+    const next = reanchorToWallet(data, 750);
+    expect(next.perMoveGrowthPercent).toBe(data.perMoveGrowthPercent);
+    expect(next.strategyRef).toEqual(data.strategyRef);
+  });
+
+  it("returns the same reference for invalid wallet values", () => {
+    const data = ladderWithCompletions(0);
+    for (const bad of [0, -5, NaN, Infinity]) {
+      expect(reanchorToWallet(data, bad)).toBe(data);
+    }
+  });
+
+  it("returns the same reference when the wallet equals the anchor", () => {
+    const data = ladderWithCompletions(0);
+    expect(reanchorToWallet(data, data.startingValue)).toBe(data);
   });
 });

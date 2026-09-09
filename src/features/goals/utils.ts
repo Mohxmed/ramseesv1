@@ -196,6 +196,39 @@ export function resetData(derived: DerivedGoalGrowth, seedStartingValue?: number
   return createInitialData(derived, seedStartingValue);
 }
 
+export function reanchorToWallet(
+  data: GoalsData,
+  walletValue: number
+): GoalsData {
+  if (
+    walletValue == null ||
+    !Number.isFinite(walletValue) ||
+    walletValue <= 0
+  ) {
+    return data;
+  }
+  if (Math.abs(data.startingValue - walletValue) < 0.005) return data;
+  const nextMoves = data.moves.map((m) => {
+    if (m.completed) return m;
+    const position = Math.max(1, m.move - data.completedMoves);
+    return {
+      ...m,
+      targetValue: targetForMove(
+        position,
+        walletValue,
+        data.perMoveGrowthPercent
+      ),
+    };
+  });
+  return {
+    ...data,
+    startingValue: walletValue,
+    currentValue: walletValue,
+    moves: nextMoves,
+    updatedAt: new Date(),
+  };
+}
+
 export function getMoveStatus(
   move: number,
   data: GoalsData

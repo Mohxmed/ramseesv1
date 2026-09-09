@@ -88,6 +88,8 @@ export default function GoalsPage() {
           monthlyGrowthPercent={progress.monthlyGrowthPercent}
           strategyName={derived.strategyName}
           version={derived.version}
+          walletLabel={walletLabel}
+          walletValue={liveWallet}
         />
         <button
           type="button"
