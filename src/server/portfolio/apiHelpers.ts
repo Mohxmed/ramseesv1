@@ -8,7 +8,7 @@
 
 import { NextResponse } from "next/server";
 import { UnauthorizedError } from "@/server/auth";
-import { ExchangeError, userSafeExchangeMessage } from "@/server/exchanges/core";
+import { ExchangeError, userSafeExchangeMessage, exchangeErrorHttpStatus } from "@/server/exchanges/core";
 import { getAccount } from "./portfolioDb";
 import { SyncConflictError, SyncMissingError } from "./sync.service";
 import type { StoredAccount } from "./models";
@@ -19,8 +19,12 @@ export function routeErrorResponse(err: unknown): NextResponse {
     return NextResponse.json({ error: err.message }, { status: err.status });
   }
   if (err instanceof ExchangeError) {
-    const status = err.kind === "VALIDATION" || err.kind === "AUTHENTICATION" ? 400 : 502;
-    return NextResponse.json({ error: userSafeExchangeMessage(err.kind) }, { status });
+    const status = exchangeErrorHttpStatus(err.kind);
+    const detail = sanitizeExchangeErrorDetail(err);
+    return NextResponse.json(
+      { error: userSafeExchangeMessage(err.kind), ...(detail ? { detail } : {}) },
+      { status }
+    );
   }
   if (err instanceof SyncMissingError) {
     return NextResponse.json({ error: "الحساب غير موجود أو معطّل." }, { status: 404 });
@@ -40,4 +44,15 @@ export async function requireOwnedAccount(uid: string, accountId: string): Promi
     throw new SyncMissingError(accountId);
   }
   return account;
+}
+
+/** Build a short, sanitized detail line from the error's upstream context. */
+function sanitizeExchangeErrorDetail(err: ExchangeError): string | undefined {
+  const c = err.context;
+  const status =
+    typeof c.httpStatus === "number" ? c.httpStatus : typeof c.status === "number" ? c.status : undefined;
+  if (status === undefined) return undefined;
+  if (err.kind === "GEO_BLOCKED") return `الحظر من المنصة (رمز HTTP ${status}).`;
+  if (err.kind === "RATE_LIMIT") return `الرمز HTTP ${status}.`;
+  return `ردّت المنصة بالرمز HTTP ${status}.`;
 }

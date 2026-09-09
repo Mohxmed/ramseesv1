@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { ExchangeError, userSafeExchangeMessage, isRetryableHttpStatus } from "../ExchangeErrors";
+import {
+  ExchangeError,
+  userSafeExchangeMessage,
+  exchangeErrorHttpStatus,
+  isRetryableHttpStatus,
+} from "../ExchangeErrors";
 import { ExchangeRegistryImpl } from "../ExchangeRegistry";
 
 describe("ExchangeError taxonomy", () => {
@@ -14,8 +19,19 @@ describe("ExchangeError taxonomy", () => {
   it("maps kinds to user-safe Arabic messages without leaking internals", () => {
     expect(userSafeExchangeMessage(ExchangeError.auth("secret detail").kind)).toContain("API Key");
     expect(userSafeExchangeMessage(ExchangeError.rateLimit({}).kind)).toContain("حد الطلبات");
+    expect(userSafeExchangeMessage(ExchangeError.geoBlocked({ httpStatus: 451 }).kind)).toContain(
+      "تحجب"
+    );
     expect(userSafeExchangeMessage(ExchangeError.network("connection refused").kind)).not.toContain("refused");
     expect(userSafeExchangeMessage(ExchangeError.mapping({}).kind)).toContain("معالجة بيانات");
+  });
+
+  it("maps kinds to route-level HTTP statuses", () => {
+    expect(exchangeErrorHttpStatus(ExchangeError.auth("x").kind)).toBe(400);
+    expect(exchangeErrorHttpStatus(ExchangeError.validation({}).kind)).toBe(400);
+    expect(exchangeErrorHttpStatus(ExchangeError.geoBlocked({ httpStatus: 451 }).kind)).toBe(403);
+    expect(exchangeErrorHttpStatus(ExchangeError.rateLimit({}).kind)).toBe(429);
+    expect(exchangeErrorHttpStatus(ExchangeError.network("x").kind)).toBe(502);
   });
 
   it("classifies retryable HTTP statuses", () => {

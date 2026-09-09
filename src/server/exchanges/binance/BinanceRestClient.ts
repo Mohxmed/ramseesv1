@@ -224,6 +224,8 @@ export class BinanceRestClient {
         context: { httpStatus: status },
       });
     }
+    // 451 = geo-blocked region (Binance restricts entire countries/DC IPs).
+    if (status === 451) return ExchangeError.geoBlocked({ httpStatus: status });
     if (status === 400) return ExchangeError.validation({ httpStatus: status });
     return ExchangeError.rateLimit({ httpStatus: status });
   }

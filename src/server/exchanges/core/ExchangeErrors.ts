@@ -11,6 +11,7 @@ export type ExchangeErrorKind =
   | "CONNECTION"
   | "AUTHENTICATION"
   | "PERMISSION"
+  | "GEO_BLOCKED"
   | "RATE_LIMIT"
   | "NETWORK"
   | "VALIDATION"
@@ -37,6 +38,8 @@ export function userSafeExchangeMessage(kind: ExchangeErrorKind): string {
       return "API Key غير صالح — تحقق من المفتاح والسر.";
     case "PERMISSION":
       return "صلاحيات API غير كافية — فعّل أذونات القراءة فقط للمنصة.";
+    case "GEO_BLOCKED":
+      return "منصة Binance تحجب منطقة خادم التطبيق — غيّر منطقة مشروع Vercel إلى منطقة غير محظورة (مثل أوروبا) ثم أعد المحاولة.";
     case "RATE_LIMIT":
       return "تم تجاوز حد الطلبات — سنعيد المحاولة بعد لحظات.";
     case "NETWORK":
@@ -93,6 +96,9 @@ export class ExchangeError extends Error {
   static rateLimit(context: Record<string, unknown>): ExchangeError {
     return new ExchangeError("rate limit exceeded", { kind: "RATE_LIMIT", code: "RATE_LIMITED", retryable: true, context });
   }
+  static geoBlocked(context: Record<string, unknown>): ExchangeError {
+    return new ExchangeError("restricted region", { kind: "GEO_BLOCKED", code: "REGION_BLOCKED", context });
+  }
   static network(message = "network failure", context?: Record<string, unknown>): ExchangeError {
     return new ExchangeError(message, { kind: "NETWORK", code: "NETWORK_ERROR", retryable: true, context });
   }
@@ -101,6 +107,22 @@ export class ExchangeError extends Error {
   }
   static validation(context?: Record<string, unknown>): ExchangeError {
     return new ExchangeError("validation failure", { kind: "VALIDATION", code: "VALIDATION_ERROR", context });
+  }
+}
+
+/** Map an exchange failure kind to the HTTP status a route should use. */
+export function exchangeErrorHttpStatus(kind: ExchangeErrorKind): number {
+  switch (kind) {
+    case "VALIDATION":
+    case "AUTHENTICATION":
+      return 400;
+    case "PERMISSION":
+    case "GEO_BLOCKED":
+      return 403;
+    case "RATE_LIMIT":
+      return 429;
+    default:
+      return 502;
   }
 }
 
