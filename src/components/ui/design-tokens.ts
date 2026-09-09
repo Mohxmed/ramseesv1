@@ -30,7 +30,10 @@ export const colors = {
   good: "#34d399",
   danger: "#ef4444",
   info: "#38bdf8",
-  accent: "#10b981",
+  accent: "#c9a961",
+  accentFg: "#e8d5a2",
+  gold: "#c9a961",
+  goldFg: "#e8d5a2",
   muted: "#71717a",
 } as const;
 

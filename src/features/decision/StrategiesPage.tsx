@@ -6,7 +6,7 @@ import { useStrategies, type PersistStatus } from "./hooks/useStrategies";
 import { StrategyList } from "./components/StrategyList";
 import { LiveStrategyBuilder } from "./components/LiveStrategyBuilder";
 import { CreateStrategyModal } from "./components/CreateStrategyModal";
-import { Badge, type Tone } from "@/components/ui/index";
+import { Badge, PageHeader, type Tone } from "@/components/ui/index";
 import { StrategyIcon } from "@/components/icons/icons";
 
 const STATUS_META: Record<PersistStatus, { label: string; tone: Tone }> = {
@@ -43,20 +43,12 @@ export function StrategiesPage() {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-card border border-line bg-surface-1/40 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-panel border border-line bg-surface-2/60 text-muted">
-              <StrategyIcon className="h-5 w-5" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold text-zinc-100">إدارة الاستراتيجيات</h1>
-              <p className="text-2xs text-muted">
-                أنشئ استراتيجياتك وعدّلها وخزّنها في السحابة، ثم قيّمها في مركز القرارات.
-              </p>
-            </div>
-          </div>
-
+      <PageHeader
+        eyebrow="Strategy Builder"
+        icon={<StrategyIcon />}
+        title="إدارة الاستراتيجيات"
+        description="أنشئ استراتيجياتك وعدّلها وخزّنها في السحابة، ثم قيّمها في مركز القرارات."
+        right={
           <div className="flex flex-wrap items-center gap-2 text-2xs">
             <span className="rounded-chip border border-line bg-surface-2/60 px-2 py-1">
               {strategies.length} استراتيجية · {enabledCount} مفعّلة
@@ -65,13 +57,13 @@ export function StrategiesPage() {
             <button
               type="button"
               onClick={openCreate}
-              className="inline-flex items-center gap-1 rounded-md bg-up/80 px-3 py-1.5 text-xs font-bold text-background hover:bg-up-fg"
+              className="inline-flex items-center gap-1 rounded-md bg-gold/90 px-3 py-1.5 text-xs font-bold text-background hover:bg-gold-fg"
             >
               + إنشاء استراتيجية
             </button>
           </div>
-        </div>
-      </section>
+        }
+      />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="space-y-4">

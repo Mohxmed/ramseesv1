@@ -24,7 +24,7 @@ import { HeaderTradesLink } from "./HeaderTradesLink";
  */
 export function Header({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
   return (
-    <header className="sticky top-0 z-30 h-14 shrink-0 border-b border-line bg-surface-1/85 backdrop-blur lg:h-16">
+    <header className="sticky top-0 z-30 h-14 shrink-0 border-b border-line bg-surface-1/85 backdrop-blur lg:h-16 [box-shadow:inset_0_-1px_0_rgba(201,169,97,0.12)]">
       <div className="flex h-full items-center gap-1 px-2 sm:gap-2 sm:px-4">
         {/* Mobile nav trigger (rightmost on small screens) */}
         <button

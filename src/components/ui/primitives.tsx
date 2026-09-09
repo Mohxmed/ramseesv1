@@ -176,6 +176,13 @@ export interface PageHeaderProps {
   className?: string;
 }
 
+/**
+ * Compact Material-style page identity header — small footprint.
+ *
+ * One consistent block across every screen: an icon chip (soft gold
+ * gradient) beside the title + one-line description, with optional
+ * action buttons and live "right" chips pushed to the opposite edge.
+ */
 export function PageHeader({
   eyebrow,
   icon,
@@ -186,19 +193,31 @@ export function PageHeader({
   className = "",
 }: PageHeaderProps) {
   return (
-    <header className={`flex flex-wrap items-end justify-between gap-3 ${className}`}>
-      <div>
-        {eyebrow ? (
-          <div className="text-3xs font-semibold uppercase tracking-[0.2em] text-muted">{eyebrow}</div>
+    <header className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-2 ${className}`}>
+      <div className="flex min-w-0 flex-1 basis-64 items-center gap-3">
+        {icon ? (
+          <span className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-[10px] border border-gold/25 bg-gradient-to-br from-gold/25 via-gold/10 to-transparent text-gold-fg [&>svg]:h-[18px] [&>svg]:w-[18px]">
+            {icon}
+          </span>
         ) : null}
-        <h1 className="flex items-center gap-2 text-xl font-bold text-zinc-100">
-          {icon ? <span className="shrink-0 text-muted [&>svg]:h-5 [&>svg]:w-5">{icon}</span> : null}
-          {title}
-        </h1>
-        {description ? <p className="mt-1 max-w-2xl text-xs text-muted">{description}</p> : null}
-        {actions ? <div className="mt-2 flex flex-wrap items-center gap-2">{actions}</div> : null}
+        <div className="min-w-0">
+          {eyebrow ? (
+            <div className="truncate text-3xs font-semibold uppercase tracking-[0.22em] text-gold-fg/70">
+              {eyebrow}
+            </div>
+          ) : null}
+          <h1 className="truncate text-[15px] leading-6 font-bold text-zinc-50">{title}</h1>
+          {description ? (
+            <p className="mt-0.5 max-w-xl truncate text-2xs leading-relaxed text-muted">{description}</p>
+          ) : null}
+        </div>
       </div>
-      {right ? <div className="flex items-center gap-2">{right}</div> : null}
+      {(actions || right) ? (
+        <div className="flex flex-wrap items-center gap-2">
+          {actions}
+          {right}
+        </div>
+      ) : null}
     </header>
   );
 }

@@ -3,6 +3,8 @@
 import { useScalping } from "./hooks/useScalping";
 import { useFlowLatest, type FlowLatestRef } from "./hooks/useFlowLatest";
 import { TerminalHeader } from "./components/terminal/TerminalHeader";
+import { PageHeader } from "@/components/ui/index";
+import { ScalpIcon } from "@/components/icons/icons";
 import { DecisionCall } from "./components/terminal/DecisionCall";
 import { PriceMovePanel } from "./components/terminal/PriceMovePanel";
 import { MarketStrengthPanel } from "./components/terminal/MarketStrengthPanel";
@@ -76,9 +78,19 @@ function LiveFlowTape({ latest }: { latest?: FlowLatestRef }) {
 export function ScalpingPage() {
   const snap = useScalping();
 
+  const pageHeader = (
+    <PageHeader
+      eyebrow="Scalping Terminal"
+      icon={<ScalpIcon />}
+      title="المضاربة الفورية"
+      description="قراءات مباشرة من تدفق السوق — القرار يعرض الضغط الفعلي لحظة بلحظة"
+    />
+  );
+
   if (snap.health.status === "loading") {
     return (
       <div className="space-y-4">
+        {pageHeader}
         <TerminalHeader snap={snap} />
         <div className="rounded-card border border-line bg-surface-1/40 p-10 text-center text-2xs text-muted">
           جارٍ تجهيز بيانات السوق المباشرة…
@@ -89,6 +101,7 @@ export function ScalpingPage() {
 
   return (
     <div className="space-y-4">
+      {pageHeader}
       <TerminalHeader snap={snap} />
 
       {/* External cross-market bias — shared store, zero extra polls */}

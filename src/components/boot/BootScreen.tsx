@@ -27,7 +27,7 @@ const KICKER: Record<BootMode, { en: string; ar: string }> = {
 function TaskDot({ status }: { status: BootTaskStatus["status"] }) {
   if (status === "done") {
     return (
-      <span className="flex h-4 w-4 items-center justify-center rounded-full border border-up/40 bg-up/10 text-[9px] font-bold text-up-fg">
+      <span className="flex h-4 w-4 items-center justify-center rounded-full border border-gold/40 bg-gold/10 text-[9px] font-bold text-gold-fg">
         ✓
       </span>
     );
@@ -41,14 +41,14 @@ function TaskDot({ status }: { status: BootTaskStatus["status"] }) {
   }
   if (status === "running") {
     return (
-      <span className="h-2 w-2 animate-pulse rounded-full bg-up motion-reduce:animate-none" />
+      <span className="h-2 w-2 animate-pulse rounded-full bg-gold motion-reduce:animate-none" />
     );
   }
   return <span className="h-2 w-2 rounded-full bg-zinc-600" />;
 }
 
 function TaskTime({ task }: { task: BootTaskStatus }) {
-  if (task.status === "done") return <span className="text-up-fg">تم</span>;
+  if (task.status === "done") return <span className="text-gold-fg">تم</span>;
   if (task.status === "error") {
     return <span className="text-down-fg">{task.timedOut ? "انتهت المهلة" : "فشل"}</span>;
   }
@@ -81,11 +81,11 @@ export function BootScreen({
       className="fixed inset-0 z-50 flex flex-col items-center justify-center overflow-hidden bg-zinc-950"
     >
       {/* Ambient glows */}
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(16,185,129,0.08),transparent_55%)]" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-[radial-gradient(circle_at_50%_120%,rgba(16,185,129,0.05),transparent_70%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_35%,rgba(201,169,97,0.09),transparent_55%)]" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-[radial-gradient(circle_at_50%_120%,rgba(201,169,97,0.06),transparent_70%)]" />
 
       <div className="relative flex flex-col items-center px-6">
-        <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-card border border-line/80 bg-surface-1 shadow-pop">
+        <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-card border border-gold/30 bg-surface-1 shadow-pop shadow-[0_0_44px_-14px_rgba(201,169,97,0.55)]">
           <Image
             src="/favicon.avif"
             alt=""
@@ -96,7 +96,7 @@ export function BootScreen({
           />
         </div>
 
-        <p className={`${num} mt-5 text-[10px] font-bold uppercase tracking-[0.35em] text-up-fg`}>
+        <p className={`${num} mt-5 text-[10px] font-bold uppercase tracking-[0.35em] text-gold-fg`}>
           {kicker.en}
         </p>
         <h1 className="mt-1.5 text-3xl font-bold tracking-wide text-zinc-50">
@@ -104,7 +104,7 @@ export function BootScreen({
         </h1>
         <p className="text-xs text-zinc-400">{kicker.ar}</p>
 
-        <div className="mx-auto mt-7 h-px w-20 bg-gradient-to-r from-transparent via-line to-transparent" />
+        <div className="mx-auto mt-7 h-px w-20 bg-gradient-to-r from-transparent via-gold/50 to-transparent" />
 
         {/* Task list — mirrors real boot state */}
         <ul className="mt-4 w-64 space-y-1">
@@ -127,7 +127,7 @@ export function BootScreen({
 
         {/* Indeterminate line — real-state driven, calm, motion-safe */}
         <div className="mt-5 h-px w-64 overflow-hidden rounded-full bg-surface-2">
-          <div className="h-full w-1/3 animate-pulse bg-up motion-reduce:animate-none" />
+          <div className="h-full w-1/3 animate-pulse bg-gradient-to-r from-gold/50 via-gold-fg to-gold/50 motion-reduce:animate-none" />
         </div>
         <p className="mt-3 text-2xs tracking-wide text-muted">
           RAMSEES · MARKET INTELLIGENCE SYSTEM

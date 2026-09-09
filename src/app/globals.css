@@ -40,7 +40,10 @@ html {
   --color-good: #34d399;
   --color-danger: #ef4444;
   --color-info: #38bdf8;
-  --color-accent: #10b981;
+  --color-accent: #c9a961;
+  --color-accent-fg: #e8d5a2;
+  --color-gold: #c9a961;
+  --color-gold-fg: #e8d5a2;
   --color-muted: #71717a;
 
   /* typography scale */

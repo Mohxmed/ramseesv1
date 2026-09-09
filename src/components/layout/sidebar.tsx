@@ -36,13 +36,13 @@ function NavItem({
         collapsed ? "justify-center px-0" : "px-3"
       } ${
         active
-          ? "bg-up/10 text-up-fg"
+          ? "bg-gold/10 text-gold-fg"
           : "text-muted hover:bg-surface-2/70 hover:text-zinc-100"
       }`}
     >
       <span
         className={`flex shrink-0 items-center justify-center ${
-          active ? "text-up-fg" : "text-muted group-hover:text-zinc-300"
+          active ? "text-gold-fg" : "text-muted group-hover:text-zinc-300"
         }`}
       >
         <Icon className="h-5 w-5" />
@@ -50,7 +50,7 @@ function NavItem({
       {!collapsed && <span className="truncate">{label}</span>}
 
       {active && !collapsed && (
-        <span className="ml-auto h-5 w-0.5 rounded-full bg-up-fg" />
+        <span className="ml-auto h-5 w-0.5 rounded-full bg-gradient-to-b from-transparent via-gold-fg to-transparent" />
       )}
 
       <span
@@ -91,7 +91,9 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
         </div>
         {!collapsed && (
           <div className="mr-3 min-w-0">
-            <h1 className="truncate text-sm font-bold text-zinc-50">RAMSEES</h1>
+            <h1 className="truncate bg-gradient-to-l from-gold-fg via-gold to-gold-fg bg-clip-text text-sm font-bold text-transparent">
+              RAMSEES
+            </h1>
             <p className="truncate text-2xs text-muted">
               نظام تداول البيتكوين
             </p>
