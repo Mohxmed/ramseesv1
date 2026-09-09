@@ -28,14 +28,46 @@ function Row({ label, value, tone }: { label: string; value: string; tone?: "up"
   );
 }
 
-function ResultCard({ title, children }: { title: string; children: React.ReactNode }) {
+function Metric({
+  label,
+  value,
+  tone = "neutral",
+  hint,
+}: {
+  label: string;
+  value: string;
+  tone?: "up" | "down" | "neutral";
+  hint?: string;
+}) {
+  const color = tone === "up" ? "success.main" : tone === "down" ? "error.main" : "text.primary";
   return (
-    <Paper
-      variant="outlined"
-      sx={{ p: 2.25, backgroundImage: "none", bgcolor: "rgba(24,24,27,0.6)" }}
-    >
-      <Typography sx={{ fontSize: 12, fontWeight: 800, color: "text.primary", mb: 1 }}>{title}</Typography>
-      {children}
+    <Paper variant="outlined" sx={{ p: 2, backgroundImage: "none", bgcolor: "rgba(24,24,27,0.6)" }}>
+      <Typography sx={{ fontSize: 11, fontWeight: 700, color: "text.secondary" }}>{label}</Typography>
+      <Typography
+        sx={{
+          mt: 1,
+          fontSize: 24,
+          fontWeight: 800,
+          lineHeight: 1.15,
+          color,
+          fontFamily: "inherit",
+          fontVariantNumeric: "tabular-nums",
+          direction: "ltr",
+          textAlign: "right",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
+        {value}
+      </Typography>
+      {hint ? (
+        <Typography
+          sx={{ mt: 0.75, fontSize: 10, color: "text.disabled", fontFamily: "inherit", fontVariantNumeric: "tabular-nums", direction: "ltr", textAlign: "right" }}
+        >
+          {hint}
+        </Typography>
+      ) : null}
     </Paper>
   );
 }
@@ -44,12 +76,17 @@ export function CalculatorResults({
   result,
   warnings,
   accountName,
+  accountBalance,
 }: {
   result: CalculatorResult;
   warnings: RiskWarning[];
   accountName: string;
+  accountBalance: number;
 }) {
   const r = result;
+  const pctOfBalance = (amount: number) =>
+    accountBalance > 0 ? formatPercent((amount / accountBalance) * 100) : "—";
+  const profitCost = r.profit.fees + r.profit.slippage + r.profit.funding;
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
@@ -63,44 +100,38 @@ export function CalculatorResults({
         </Alert>
       ) : null}
 
-      <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 1.5 }}>
-        <ResultCard title="حجم المركز">
-          <Row label="حجم المركز" value={`${formatMoney(r.position.size, 2)} (بما في ذلك الرافعة)`} />
-          <Row label="الكمية" value={`${formatQty(r.position.quantity)} ${accountName || "BTC"}`} />
-          <Row label="الهامش المطلوب" value={formatMoney(r.position.margin)} />
-          <Row label="الرافعة المالية" value={formatQty(r.position.leverage, 0) + "x"} />
-        </ResultCard>
-
-        <ResultCard title="المخاطرة">
-          <Row
-            label="الخسارة المحتملة"
-            value={formatMoney(r.risk.riskAmount)}
-            tone="down"
-          />
-          <Row label="المسافة لوقف الخسارة" value={formatPercent(r.risk.riskPercent)} tone="down" />
-          <Row label="نسبة من رأس المال" value={formatPercent(r.risk.riskPercentOfAccount)} tone="down" />
-          <Row label="المسافة بالسعر" value={formatQty(r.risk.distanceToStop)} />
-        </ResultCard>
-
-        <ResultCard title="المكسب">
-          <Row
-            label="الربح المحتمل"
-            value={formatMoney(r.reward.rewardAmount)}
-            tone="up"
-          />
-          <Row label="المسافة للهدف" value={formatPercent(r.reward.rewardPercent)} tone="up" />
-          <Row label="نسبة العائد : المخاطرة" value={formatRR(r.reward.rr)} tone="up" />
-          <Row label="المسافة بالسعر" value={formatQty(r.reward.distanceToTarget)} />
-        </ResultCard>
-
-        <ResultCard title="الرسوم والانزلاق">
-          <Row label="رسوم الدخول" value={formatMoney(r.fees.entry)} />
-          <Row label="رسوم الخروج (هدف)" value={`${formatMoney(r.fees.tpExit)}`} />
-          <Row label="رسوم الخروج (وقف)" value={`${formatMoney(r.fees.slExit)}`} />
-          <Row label="تكلفة السيناريو الناجح" value={`${formatPercent(result.profit.costPercent)}`} />
-          <Row label="تكلفة سيناريو الخسارة" value={`${formatPercent(result.loss.costPercent)}`} />
-        </ResultCard>
+      <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 1.5 }}>
+        <Metric
+          label="حجم المركز"
+          value={formatMoney(r.position.size)}
+          hint={`الكمية ${formatQty(r.position.quantity)} ${accountName || "BTC"}`}
+        />
+        <Metric
+          label="قيمة المخاطرة"
+          value={formatMoney(r.risk.riskAmount)}
+          tone="down"
+          hint={`${formatPercent(r.risk.riskPercentOfAccount)} من رأس المال`}
+        />
+        <Metric
+          label="الربح المتوقع"
+          value={`+${formatMoney(r.profit.net)}`}
+          tone="up"
+          hint={`${pctOfBalance(r.profit.net)} من رأس المال — صافي الرسوم`}
+        />
+        <Metric label="العائد : المخاطرة" value={formatRR(r.reward.rr)} tone="up" hint="من مسافة الدخول إلى الهدف" />
       </Box>
+
+      <Paper variant="outlined" sx={{ p: 2.25, backgroundImage: "none", bgcolor: "rgba(24,24,27,0.6)" }}>
+        <Typography sx={{ fontSize: 12, fontWeight: 800, color: "text.primary", mb: 0.75 }}>
+          تفاصيل الصفقة
+        </Typography>
+        <Row label="الكمية" value={`${formatQty(r.position.quantity)} ${accountName || "BTC"}`} />
+        <Row label="مسافة وقف الخسارة" value={formatPercent(r.risk.riskPercent)} tone="down" />
+        <Row label="مسافة الهدف" value={formatPercent(r.reward.rewardPercent)} tone="up" />
+        <Row label="الهامش المطلوب" value={formatMoney(r.position.margin)} />
+        <Row label="رسوم الدخول" value={formatMoney(r.fees.entry)} />
+        <Row label="تبعيات الوصول للهدف" value={`${formatMoney(profitCost)} (${formatPercent(r.profit.costPercent)})`} tone="down" />
+      </Paper>
 
       <Paper
         variant="outlined"
@@ -112,15 +143,15 @@ export function CalculatorResults({
         <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 2 }}>
           <Box sx={{ p: 1.5, borderRadius: 1.5, bgcolor: "rgba(16,185,129,0.05)", border: "1px solid rgba(16,185,129,0.18)" }}>
             <Typography sx={{ fontSize: 11, color: "success.main", fontWeight: 800 }}>عند الوصول للهدف (TP)</Typography>
-            <Row label="الربح الإجمالي" value={formatMoney(r.profit.gross)} tone="up" />
-            <Row label="الرسوم + الانزلاق" value={`${formatMoney(r.profit.fees + r.profit.slippage)} (${formatPercent(r.profit.costPercent)})`} tone="down" />
-            <Row label="صافي الربح" value={formatMoney(r.profit.net)} tone="up" />
+            <Row label="الربح الصافي" value={`+${formatMoney(r.profit.net)}`} tone="up" />
+            <Row label="مسافة الهدف" value={`+${formatPercent(r.reward.rewardPercent)}`} tone="up" />
+            <Row label="نسبة من رأس المال" value={`+${pctOfBalance(r.profit.net)}`} tone="up" />
           </Box>
           <Box sx={{ p: 1.5, borderRadius: 1.5, bgcolor: "rgba(239,68,68,0.05)", border: "1px solid rgba(239,68,68,0.18)" }}>
             <Typography sx={{ fontSize: 11, color: "error.main", fontWeight: 800 }}>عند الوصول لوقف الخسارة (SL)</Typography>
-            <Row label="الخسارة الإجمالية" value={formatMoney(r.loss.gross)} tone="down" />
-            <Row label="الرسوم + الانزلاق" value={`${formatMoney(r.loss.fees + r.loss.slippage)} (${formatPercent(r.loss.costPercent)})`} tone="down" />
-            <Row label="صافي الخسارة" value={formatMoney(r.loss.net)} tone="down" />
+            <Row label="صافي الخسارة" value={`-${formatMoney(Math.abs(r.loss.net))}`} tone="down" />
+            <Row label="مسافة الوقف" value={`-${formatPercent(r.risk.riskPercent)}`} tone="down" />
+            <Row label="نسبة من رأس المال" value={`-${pctOfBalance(Math.abs(r.loss.net))}`} tone="down" />
           </Box>
         </Box>
         <RiskRewardBar rr={r.reward.rr} riskPercent={r.risk.riskPercent} rewardPercent={r.reward.rewardPercent} />

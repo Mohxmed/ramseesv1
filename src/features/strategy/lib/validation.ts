@@ -20,9 +20,21 @@ export interface CalculatorInputs {
   leverage: number;
 }
 
+/** Inputs for the risk-driven sizing flow (position size is derived). */
+export interface RiskCalculatorInputs {
+  direction: Direction;
+  entry: number;
+  stopLoss: number;
+  takeProfit: number;
+  accountBalance: number;
+  /** Risk per trade as % of account balance. */
+  riskPercent: number;
+  leverage: number;
+}
+
 /** Field → error message (empty string = valid). */
 export type ValidationErrors = Partial<
-  Record<"entry" | "stopLoss" | "takeProfit" | "accountBalance" | "positionSize" | "quantity" | "leverage", string>
+  Record<"entry" | "stopLoss" | "takeProfit" | "accountBalance" | "positionSize" | "quantity" | "leverage" | "riskPercent", string>
 >;
 
 const num = (v: number) => Number.isFinite(v) && v > 0;
@@ -57,6 +69,36 @@ export function validateCalculator(inputs: CalculatorInputs): ValidationErrors {
 
 export function hasErrors(errors: ValidationErrors): boolean {
   return Object.values(errors).some((m) => Boolean(m));
+}
+
+/**
+ * Validate the risk-driven calculator flow where the position size is derived
+ * from the account risk budget and the SL distance (never typed directly).
+ */
+export function validateRiskCalculator(inputs: RiskCalculatorInputs): ValidationErrors {
+  const errors: ValidationErrors = {};
+  const { direction, entry, stopLoss, takeProfit, accountBalance } = inputs;
+
+  if (!num(entry)) errors.entry = "سعر الدخول يجب أن يكون أكبر من صفر.";
+  if (!num(stopLoss)) errors.stopLoss = "سعر وقف الخسارة يجب أن يكون أكبر من صفر.";
+  if (!num(takeProfit)) errors.takeProfit = "سعر الهدف يجب أن يكون أكبر من صفر.";
+  if (!num(accountBalance)) errors.accountBalance = "رصيد الحساب يجب أن يكون أكبر من صفر.";
+  if (!Number.isFinite(inputs.riskPercent) || inputs.riskPercent <= 0) {
+    errors.riskPercent = "نسبة المخاطرة يجب أن تكون أكبر من صفر.";
+  }
+  if (inputs.leverage < 1) errors.leverage = "الرافعة المالية يجب أن تكون 1 على الأقل.";
+
+  if (num(entry) && num(stopLoss) && num(takeProfit)) {
+    if (direction === "LONG") {
+      if (stopLoss >= entry) errors.stopLoss = "يجب أن يكون وقف الخسارة أدنى من سعر الدخول للصفقات الشرائية (LONG).";
+      if (entry >= takeProfit) errors.takeProfit = "يجب أن يكون الهدف أعلى من سعر الدخول للصفقات الشرائية (LONG).";
+    } else {
+      if (stopLoss <= entry) errors.stopLoss = "يجب أن يكون وقف الخسارة أعلى من سعر الدخول للصفقات البيعية (SHORT).";
+      if (entry <= takeProfit) errors.takeProfit = "يجب أن يكون الهدف أدنى من سعر الدخول للصفقات البيعية (SHORT).";
+    }
+  }
+
+  return errors;
 }
 
 export interface RiskWarning {

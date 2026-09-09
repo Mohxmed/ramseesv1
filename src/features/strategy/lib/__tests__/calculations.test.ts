@@ -13,6 +13,7 @@ import {
   calculateOutcomes,
   calculateFee,
   calculateSlippage,
+  sizePositionFromRisk,
 } from "../calculations";
 import type { ResolvedPosition } from "../calculations";
 
@@ -139,5 +140,80 @@ describe("short positions mirror the math", () => {
     // reward = 3% of notional also
     expect(r.reward.rewardAmount).toBe(30);
     expect(r.reward.rr).toBe(3);
+  });
+});
+
+describe("risk-driven position sizing (sizePositionFromRisk)", () => {
+  // balance 10k, risk 1% → budget $100; SL 1% away → size $10,000.
+  const sizing = {
+    direction: "LONG" as const,
+    entry: 40_000,
+    stopLoss: 39_600,
+    takeProfit: 41_200,
+    accountBalance: 10_000,
+    riskPercent: 1,
+    leverage: 20,
+  };
+
+  it("sizes the position from the risk budget and SL distance", () => {
+    const p = sizePositionFromRisk(sizing);
+    expect(p.positionSize).toBe(10_000);
+    expect(p.quantity).toBe(0.25);
+    // risk amount = balance x risk% = 100
+    const r = calculateOutcomes(p, FEES);
+    expect(r.risk.riskAmount).toBe(100);
+    expect(r.risk.riskPercentOfAccount).toBe(1);
+    // reward scales with the stop distance ratio (3x here)
+    expect(r.reward.rewardAmount).toBe(300);
+    expect(r.reward.rr).toBe(3);
+  });
+
+  it("leverage changes only the margin, never the size or P&L", () => {
+    const p20 = sizePositionFromRisk(sizing);
+    const p5 = sizePositionFromRisk({ ...sizing, leverage: 5 });
+    expect(p5.positionSize).toBe(p20.positionSize);
+    expect(p5.quantity).toBe(p20.quantity);
+    expect(calculateMargin(p20.positionSize, 20)).toBe(500);
+    expect(calculateMargin(p5.positionSize, 5)).toBe(2_000);
+    expect(calculateOutcomes(p5, FEES).risk.riskAmount).toBe(
+      calculateOutcomes(p20, FEES).risk.riskAmount
+    );
+  });
+
+  it("mirrors the math for SHORT", () => {
+    const short = sizePositionFromRisk({
+      ...sizing,
+      direction: "SHORT",
+      stopLoss: 40_400,
+      takeProfit: 38_800,
+    });
+    expect(short.positionSize).toBe(10_000);
+    const r = calculateOutcomes(short, FEES);
+    expect(r.risk.riskAmount).toBe(100);
+    expect(r.reward.rr).toBe(3);
+  });
+
+  it("still derives a size for an invalid side (direction sanity lives in validation)", () => {
+    const bad = sizePositionFromRisk({ ...sizing, stopLoss: 40_500 });
+    expect(Number.isNaN(bad.positionSize)).toBe(false);
+  });
+});
+
+describe("funding fee", () => {
+  it("falls back to 0 when the config omits funding", () => {
+    const r = calculateOutcomes(full, FEES);
+    expect(r.profit.funding).toBe(0);
+    expect(r.loss.funding).toBe(0);
+    expect(Number(r.profit.net.toFixed(2))).toBe(29.8);
+  });
+
+  it("charges funding on the position notional for both outcomes", () => {
+    const r = calculateOutcomes(full, { ...FEES, fundingFeePercent: 0.01 });
+    // 0.01% of 1000 = 0.1
+    expect(Number(r.profit.funding.toFixed(3))).toBe(0.1);
+    expect(Number(r.loss.funding.toFixed(3))).toBe(0.1);
+    // profit net drops from 29.80 → 29.70
+    expect(Number(r.profit.net.toFixed(2))).toBe(29.7);
+    expect(r.profit.costPercent).toBeGreaterThan(0);
   });
 });

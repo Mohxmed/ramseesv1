@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validateCalculator, hasErrors, calculateRiskWarnings } from "../validation";
+import { validateCalculator, validateRiskCalculator, hasErrors, calculateRiskWarnings } from "../validation";
 import { calculateOutcomes, type ResolvedPosition } from "../calculations";
 import { createStrategy } from "../versioning";
 
@@ -43,6 +43,49 @@ describe("validateCalculator", () => {
 
   it("rejects leverage below 1", () => {
     const e = validateCalculator({ ...base, leverage: 0.5 });
+    expect(e.leverage).toBeTruthy();
+  });
+});
+
+describe("validateRiskCalculator", () => {
+  const riskBase = {
+    direction: "LONG" as const,
+    entry: 40_000,
+    stopLoss: 39_600,
+    takeProfit: 41_200,
+    accountBalance: 10_000,
+    riskPercent: 1,
+    leverage: 20,
+  };
+
+  it("accepts a valid risk-driven setup", () => {
+    expect(hasErrors(validateRiskCalculator(riskBase))).toBe(false);
+  });
+
+  it("rejects a missing or non-positive risk percent", () => {
+    expect(validateRiskCalculator({ ...riskBase, riskPercent: 0 }).riskPercent).toBeTruthy();
+    expect(validateRiskCalculator({ ...riskBase, riskPercent: Number.NaN }).riskPercent).toBeTruthy();
+  });
+
+  it("rejects LONG stop above entry", () => {
+    const e = validateRiskCalculator({ ...riskBase, stopLoss: 40_500 });
+    expect(e.stopLoss).toContain("LONG");
+  });
+
+  it("rejects SHORT invalid price layout", () => {
+    const e = validateRiskCalculator({
+      ...riskBase,
+      direction: "SHORT",
+      stopLoss: 39_500,
+      takeProfit: 40_500,
+    });
+    expect(e.stopLoss).toContain("SHORT");
+    expect(e.takeProfit).toContain("SHORT");
+  });
+
+  it("rejects a non-positive account balance and leverage below 1", () => {
+    const e = validateRiskCalculator({ ...riskBase, accountBalance: 0, leverage: 0.5 });
+    expect(e.accountBalance).toBeTruthy();
     expect(e.leverage).toBeTruthy();
   });
 });

@@ -9,6 +9,8 @@ import type { Direction, OrderType } from "../types/strategy";
 import { uid } from "./versioning";
 
 export interface CalculatorSnapshot {
+  /** "preset" = account/risk/fee defaults only; "scenario" (legacy) = full trade snapshot. */
+  kind?: "scenario" | "preset";
   strategyId: string | null;
   strategyName: string | null;
   versionLabel: string | null;
@@ -25,6 +27,10 @@ export interface CalculatorSnapshot {
   makerFee: number;
   takerFee: number;
   slippagePercent: number;
+  /** Risk per trade as % of account balance (presets and new saves). */
+  riskPercent?: number;
+  /** Futures funding fee % (presets and new saves). */
+  fundingFeePercent?: number;
   accountBalance: number;
   asset: string;
   createdAt: number;
@@ -55,19 +61,29 @@ export interface ScenarioFieldValues {
   makerFee: number;
   takerFee: number;
   slippagePercent: number;
+  riskPercent?: number;
+  fundingFeePercent?: number;
   accountBalance: number;
   asset: string;
 }
 
-export function buildSnapshot(fields: ScenarioFieldValues): CalculatorSnapshot {
+export function buildSnapshot(
+  fields: ScenarioFieldValues & { kind?: "scenario" | "preset" }
+): CalculatorSnapshot {
   return {
     ...fields,
+    kind: fields.kind ?? "scenario",
     createdAt: Date.now(),
   };
 }
 
-/** Suggested readable name for a saved scenario. */
+/** Suggested readable name for a saved scenario or preset. */
 export function scenarioNameSuggestion(snapshot: CalculatorSnapshot): string {
+  if (snapshot.kind === "preset") {
+    return `إعدادات ${snapshot.asset || "BTC"}${
+      Number.isFinite(snapshot.riskPercent) ? ` — مخاطرة ${snapshot.riskPercent}%` : ""
+    }`;
+  }
   const direction = snapshot.direction === "LONG" ? "شراء" : "بيع";
   const token = snapshot.strategyName
     ? `${snapshot.strategyName} ${snapshot.versionLabel ?? ""}`

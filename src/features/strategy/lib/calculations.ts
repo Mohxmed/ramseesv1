@@ -32,6 +32,8 @@ export interface FeeConfig {
   makerFee: number;
   takerFee: number;
   slippagePercent: number;
+  /** Futures funding cost as % of position notional (0 when absent). */
+  fundingFeePercent?: number;
 }
 
 export interface PositionResult {
@@ -59,6 +61,8 @@ export interface OutcomeResult {
   gross: number;
   fees: number;
   slippage: number;
+  /** Futures funding cost for the holding period. */
+  funding: number;
   net: number;
   /** Total deductions as % of the position notional. */
   costPercent: number;
@@ -144,6 +148,52 @@ export function calculateTPFromRR(entry: number, stopLoss: number, rr: number): 
 }
 
 /* ------------------------------------------------------------------ */
+/* Risk-driven sizing                                                   */
+/* ------------------------------------------------------------------ */
+
+export interface RiskSizingInput {
+  direction: Direction;
+  entry: number;
+  stopLoss: number;
+  takeProfit: number;
+  accountBalance: number;
+  /** Risk per trade as % of account balance (e.g. 1 → 1%). */
+  riskPercent: number;
+  leverage: number;
+}
+
+/**
+ * Size the position from the account risk budget instead of a manual notional:
+ *
+ *   riskAmount   = balance × risk% / 100
+ *   positionSize = riskAmount / (SL distance %)      ← size follows the stop,
+ *   quantity     = positionSize / entry
+ *
+ * Leverage never changes the position size or the P&L — its only role is the
+ * required margin (positionSize / leverage), computed downstream.
+ */
+export function sizePositionFromRisk(input: RiskSizingInput): ResolvedPosition {
+  const { direction, entry, stopLoss, takeProfit, accountBalance, riskPercent: riskPctBudget, leverage } = input;
+  const riskAmount = mul(accountBalance, div(riskPctBudget, 100, 10), 2);
+  const distancePct = riskPercent(entry, stopLoss);
+  const positionSize =
+    Number.isFinite(distancePct) && distancePct > 0
+      ? div(riskAmount, div(distancePct, 100, 10), 8)
+      : NaN;
+  const quantity = div(positionSize, entry, 8);
+  return {
+    direction,
+    entry,
+    stopLoss,
+    takeProfit,
+    accountBalance,
+    positionSize,
+    quantity,
+    leverage,
+  };
+}
+
+/* ------------------------------------------------------------------ */
 /* Fees engine                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -202,6 +252,7 @@ function buildOutcome(
   isMarketEntry: boolean,
   isMarketExit: boolean,
   slippagePercent: number,
+  fundingFeePercent: number,
   positionNotional: number,
   exitNotional: number
 ): OutcomeResult {
@@ -210,9 +261,18 @@ function buildOutcome(
     isMarketExit ? calculateSlippage(exitNotional, "MARKET", slippagePercent) : 0,
     4
   );
-  const net = sub(gross, add(fees, slippage, 4), 2);
-  const costPercent = toPercent(add(fees, slippage, 2), positionNotional, 4);
-  return { gross: round(gross, 2), fees: round(fees, 2), slippage: round(slippage, 4), net: round(net, 2), costPercent };
+  const funding = fundingFeePercent > 0 ? mul(positionNotional, div(fundingFeePercent, 100, 10), 4) : 0;
+  const totalCost = add(fees, add(slippage, funding, 4), 4);
+  const net = sub(gross, totalCost, 2);
+  const costPercent = toPercent(totalCost, positionNotional, 4);
+  return {
+    gross: round(gross, 2),
+    fees: round(fees, 2),
+    slippage: round(slippage, 4),
+    funding: round(funding, 4),
+    net: round(net, 2),
+    costPercent,
+  };
 }
 
 /** Full result bundle for a resolved position. */
@@ -241,6 +301,7 @@ export function calculateOutcomes(position: ResolvedPosition, config: FeeConfig)
     config.entryOrderType === "MARKET",
     config.tpOrderType === "MARKET",
     config.slippagePercent,
+    config.fundingFeePercent ?? 0,
     positionSize,
     tpNotional
   );
@@ -252,6 +313,7 @@ export function calculateOutcomes(position: ResolvedPosition, config: FeeConfig)
     config.entryOrderType === "MARKET",
     config.slOrderType === "MARKET",
     config.slippagePercent,
+    config.fundingFeePercent ?? 0,
     positionSize,
     slNotional
   );

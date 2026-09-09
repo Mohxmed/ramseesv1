@@ -17,12 +17,18 @@ export const MARGIN_MODE_LABELS: Record<MarginMode, string> = {
 };
 
 /** Risk:Reward quick presets exposed by the calculator (1:n). */
-export const RR_PRESETS = [2, 3, 4, 5] as const;
+export const RR_PRESETS = [2, 3, 4] as const;
 
 /** Default trading-account balance used when nothing is set yet. */
 export const DEFAULT_ACCOUNT_BALANCE = 10_000;
 
 export const DEFAULT_POSITION_SIZE = 1_000;
+
+/** Default risk per trade as % of the account balance. */
+export const DEFAULT_RISK_PERCENT = 1;
+
+/** Default futures funding fee as % of the position notional. */
+export const DEFAULT_FUNDING_FEE = 0.01;
 
 /** Factor used to expand slider-free "distance to SL" reads. */
 export const BASE_CURRENCY_PRECISION = 8;
