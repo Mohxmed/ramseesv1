@@ -12,23 +12,13 @@ import { ResetConfirmation } from "@/features/goals/components/ResetConfirmation
 import { GOALS_CONFIG } from "@/features/goals/constants";
 import { formatNumber } from "@/features/goals/utils";
 import { usePortfolio } from "@/features/portfolio/hooks/usePortfolio";
-import type { ProgressCheckInput } from "@/features/goals/types";
 import { Badge, Card } from "@/components/ui/index";
 import { PageSkeleton } from "@/components/loading/PageSkeleton";
 import { TrophyIcon } from "@/components/icons/icons";
 
 export default function GoalsPage() {
-  const {
-    data,
-    loading,
-    progress,
-    saveState,
-    derived,
-    previewCheck,
-    completeMove,
-    reset,
-    clearSaveState,
-  } = useGoals();
+  const { data, loading, progress, saveState, derived, reset, clearSaveState } =
+    useGoals();
   const { meta: walletMeta } = usePortfolio();
 
   const liveWallet = walletMeta
@@ -42,7 +32,7 @@ export default function GoalsPage() {
       : "المحفظة اليدوية"
     : null;
 
-  const [checkOpen, setCheckOpen] = useState(false);
+  const [checkMove, setCheckMove] = useState<number | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
 
   useEffect(() => {
@@ -52,15 +42,7 @@ export default function GoalsPage() {
     }
   }, [saveState, clearSaveState]);
 
-  const handleOpenCheck = useCallback(() => setCheckOpen(true), []);
-  const handleCloseCheck = useCallback(() => setCheckOpen(false), []);
-  const handleConfirmCheck = useCallback(
-    (input: ProgressCheckInput) => {
-      completeMove(input);
-      setCheckOpen(false);
-    },
-    [completeMove]
-  );
+  const handleCloseCheck = useCallback(() => setCheckMove(null), []);
 
   if (loading) {
     return <PageSkeleton title metrics={4} chart={false} />;
@@ -76,7 +58,6 @@ export default function GoalsPage() {
     );
   }
 
-  const currentMove = data.moves.find((m) => m.move === data.currentMove);
   const isDone = data.completedMoves >= GOALS_CONFIG.TOTAL_CARDS;
   const hasStrategySource = Boolean(derived.strategyName && derived.version);
 
@@ -148,7 +129,10 @@ export default function GoalsPage() {
             progressPercent={progress.progressPercent}
           />
 
-          <GoalBoard data={data} onCurrentCardClick={handleOpenCheck} />
+          <GoalBoard
+            data={data}
+            onCurrentCardClick={() => setCheckMove(data.currentMove)}
+          />
         </>
       )}
 
@@ -164,18 +148,13 @@ export default function GoalsPage() {
         </div>
       )}
 
-      {checkOpen && currentMove && !currentMove.completed && (
+      {checkMove != null && (
         <ProgressCheck
-          move={currentMove}
+          move={data.moves[checkMove - 1]}
           perMoveGrowthPercent={data.perMoveGrowthPercent}
-          saving={saveState === "saving"}
-          onPreview={previewCheck}
-          onConfirm={handleConfirmCheck}
-          onClose={handleCloseCheck}
-          defaultStartingValue={String(data.currentValue ?? data.startingValue)}
-          defaultEndingValue={liveWallet != null && liveWallet > 0 ? String(liveWallet) : ""}
           liveWalletValue={liveWallet}
           walletLabel={walletLabel}
+          onClose={handleCloseCheck}
         />
       )}
 

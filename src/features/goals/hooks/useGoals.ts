@@ -10,21 +10,14 @@ import {
   adaptTargets,
   sourceChanged,
   deriveFromStrategies,
-  evaluateCheck,
-  applyCompletedMove,
   resetData,
-  reanchorToWallet,
+  advanceToWallet,
   calculateProgress,
   getNextTarget,
   totalGrowthForMonth,
 } from "../utils";
 import { GOALS_CONFIG } from "../constants";
-import type {
-  GoalsData,
-  ProgressCheckInput,
-  ProgressCheckResult,
-  DerivedGoalGrowth,
-} from "../types";
+import type { GoalsData, DerivedGoalGrowth } from "../types";
 
 type SaveState = "idle" | "saving" | "success" | "error";
 
@@ -35,13 +28,15 @@ export function useGoals() {
   const { strategies } = useStrategyNumbers();
   const { meta: walletMeta } = usePortfolio();
 
-  // Wallet-driven anchor: a freshly created/restarted goal ladder starts from
-  // the wallet's current value instead of the hardcoded 100. Imported wallets
-  // use the live exchange equity; manual wallets the ledger current balance.
-  const walletSeed: number | undefined = useMemo(() => {
+  // The wallet is the single source of truth for goal progression. Imported
+  // (Binance) wallets use the live exchange equity; manual wallets the ledger
+  // current balance. No manual value is ever required.
+  const walletValue: number | undefined = useMemo(() => {
     if (walletMeta == null) return undefined;
     const v =
-      walletMeta.source === "binance" ? walletMeta.financials.currentEquity : walletMeta.currentBalance;
+      walletMeta.source === "binance"
+        ? walletMeta.financials.currentEquity
+        : walletMeta.currentBalance;
     return Number.isFinite(v) && v > 0 ? v : undefined;
   }, [walletMeta]);
 
@@ -53,19 +48,16 @@ export function useGoals() {
   const [rawData, setRawData] = useState<GoalsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saveState, setSaveState] = useState<SaveState>("idle");
-  const [projected, setProjected] = useState<ProgressCheckResult | null>(null);
 
-  // Live wallet anchor: the ladder is re-anchored during render whenever the
-  // portfolio value materially changed, so goals automatically follow the
-  // wallet's current size (exchange equity or ledger balance). Completed moves
-  // keep their historical records; reanchorToWallet returns the same reference
-  // when the anchor is unchanged.
+  // Auto-advance during render: whenever the live wallet has crossed a card's
+  // frozen target, that card completes (and as many as the wallet skipped).
+  // advanceToWallet returns the same reference when nothing advanced.
   const data = useMemo(
     () =>
-      rawData && walletSeed != null
-        ? reanchorToWallet(rawData, walletSeed)
+      rawData && walletValue != null
+        ? advanceToWallet(rawData, walletValue)
         : rawData,
-    [rawData, walletSeed]
+    [rawData, walletValue]
   );
 
   useEffect(() => {
@@ -91,7 +83,7 @@ export function useGoals() {
             await goalsService.saveProgress(userId, adapted);
           }
         } else {
-          const initial = createInitialData(derived, walletSeed);
+          const initial = createInitialData(derived, walletValue);
           setRawData(initial);
           await goalsService.saveProgress(userId, initial);
         }
@@ -105,61 +97,27 @@ export function useGoals() {
     if (!authLoading && userId) {
       load();
     }
-  }, [userId, authLoading, derived, walletSeed]);
+  }, [userId, authLoading, derived, walletValue]);
 
-  // Persist the re-anchored ladder (wallet-driven target values) whenever it
-  // diverges from the raw state, e.g. right after a stale doc loads or the
-  // wallet value changes.
+  // Persist the auto-advanced ladder whenever the render-time data diverges
+  // from the raw state (a card just completed itself from the wallet).
   useEffect(() => {
     if (!userId || !data || data === rawData) return;
     goalsService.saveProgress(userId, data).catch(() => {});
   }, [userId, data, rawData]);
 
-  const previewCheck = useCallback(
-    (input: ProgressCheckInput) => {
-      const currentData = data;
-      if (!currentData) return null;
-      const result = evaluateCheck(
-        input,
-        currentData.perMoveGrowthPercent
-      );
-      setProjected(result);
-      return result;
-    },
-    [data]
-  );
-
-  const completeMove = useCallback(
-    async (input: ProgressCheckInput) => {
-      if (!userId || !data) return;
-      setSaveState("saving");
-      try {
-        const result = evaluateCheck(input, data.perMoveGrowthPercent);
-        const next = applyCompletedMove(data, input, result);
-        setRawData(next);
-        setProjected(null);
-        await goalsService.saveProgress(userId, next);
-        setSaveState("success");
-      } catch {
-        setSaveState("error");
-      }
-    },
-    [userId, data]
-  );
-
   const reset = useCallback(async () => {
     if (!userId) return;
     setSaveState("saving");
     try {
-      const initial = resetData(derived, walletSeed);
+      const initial = resetData(derived, walletValue);
       setRawData(initial);
-      setProjected(null);
       await goalsService.saveProgress(userId, initial);
       setSaveState("success");
     } catch {
       setSaveState("error");
     }
-  }, [userId, derived, walletSeed]);
+  }, [userId, derived, walletValue]);
 
   const clearSaveState = useCallback(() => setSaveState("idle"), []);
 
@@ -176,7 +134,7 @@ export function useGoals() {
         ),
         completedMoves: data.completedMoves,
         progressPercent: calculateProgress(data.completedMoves),
-        currentValue: data.currentValue,
+        currentValue: walletValue ?? data.currentValue,
         totalCards: GOALS_CONFIG.TOTAL_CARDS,
         perMoveGrowthPercent: data.perMoveGrowthPercent,
         monthlyGrowthPercent: totalGrowthForMonth(data.perMoveGrowthPercent),
@@ -189,10 +147,7 @@ export function useGoals() {
     loading,
     progress,
     saveState,
-    projected,
     derived,
-    previewCheck,
-    completeMove,
     reset,
     clearSaveState,
   };

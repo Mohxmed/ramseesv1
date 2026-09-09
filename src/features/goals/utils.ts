@@ -196,7 +196,18 @@ export function resetData(derived: DerivedGoalGrowth, seedStartingValue?: number
   return createInitialData(derived, seedStartingValue);
 }
 
-export function reanchorToWallet(
+/**
+ * Auto-advance the ladder from the wallet:
+ *
+ * The live wallet value is the single source of truth — no manual input. While
+ * the wallet has crossed the current card's target, that card completes (it
+ * records its baseline → target as the achieved move) and the next card's
+ * baseline becomes that target. The wallet may skip several cards at once when
+ * it jumps multiple targets; every skipped card completes at its own target so
+ * each recorded growth stays exactly `pct`. Returns the same reference when
+ * nothing advanced (invalid wallet, already done, target untouched).
+ */
+export function advanceToWallet(
   data: GoalsData,
   walletValue: number
 ): GoalsData {
@@ -207,24 +218,41 @@ export function reanchorToWallet(
   ) {
     return data;
   }
-  if (Math.abs(data.startingValue - walletValue) < 0.005) return data;
-  const nextMoves = data.moves.map((m) => {
-    if (m.completed) return m;
-    const position = Math.max(1, m.move - data.completedMoves);
-    return {
-      ...m,
-      targetValue: targetForMove(
-        position,
-        walletValue,
-        data.perMoveGrowthPercent
-      ),
+  if (data.completedMoves >= GOALS_CONFIG.TOTAL_CARDS) return data;
+  const current = data.moves.find((m) => m.move === data.currentMove);
+  if (!current || current.completed) return data;
+
+  const moves: GoalsMove[] = [...data.moves];
+  let completed = data.completedMoves;
+  let currentMove = data.currentMove;
+  let baseline = data.currentValue;
+
+  while (
+    currentMove <= GOALS_CONFIG.TOTAL_CARDS &&
+    walletValue >= moves[currentMove - 1].targetValue
+  ) {
+    const target = moves[currentMove - 1].targetValue;
+    moves[currentMove - 1] = {
+      ...moves[currentMove - 1],
+      startingValue: baseline,
+      endingValue: target,
+      growthPercentage: data.perMoveGrowthPercent,
+      completed: true,
+      completedAt: new Date(),
     };
-  });
+    completed += 1;
+    baseline = target;
+    currentMove += 1;
+  }
+
+  if (completed === data.completedMoves) return data;
+
   return {
     ...data,
-    startingValue: walletValue,
-    currentValue: walletValue,
-    moves: nextMoves,
+    currentMove: Math.min(currentMove, GOALS_CONFIG.TOTAL_CARDS),
+    completedMoves: completed,
+    currentValue: baseline,
+    moves,
     updatedAt: new Date(),
   };
 }

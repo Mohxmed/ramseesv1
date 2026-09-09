@@ -1,82 +1,35 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
-import { TextField } from "@mui/material";
-import type {
-  GoalsMove,
-  ProgressCheckInput,
-  ProgressCheckResult,
-} from "../types";
-import { formatGrowth, calculateGrowth } from "../utils";
+import type { GoalsMove } from "../types";
+import { formatGrowth, formatNumber } from "../utils";
+
+/**
+ * فتّح الكارد — read-only status of the current goal card. The card's progress
+ * comes entirely from the live wallet: it completes itself automatically once
+ * the wallet crosses the target. No value entry, ever.
+ */
 
 type ProgressCheckProps = {
   move: GoalsMove;
   perMoveGrowthPercent: number;
-  saving: boolean;
-  onPreview: (input: ProgressCheckInput) => ProgressCheckResult | null;
-  onConfirm: (input: ProgressCheckInput) => void;
-  onClose: () => void;
-  defaultStartingValue?: string;
-  defaultEndingValue?: string;
-  liveWalletValue?: number | null;
+  liveWalletValue: number | null;
   walletLabel?: string | null;
+  onClose: () => void;
 };
 
 export function ProgressCheck({
   move,
   perMoveGrowthPercent,
-  saving,
-  onPreview,
-  onConfirm,
-  onClose,
-  defaultStartingValue = "",
-  defaultEndingValue = "",
   liveWalletValue,
   walletLabel,
+  onClose,
 }: ProgressCheckProps) {
-  const [startingValue, setStartingValue] = useState<string>(defaultStartingValue);
-  const [endingValue, setEndingValue] = useState<string>(defaultEndingValue);
-  const [result, setResult] = useState<ProgressCheckResult | null>(null);
-  const [computed, setComputed] = useState(false);
-
-  function handleChange(type: "start" | "end", value: string) {
-    if (type === "start") setStartingValue(value);
-    else setEndingValue(value);
-    setResult(null);
-    setComputed(false);
-  }
-
-  function handleCompute(e: FormEvent) {
-    e.preventDefault();
-    const start = parseFloat(startingValue);
-    const end = parseFloat(endingValue);
-    if (isNaN(start) || isNaN(end) || start <= 0 || end <= 0) return;
-    const preview = onPreview({
-      move: move.move,
-      startingValue: start,
-      endingValue: end,
-    });
-    if (preview) {
-      setResult(preview);
-      setComputed(true);
-    }
-  }
-
-  function handleConfirm() {
-    const start = parseFloat(startingValue);
-    const end = parseFloat(endingValue);
-    if (isNaN(start) || isNaN(end) || start <= 0 || end <= 0) return;
-    onConfirm({
-      move: move.move,
-      startingValue: start,
-      endingValue: end,
-    });
-  }
-
-  const start = parseFloat(startingValue);
-  const end = parseFloat(endingValue);
-  const showGrowth = start > 0 && end > 0;
-  const growth = showGrowth ? calculateGrowth(start, end) : 0;
+  const landed = move.completed;
+  const walletOk = liveWalletValue != null && liveWalletValue > 0;
+  const pct = walletOk && move.targetValue > 0
+    ? Math.min(100, Math.max(0, (liveWalletValue / move.targetValue) * 100))
+    : 0;
+  const reached = walletOk ? liveWalletValue >= move.targetValue : false;
 
   return (
     <div
@@ -84,16 +37,17 @@ export function ProgressCheck({
       onClick={onClose}
     >
       <div
-        className="animate-pop-in w-full max-w-md rounded-card border border-line bg-surface-1 p-6 shadow-modal"
+        className="animate-pop-in w-full max-w-md rounded-lift border border-line bg-surface-1 p-6 shadow-modal"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-start justify-between">
           <div>
             <h2 className="text-xl font-bold text-zinc-50">
-              فحص الكارد {String(move.move).padStart(2, "0")}
+              الكارد {String(move.move).padStart(2, "0")}
             </h2>
             <p className="mt-1 text-sm text-muted">
-              الهدف: {formatGrowth(perMoveGrowthPercent)} نموًا على قيمة البداية
+              يكتمل تلقائيًا من رصيد{" "}
+              {walletLabel || "المحفظة"} — دون إدخال أي قيمة
             </p>
           </div>
           <button
@@ -106,127 +60,89 @@ export function ProgressCheck({
           </button>
         </div>
 
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label
-                htmlFor="startingValue"
-                className="block text-xs font-medium text-zinc-400"
-              >
-                قيمة البداية
-              </label>
-              <TextField
-                id="startingValue"
-                type="number"
-                required
-                fullWidth
-                value={startingValue}
-                onChange={(e) => handleChange("start", e.target.value)}
-                className="mt-1"
-                slotProps={{ htmlInput: { step: "any", min: 0 } }}
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="endingValue"
-                className="block text-xs font-medium text-zinc-400"
-              >
-                قيمة النهاية
-              </label>
-              <TextField
-                id="endingValue"
-                type="number"
-                required
-                fullWidth
-                value={endingValue}
-                onChange={(e) => handleChange("end", e.target.value)}
-                className="mt-1"
-                slotProps={{ htmlInput: { step: "any", min: 0 } }}
-              />
-            </div>
+        {landed ? (
+          <div className="animate-pop-in rounded-panel border border-up/40 bg-up/10 p-4 text-sm text-up-fg">
+            <p className="font-semibold">✓ الكارد مكتمل</p>
+            <p className="mt-1 text-2xs text-zinc-300">
+              من {formatNumber(move.startingValue ?? 0)} إلى{" "}
+              {formatNumber(move.endingValue ?? 0)} جرت تجاوز هدف الكارد بنجاح.
+            </p>
           </div>
-
-          {liveWalletValue != null && liveWalletValue > 0 && (
-            <div className="flex items-center justify-between gap-2 rounded-panel border border-line/60 bg-surface-2/30 px-3 py-2">
-              <p className="text-2xs text-muted">
-                قيمة {walletLabel || "محفظتك"} الحالية:{" "}
-                <span className="font-mono tabular-nums font-bold text-zinc-200">
-                  {liveWalletValue.toLocaleString("en-US", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </span>{" "}
-                $
-              </p>
-              <button
-                type="button"
-                onClick={() => setEndingValue(String(liveWalletValue))}
-                className="rounded-panel border border-line px-2.5 py-1 text-2xs font-medium text-zinc-300 hover:bg-surface-2"
-              >
-                استخدام
-              </button>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="rounded-panel border border-line/70 bg-surface-2/25 p-3">
+                <p className="text-2xs text-muted">الهدف</p>
+                <p dir="ltr" className="mt-1 font-mono tabular-nums text-lg font-bold leading-none text-zinc-100">
+                  {formatNumber(move.targetValue)} $
+                </p>
+              </div>
+              <div className="rounded-panel border border-line/70 bg-surface-2/25 p-3">
+                <p className="text-2xs text-muted">رصيد المحفظة الحالي</p>
+                <p
+                  dir="ltr"
+                  className={`mt-1 font-mono tabular-nums text-lg font-bold leading-none ${
+                    reached ? "text-up-fg" : "text-zinc-100"
+                  }`}
+                >
+                  {walletOk ? `${formatNumber(liveWalletValue)} $` : "—"}
+                </p>
+              </div>
             </div>
-          )}
 
-          {showGrowth && (
-            <div className="rounded-panel bg-surface-2/40 p-3 text-center">
-              <p className="text-xs text-muted">نسبة النمو المحققة</p>
-              <p className="mt-1 text-2xl font-bold text-zinc-100">
-                {formatGrowth(growth)}
+            <div>
+              <div className="mb-1.5 flex items-center justify-between text-2xs">
+                <span className="text-muted">التقدم نحو الهدف</span>
+                <span dir="ltr" className="font-mono tabular-nums font-bold text-zinc-200">
+                  {pct.toFixed(0)}%
+                </span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-line">
+                <div
+                  className={`h-full rounded-full transition-all duration-700 ${
+                    reached ? "bg-up" : "bg-gold"
+                  }`}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="rounded-panel border border-line/70 bg-surface-2/25 p-3 text-center">
+              <p className="text-2xs text-muted">النمو المطلوب لإتمام الكارد</p>
+              <p className="mt-1 text-2xl font-bold text-gold-fg">
+                {formatGrowth(perMoveGrowthPercent)}
               </p>
             </div>
-          )}
 
-          {result && (
-            <div
-              className={`animate-pop-in rounded-panel border p-4 text-sm ${
-                result.achieved
-                  ? "border-up/40 bg-up/10 text-up-fg"
-                  : "border-down/40 bg-down/10 text-down-fg"
-              }`}
-            >
-              {result.achieved ? (
+            {reached ? (
+              <div className="animate-pop-in rounded-panel border border-up/40 bg-up/10 p-4 text-sm text-up-fg">
                 <p>
-                  <span className="font-semibold">✓ الهدف محقق</span> — وصل
-                  النمو إلى {formatGrowth(result.targetGrowthPercent)} أو أكثر.
+                  <span className="font-semibold">✓ الهدف محقق</span> — تجاوز
+                  رصيد المحفظة هدف هذا الكارد وسيُحتسب مكتملًا تلقائيًا.
                 </p>
-              ) : (
+              </div>
+            ) : (
+              <div className="animate-pop-in rounded-panel border border-line/70 bg-surface-2/25 p-4 text-sm text-zinc-300">
                 <p>
-                  <span className="font-semibold">✕ الهدف غير محقق</span> — تحتاج
-                  لنمو {formatGrowth(result.targetGrowthPercent)} على الأقل لإكمال
-                  الكارد.
+                  <span className="font-semibold">لم يصل بعد</span> — تقدم هذا
+                  الكارد يعتمد على رصيد محفظتك الحالي.{" "}
+                  {walletOk
+                    ? `سينتقل تلقائيًا عند بلوغ ${formatNumber(move.targetValue)} $`
+                    : "اربط محفظتك أو سجّل رصيدك لتفعيل التقدم التلقائي."}
                 </p>
-              )}
-            </div>
-          )}
-
-          <div className="flex flex-col gap-3 pt-2">
-            <button
-              type="button"
-              onClick={handleCompute}
-              disabled={!showGrowth || saving}
-              className="w-full rounded-panel border border-line px-4 py-2 text-sm font-medium text-zinc-200 hover:bg-surface-2 disabled:opacity-40"
-            >
-              احسب النتيجة
-            </button>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={handleConfirm}
-                disabled={saving || !computed || !result?.achieved}
-                className="flex-1 rounded-panel bg-gold/90 px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-gold-fg disabled:opacity-40"
-              >
-                {saving ? "جارٍ الحفظ..." : "إكمال الكارد"}
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-panel border border-line px-4 py-2 text-sm font-medium text-zinc-300 hover:bg-surface-2"
-              >
-                إلغاء
-              </button>
-            </div>
+              </div>
+            )}
           </div>
+        )}
+
+        <div className="mt-6 flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-panel border border-line px-4 py-2 text-sm font-medium text-zinc-300 hover:bg-surface-2"
+          >
+            إغلاق
+          </button>
         </div>
       </div>
     </div>

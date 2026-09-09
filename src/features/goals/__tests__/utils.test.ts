@@ -1,12 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  createInitialData,
-  resetData,
-  calculateGrowth,
-  reanchorToWallet,
-  applyCompletedMove,
-  evaluateCheck,
-} from "../utils";
+import { createInitialData, resetData, calculateGrowth, advanceToWallet } from "../utils";
 import { GOALS_CONFIG, targetForMove } from "../constants";
 import type { DerivedGoalGrowth } from "../types";
 
@@ -61,58 +54,62 @@ describe("calculateGrowth", () => {
   });
 });
 
-describe("reanchorToWallet", () => {
-  function ladderWithCompletions(completedMoves: number) {
-    let data = createInitialData(derived, 1000);
-    for (let i = 1; i <= completedMoves; i++) {
-      const input = {
-        move: i,
-        startingValue: data.currentValue,
-        endingValue: data.moves[i - 1].targetValue,
-      };
-      data = applyCompletedMove(data, input, evaluateCheck(input, data.perMoveGrowthPercent));
-    }
-    return data;
-  }
-
-  it("re-centers the ladder on the wallet value, keeping completed records", () => {
-    const data = ladderWithCompletions(4);
-    const wallet = 5000;
-    const next = reanchorToWallet(data, wallet);
-
-    expect(next.startingValue).toBe(wallet);
-    expect(next.currentValue).toBe(wallet);
-    expect(next.completedMoves).toBe(4);
-    expect(next.currentMove).toBe(5);
-
-    const completed = next.moves.slice(0, 4);
-    const remaining = next.moves.slice(4);
-    expect(completed.every((m) => m.completed && m.targetValue < wallet)).toBe(true);
-    remaining.forEach((m, idx) => {
-      expect(m.targetValue).toBeCloseTo(
-        targetForMove(idx + 1, wallet, data.perMoveGrowthPercent),
-        6
-      );
+describe("advanceToWallet", () => {
+  it("completes the current card as soon as the wallet crosses its target", () => {
+    const data = createInitialData(derived, 1000);
+    const next = advanceToWallet(data, targetForMove(1, 1000, 1));
+    expect(next).not.toBe(data);
+    expect(next.completedMoves).toBe(1);
+    expect(next.currentMove).toBe(2);
+    expect(next.currentValue).toBeCloseTo(targetForMove(1, 1000, 1), 6);
+    expect(next.moves[0]).toMatchObject({
+      completed: true,
+      startingValue: 1000,
+      growthPercentage: 1,
     });
-    expect(next.moves[4].targetValue).toBeCloseTo(wallet * 1.01, 6);
+    expect(next.moves[0].endingValue).toBeCloseTo(targetForMove(1, 1000, 1), 6);
   });
 
-  it("keeps the growth percent and strategy source untouched", () => {
-    const data = ladderWithCompletions(2);
-    const next = reanchorToWallet(data, 750);
-    expect(next.perMoveGrowthPercent).toBe(data.perMoveGrowthPercent);
-    expect(next.strategyRef).toEqual(data.strategyRef);
+  it("skips several cards at once when the wallet jumped multiple targets", () => {
+    const data = createInitialData(derived, 1000);
+    const next = advanceToWallet(data, targetForMove(3, 1000, 1));
+    expect(next.completedMoves).toBe(3);
+    expect(next.currentMove).toBe(4);
+    const completed = next.moves.slice(0, 3);
+    expect(completed.every((m) => m.completed)).toBe(true);
+    expect(completed[0].endingValue).toBeCloseTo(targetForMove(1, 1000, 1), 6);
+    expect(completed[1].endingValue).toBeCloseTo(targetForMove(2, 1000, 1), 6);
+    expect(completed[2].endingValue).toBeCloseTo(targetForMove(3, 1000, 1), 6);
+  });
+
+  it("keeps a target frozen while the wallet stays below it", () => {
+    const data = createInitialData(derived, 1000);
+    const next = advanceToWallet(data, 1005); // below card-1 target (1010)
+    expect(next).toBe(data);
+    expect(next.completedMoves).toBe(0);
+  });
+
+  it("returns the same reference for a wallet that reached the last card", () => {
+    const data = createInitialData(derived, 1000);
+    const done = advanceToWallet(data, targetForMove(30, 1000, 1));
+    expect(done.completedMoves).toBe(GOALS_CONFIG.TOTAL_CARDS);
+    expect(done.moves.every((m) => m.completed)).toBe(true);
+    // advancing the completed ladder is a no-op
+    expect(advanceToWallet(done, targetForMove(30, 1000, 1))).toBe(done);
+  });
+
+  it("is idempotent after a previous advance (targets stay frozen)", () => {
+    const data = createInitialData(derived, 1000);
+    const wallet = targetForMove(2, 1000, 1);
+    const next = advanceToWallet(data, wallet);
+    expect(next.completedMoves).toBe(2);
+    expect(advanceToWallet(next, wallet)).toBe(next);
   });
 
   it("returns the same reference for invalid wallet values", () => {
-    const data = ladderWithCompletions(0);
+    const data = createInitialData(derived, 1000);
     for (const bad of [0, -5, NaN, Infinity]) {
-      expect(reanchorToWallet(data, bad)).toBe(data);
+      expect(advanceToWallet(data, bad)).toBe(data);
     }
-  });
-
-  it("returns the same reference when the wallet equals the anchor", () => {
-    const data = ladderWithCompletions(0);
-    expect(reanchorToWallet(data, data.startingValue)).toBe(data);
   });
 });
