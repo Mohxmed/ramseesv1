@@ -11,6 +11,7 @@ import { PerformancePanel } from "./PerformancePanel";
 import { DrawdownPanel } from "./DrawdownPanel";
 import { PortfolioStats } from "./PortfolioStats";
 import { TransactionTable } from "./TransactionTable";
+import { ConnectedAccounts } from "./ConnectedAccounts";
 import { AddTransactionModal } from "./AddTransactionModal";
 import { CreatePortfolioModal } from "./CreatePortfolioModal";
 
@@ -177,6 +178,8 @@ export function PortfolioPage() {
           <DrawdownPanel summary={meta} points={equityPoints} />
         </div>
       </div>
+
+      <ConnectedAccounts />
 
       <TransactionTable
         transactions={transactions}

@@ -1,12 +1,55 @@
 rules_version = '2';
 
+// Deployment note — required Firestore composite indexes (`firestore.indexes.json`):
+//   1. snapshots:       accountId ASC + timestamp ASC      (getSnapshots windows)
+//   2. reconciliation:  accountId ASC + timestamp DESC     (listReconciliationEvents)
+//   3. syncJobs:        accountId ASC + status ASC         (getRunningSync lock)
+// Deploy with: firebase deploy --only firestore:rules,firestore:indexes
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Portfolio data is user-scoped: only the owner can read/write it.
-    match /users/{userId}/portfolio/{document=**} {
+    // ── Manual wallet (owner-only, client-written — unchanged) ─────────────
+    // Restricted to the manual wallet's own document paths so the broad
+    // `portfolio/{document=**}` wildcard can never shadow the server-only
+    // exchange collections below. Any NEW document elsewhere stays closed.
+    match /users/{userId}/portfolio/meta {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /users/{userId}/portfolio/ledger/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // ── Normalized exchange data under the fixed `main` doc ────────────────
+    // Clients read these directly to render the Wallet UI, but may never write
+    // them — writes flow only through the server-side Portfolio Engine.
+    match /users/{userId}/portfolio/main/accounts/{accountId}/{document=**} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
+    }
+    match /users/{userId}/portfolio/main/snapshots/{document=**} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
+    }
+    match /users/{userId}/portfolio/main/reconciliation/{document=**} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
+    }
+
+    // ── Exchange credentials — SERVER ONLY ──────────────────────────────────
+    // Never readable or writable by any client. The server (Firebase Admin
+    // SDK, which bypasses these rules) is the only writer, and it encrypts
+    // secrets at rest with AES-256-GCM using a server-side key.
+    match /users/{userId}/portfolio/main/exchangeCredentials/{document=**} {
+      allow read, write: if false;
+    }
+
+    // ── Ops / audit (sync jobs) — server only ───────────────────────────────
+    match /users/{userId}/portfolio/main/syncJobs/{document=**} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // ── Everything else is closed by default ────────────────────────────────
     match /{document=**} {
       allow read, write: if false;
     }

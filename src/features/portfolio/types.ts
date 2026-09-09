@@ -107,3 +107,87 @@ export interface PeriodMetrics {
   growthPct: number | null;
   startBalance: number | null;
 }
+
+/* ─── Exchange accounts (server-synced, read via /api/portfolio/exchanges) ── */
+
+export interface ExchangePermissionsDto {
+  readOnly: boolean;
+  tradingEnabled: boolean;
+  withdrawalsEnabled: boolean;
+  transfersEnabled: boolean;
+}
+
+export interface ExchangeCapabilitiesDto {
+  supportsSpot: boolean;
+  supportsFutures: boolean;
+  supportsMargin: boolean;
+  supportsDeposits: boolean;
+  supportsWithdrawals: boolean;
+  supportsTrades: boolean;
+  supportsOrders: boolean;
+  supportsWebSocket: boolean;
+  supportsFunding: boolean;
+  supportsPositions: boolean;
+  supportsPnl: boolean;
+  supportsAccountSnapshots: boolean;
+}
+
+export interface ExchangeFinancialsDto {
+  baselineEquity: number;
+  baselineAt: number | null;
+  currentEquity: number;
+  lastValuedAt: number | null;
+  netDeposits: number;
+  netWithdrawals: number;
+  totalFees: number;
+  realizedPnl: number;
+  unrealizedPnl: number;
+}
+
+export interface ExchangeAccountDto {
+  id: string;
+  userId: string;
+  exchangeType: string;
+  accountType: string;
+  name: string;
+  status: string;
+  securityMode: string;
+  permissions: ExchangePermissionsDto;
+  capabilities: ExchangeCapabilitiesDto;
+  displayCapabilities: { spot: boolean; futures: boolean };
+  exchangeUid: string;
+  lastSuccessfulSync: number | null;
+  lastAttemptedSync: number | null;
+  lastError: string | null;
+  lastErrorAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+  disabledAt: number | null;
+  financials: ExchangeFinancialsDto;
+}
+
+export interface ExchangeDescriptorDto {
+  exchangeType: string;
+  displayName: string;
+  capabilities: ExchangeCapabilitiesDto;
+}
+
+export interface ExchangeSyncStatusDto {
+  accountId: string;
+  running: boolean;
+  jobId: string | null;
+  jobsCount: number;
+  lastSuccessfulSync: number | null;
+  lastAttemptedSync: number | null;
+  lastError: string | null;
+  lastErrorAt: number | null;
+  financials: ExchangeFinancialsDto;
+  latestSnapshot: {
+    totalEquity: number;
+    realizedPnl: number;
+    unrealizedPnl: number;
+    totalPnl: number;
+    timestamp: number;
+  } | null;
+  checkedAt: number;
+}
