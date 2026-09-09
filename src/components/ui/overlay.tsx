@@ -11,7 +11,7 @@ import {
 } from "@mui/material";
 import { ThemeGate } from "./mui-theme";
 import { CloseIcon } from "@/components/icons/icons";
-import { transitions } from "./design-tokens";
+import { transitions, radius, shadows } from "./design-tokens";
 
 /* Color types re-exported so callers share one Tone source. */
 export type { Tone } from "./primitives";
@@ -118,15 +118,15 @@ export function Modal({
             overflowY: "auto",
             bgcolor: "background.paper",
             border: (t) => `1px solid ${t.palette.divider}`,
-            borderRadius: 2.5,
-            boxShadow: "0 20px 60px -20px rgb(0 0 0 / 0.7)",
+            borderRadius: radius.card,
+            boxShadow: shadows.modal,
             p: 2.5,
             transition: transitions.base,
           }}
         >
           {title ? (
             <div className="mb-3 flex items-center justify-between gap-2">
-              <h2 id="ramsees-modal-title" className="text-sm font-bold text-zinc-100">
+              <h2 id="ramsees-modal-title" className="text-sm font-bold text-foreground">
                 {title}
               </h2>
               <IconButton onClick={onClose} size="small" aria-label="إغلاق">

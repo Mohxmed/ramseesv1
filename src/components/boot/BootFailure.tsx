@@ -39,7 +39,7 @@ export function BootFailure({
         <button
           type="button"
           onClick={onRetry}
-          className="mt-6 rounded-md bg-up/80 px-6 py-2.5 text-sm font-bold text-background transition-colors hover:bg-up-fg"
+          className="mt-6 rounded-md bg-gold/90 px-6 py-2.5 text-sm font-bold text-background transition-colors hover:bg-gold-fg"
         >
           إعادة المحاولة
         </button>

@@ -116,7 +116,7 @@ export function TerminalHeader({ snap }: { snap: ScalpingSnapshot }) {
             <div className="text-3xs font-semibold uppercase tracking-[0.2em] text-muted">
               Market Regime Monitor
             </div>
-            <h2 className="truncate text-[15px] font-extrabold leading-tight tracking-tight text-zinc-100">
+            <h2 className="truncate text-base font-extrabold leading-tight tracking-tight text-foreground">
               حالة السوق العامة
             </h2>
           </div>

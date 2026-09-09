@@ -15,6 +15,7 @@ import {
 } from "./terminal/TradingPrimitives";
 import { ThemeGate } from "@/components/ui/mui-theme";
 import { PressureDetails } from "./PressurePanel";
+import { colors } from "@/components/ui/design-tokens";
 
 /**
  * Real-Time AGGR Flow Window — matches the terminal's shared presentation
@@ -140,7 +141,7 @@ function NetFlowPanel({ snap }: { snap: FlowSnapshot }) {
   const accel = state.velocity.flowAcceleration;
   const data = netFlowSeries(snap.recentTrades);
   const netTone = flowTone(net);
-  const stroke = netTone === "long" ? "#34d399" : netTone === "short" ? "#f87171" : "#a1a1aa";
+  const stroke = netTone === "long" ? colors.up : netTone === "short" ? colors.down : colors.muted;
   return (
     <Section
       title="التدفق الصافي"

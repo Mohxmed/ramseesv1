@@ -88,7 +88,7 @@ export function CreateStrategyModal({
             type="checkbox"
             checked={enabled}
             onChange={(e) => setEnabled(e.target.checked)}
-            className="accent-up"
+            className="accent-gold"
           />
           تفعيل الاستراتيجية فور الإنشاء
         </label>
@@ -111,7 +111,7 @@ export function CreateStrategyModal({
         <button
           type="button"
           onClick={handleSubmit}
-          className="rounded-md bg-up/80 px-4 py-1.5 text-xs font-bold text-background hover:bg-up-fg"
+          className="rounded-md bg-gold/90 px-4 py-1.5 text-xs font-bold text-background hover:bg-gold-fg"
         >
           إنشاء
         </button>

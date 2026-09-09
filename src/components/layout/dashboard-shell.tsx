@@ -109,7 +109,7 @@ export function DashboardShell({
         />
         {/* Drawer */}
         <div
-          className={`absolute inset-y-0 right-0 flex w-72 flex-col bg-surface-1 shadow-2xl transition-transform duration-300 ease-out ${
+          className={`absolute inset-y-0 right-0 flex w-72 flex-col bg-surface-1 shadow-modal transition-transform duration-300 ease-out ${
             mobileOpen ? "translate-x-0" : "translate-x-full"
           }`}
           role="dialog"

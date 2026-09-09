@@ -611,7 +611,7 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
   ];
 
   return (
-    <div className="min-w-0 rounded-2xl border border-zinc-800 bg-zinc-900/40">
+    <div className="min-w-0 rounded-card border border-line bg-surface-1/40">
       {/* Chart header */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 px-4 py-3">
         <div className="flex items-center gap-2">
@@ -630,7 +630,7 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
           {quote.close > 0 && quote.open > 0 && (
             <div
               className={`text-[11px] font-medium ${
-                quote.close >= quote.open ? "text-emerald-400" : "text-red-400"
+                quote.close >= quote.open ? "text-up-fg" : "text-down-fg"
               }`}
             >
               {((quote.close - quote.open) / quote.open) * 100 >= 0 ? "+" : ""}
@@ -719,7 +719,7 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
           ف: <span className="text-zinc-200">{formatPrice(quote.open)}</span>
         </span>
         <span>
-          ع: <span className="text-emerald-400">{formatPrice(quote.high)}</span>
+          ع: <span className="text-up-fg">{formatPrice(quote.high)}</span>
         </span>
         <span>
           د: <span className="text-red-400">{formatPrice(quote.low)}</span>
@@ -759,7 +759,7 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
       <div className="flex flex-wrap items-start justify-between gap-3 border-t border-zinc-800 px-4 py-3">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-zinc-400">
           <span className="inline-flex items-center gap-1.5">
-            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-emerald-500/40" />
+            <span className="inline-block h-2.5 w-2.5 rounded-sm bg-up/40" />
             دعم
           </span>
           <span className="inline-flex items-center gap-1.5">
@@ -809,7 +809,7 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
           {analysis?.nearestSupport && (
             <div className="flex items-center gap-1.5">
               <span className="text-zinc-500">أقرب دعم</span>
-              <span className="font-semibold text-emerald-300">
+              <span className="font-semibold text-up-fg">
                 {formatPrice(analysis.nearestSupport.center)}
               </span>
             </div>

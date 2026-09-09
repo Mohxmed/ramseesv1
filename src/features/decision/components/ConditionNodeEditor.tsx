@@ -105,7 +105,7 @@ function LeafRow({
       <div className="flex flex-wrap items-center gap-1.5 px-2 py-1.5">
         <span
           className="h-5 w-1 shrink-0 rounded-full"
-          style={{ background: !node.required ? "#3b82f6" : "#71717a" }}
+          style={{ background: !node.required ? "var(--color-gold)" : "var(--color-muted)" }}
           title={node.required ? "مطلوب" : "اختياري"}
         />
 

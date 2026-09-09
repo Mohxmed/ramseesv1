@@ -44,7 +44,7 @@ export function StrategyMenu() {
           aria-label="مركز الاستراتيجيات"
           className={`relative flex h-9 w-9 items-center justify-center rounded-panel transition-colors ${
             open || active
-              ? "bg-surface-2 text-up-fg"
+              ? "bg-surface-2 text-gold-fg"
               : "text-zinc-300 hover:bg-surface-2 hover:text-zinc-100"
           }`}
         >
@@ -71,13 +71,13 @@ export function StrategyMenu() {
         </div>
         <MenuItem onClick={() => go("/strategy/numbers")}>
           <span className="flex items-center gap-2.5 text-zinc-200">
-            <ListNumbersIcon className="h-4 w-4 text-up-fg" />
+            <ListNumbersIcon className="h-4 w-4 text-gold-fg" />
             الأرقام
           </span>
         </MenuItem>
         <MenuItem onClick={() => go("/strategy/risk-calculator")}>
           <span className="flex items-center gap-2.5 text-zinc-200">
-            <CalculatorIcon className="h-4 w-4 text-up-fg" />
+            <CalculatorIcon className="h-4 w-4 text-gold-fg" />
             حاسبة المخاطر
           </span>
         </MenuItem>

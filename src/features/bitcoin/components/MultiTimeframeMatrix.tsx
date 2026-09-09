@@ -19,7 +19,7 @@ function numCls(v: number | null, invert = false): string {
 
 function momCls(v: number): string {
   if (Math.abs(v) >= 0.35) return v > 0 ? "text-up-fg" : "text-down-fg";
-  if (Math.abs(v) >= 0.08) return v > 0 ? "text-emerald-300/80" : "text-red-300/80";
+  if (Math.abs(v) >= 0.08) return v > 0 ? "text-up-fg/80" : "text-down-fg/80";
   return "text-zinc-300";
 }
 

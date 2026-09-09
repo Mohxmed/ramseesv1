@@ -21,7 +21,7 @@ export function HeaderWalletLink() {
         aria-current={active ? "page" : undefined}
         className={`relative flex h-9 w-9 items-center justify-center rounded-panel transition-colors ${
           active
-            ? "bg-surface-2 text-up-fg"
+            ? "bg-surface-2 text-gold-fg"
             : "text-zinc-300 hover:bg-surface-2 hover:text-zinc-100"
         }`}
       >

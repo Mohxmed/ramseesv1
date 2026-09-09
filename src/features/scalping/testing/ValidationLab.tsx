@@ -202,7 +202,7 @@ function LayerControl({
                 lab.start({ from: parseStart(from), to: parseEnd(to), minConfidence })
               }
               disabled={lab.loading || !from || !to}
-              className="rounded-panel bg-up px-4 py-2 text-xs font-bold text-zinc-950 hover:bg-up/80 disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-panel bg-gold/90 px-4 py-2 text-xs font-bold text-background hover:bg-gold-fg disabled:cursor-not-allowed disabled:opacity-40"
             >
               {lab.loading ? "جارٍ التحميل…" : "بدء تشغيل جديد"}
             </button>
@@ -261,7 +261,7 @@ function LayerReplay({ lab }: { lab: ReturnType<typeof useValidationLab> }) {
               key={s}
               onClick={() => lab.setSpeedValue(s)}
               className={`rounded-chip border px-2 py-1 text-2xs font-bold ${
-                lab.speed === s ? "border-up/40 bg-up/10 text-up-fg" : "border-line text-muted"
+                lab.speed === s ? "border-gold/40 bg-gold/10 text-gold-fg" : "border-line text-muted"
               }`}
             >
               ×{s}

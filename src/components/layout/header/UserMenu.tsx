@@ -55,7 +55,7 @@ export function UserMenu() {
             className="h-7 w-7 shrink-0 rounded-full border border-line object-cover"
           />
         ) : (
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-up/15 text-xs font-bold text-up-fg ring-1 ring-up/25">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gold/15 text-xs font-bold text-gold-fg ring-1 ring-gold/25">
             {letter}
           </span>
         )}

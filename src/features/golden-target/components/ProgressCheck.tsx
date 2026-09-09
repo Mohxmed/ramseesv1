@@ -183,7 +183,7 @@ export function ProgressCheck({
                 type="button"
                 onClick={handleConfirm}
                 disabled={saving || !computed || !result?.achieved}
-                className="flex-1 rounded-panel bg-up px-4 py-2 text-sm font-medium text-zinc-950 transition-colors hover:bg-up-fg disabled:opacity-40"
+                className="flex-1 rounded-panel bg-gold/90 px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-gold-fg disabled:opacity-40"
               >
                 {saving ? "جارٍ الحفظ..." : "إكمال الحركة"}
               </button>

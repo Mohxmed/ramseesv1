@@ -57,7 +57,7 @@ export function NotificationCenter() {
             <button
               type="button"
               onClick={markAllRead}
-              className="rounded-panel px-1.5 py-0.5 text-2xs font-semibold text-up-fg transition-colors hover:bg-surface-2"
+              className="rounded-panel px-1.5 py-0.5 text-2xs font-semibold text-gold-fg transition-colors hover:bg-surface-2"
             >
               تحديد الكل كمقروء
             </button>

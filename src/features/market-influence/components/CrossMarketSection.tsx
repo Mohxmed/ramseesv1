@@ -86,7 +86,7 @@ export function CrossMarketSection() {
           <button
             type="button"
             onClick={refresh}
-            className="mt-4 inline-flex items-center gap-1.5 rounded-panel bg-zinc-100 px-3 py-1.5 text-2xs font-bold text-zinc-900 transition-colors hover:bg-white"
+            className="mt-4 inline-flex items-center gap-1.5 rounded-panel bg-gold/90 px-3 py-1.5 text-2xs font-bold text-background transition-colors hover:bg-gold-fg"
           >
             <RefreshIcon /> إعادة المحاولة
           </button>

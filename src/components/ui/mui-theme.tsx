@@ -6,21 +6,27 @@ import {
   type Theme,
 } from "@mui/material/styles";
 import type { ReactNode } from "react";
-import { colors, radius } from "./design-tokens";
+import { colors, radius, shadows } from "./design-tokens";
 
 /**
  * Material UI theme derived from the design tokens.
  *
  * The app is Tailwind-first and this lib never fights it: MUI is used only for
  * high-value interactive/stateful primitives (Tabs, Select, Tooltip, Popover,
- * Modal, pagination). This theme restyles those MUI surfaces to match the dark
- * zinc house style so the two stacks blend seamlessly.
+ * Modal, pagination, plus the strategy feature's dialogs/tables). This theme
+ * restyles those MUI surfaces to match the gold + dark-zinc house style so the
+ * two stacks blend seamlessly.
  */
 export const muiTheme: Theme = createTheme({
   // The whole app is RTL-first (Cairo + dir="rtl"). Telling MUI the direction
   // here keeps its internal layout assumptions (ToggleButtonGroup order, Tabs
   // indicator, Select menus, Table cell alignment) mirrored to match the page.
   direction: "rtl",
+  // Keep MUI breakpoints in lock-step with the Tailwind v4 defaults so a
+  // component can never diverge between the two systems.
+  breakpoints: {
+    values: { xs: 0, sm: 640, md: 768, lg: 1024, xl: 1280 },
+  },
   // Use the site's base typeface (Cairo, via `--font-cairo`) for EVERY MUI
   // surface — dialogs, tooltips, selects, chips, tables — so no surface slips
   // back to MUI's default Roboto or a system stack.
@@ -31,7 +37,7 @@ export const muiTheme: Theme = createTheme({
       textTransform: "none",
     },
     h6: { fontWeight: 800 },
-    subtitle1: { fontSize: "15px", fontWeight: 700 },
+    subtitle1: { fontSize: "14px", fontWeight: 700 },
   },
   palette: {
     mode: "dark",
@@ -182,7 +188,7 @@ export const muiTheme: Theme = createTheme({
       styleOverrides: {
         root: {
           backgroundImage: "none",
-          boxShadow: "0 8px 28px -6px rgb(0 0 0 / 0.5)",
+          boxShadow: shadows.pop,
         },
       },
     },
@@ -192,6 +198,163 @@ export const muiTheme: Theme = createTheme({
           background: colors.surface1,
           border: `1px solid ${colors.line}`,
           borderRadius: radius.panel,
+        },
+      },
+    },
+    MuiButton: {
+      defaultProps: { disableElevation: true },
+      styleOverrides: {
+        root: ({ ownerState }) => ({
+          fontFamily: "inherit",
+          textTransform: "none",
+          borderRadius: radius.panel,
+          fontWeight: 700,
+          ...(ownerState.variant === "contained" && ownerState.color === "primary"
+            ? {
+                backgroundColor: colors.accent,
+                color: colors.background,
+                "&:hover": { backgroundColor: colors.accentFg },
+              }
+            : ownerState.variant === "contained" && ownerState.color === "error"
+              ? {
+                  backgroundColor: colors.danger,
+                  color: colors.background,
+                  "&:hover": { backgroundColor: colors.downFg },
+                }
+              : {}),
+        }),
+        sizeSmall: { fontSize: 12, padding: "4px 12px" },
+        sizeMedium: { fontSize: 13, padding: "6px 14px" },
+        sizeLarge: { fontSize: 14, padding: "8px 18px" },
+        outlined: {
+          borderColor: colors.line,
+          color: colors.foreground,
+          "&:hover": {
+            borderColor: colors.surface3,
+            backgroundColor: colors.surface2,
+          },
+        },
+        text: { color: colors.foreground, "&:hover": { backgroundColor: colors.surface2 } },
+      },
+    },
+    MuiDialog: {
+      styleOverrides: {
+        paper: {
+          borderRadius: radius.card,
+          border: `1px solid ${colors.line}`,
+          background: colors.surface1,
+          backgroundImage: "none",
+          boxShadow: shadows.modal,
+          color: colors.foreground,
+        },
+      },
+    },
+    MuiDialogTitle: {
+      styleOverrides: {
+        root: {
+          fontSize: 16,
+          fontWeight: 700,
+          padding: "16px 20px",
+          color: colors.foreground,
+        },
+      },
+    },
+    MuiDialogContent: {
+      styleOverrides: {
+        root: {
+          padding: "4px 20px 12px",
+          fontSize: 13,
+          color: colors.foreground,
+        },
+      },
+    },
+    MuiDialogActions: {
+      styleOverrides: {
+        root: { padding: "12px 20px 20px" },
+      },
+    },
+    MuiAlert: {
+      styleOverrides: {
+        root: {
+          fontFamily: "inherit",
+          borderRadius: radius.panel,
+          fontSize: 13,
+          "& .MuiAlert-message": { padding: 0 },
+        },
+        colorSuccess: {
+          backgroundColor: "rgba(52, 211, 153, 0.08)",
+          color: colors.upFg,
+          "& .MuiAlert-icon": { color: colors.good },
+        },
+        colorError: {
+          backgroundColor: "rgba(248, 113, 113, 0.08)",
+          color: colors.downFg,
+          "& .MuiAlert-icon": { color: colors.danger },
+        },
+        colorWarning: {
+          backgroundColor: "rgba(251, 191, 36, 0.08)",
+          color: colors.warnFg,
+          "& .MuiAlert-icon": { color: colors.warnFg },
+        },
+        colorInfo: {
+          backgroundColor: "rgba(56, 189, 248, 0.08)",
+          color: colors.info,
+          "& .MuiAlert-icon": { color: colors.info },
+        },
+      },
+    },
+    MuiChip: {
+      styleOverrides: {
+        root: {
+          fontFamily: "inherit",
+          borderRadius: radius.chip,
+          backgroundColor: colors.surface2,
+          color: colors.foreground,
+          fontSize: 11,
+          fontWeight: 600,
+          height: 24,
+          "& .MuiChip-label": { padding: "0 8px" },
+        },
+      },
+    },
+    MuiTableCell: {
+      styleOverrides: {
+        root: {
+          fontFamily: "inherit",
+          fontSize: 12,
+          padding: "8px 12px",
+          color: colors.foreground,
+          borderBottom: `1px solid ${colors.line}`,
+        },
+        head: { color: colors.muted, fontWeight: 600 },
+      },
+    },
+    MuiTableRow: {
+      styleOverrides: {
+        root: {
+          "&:hover": { backgroundColor: "rgba(255, 255, 255, 0.02)" },
+        },
+      },
+    },
+    MuiTableContainer: {
+      styleOverrides: {
+        root: {
+          border: `1px solid ${colors.line}`,
+          borderRadius: radius.panel,
+        },
+      },
+    },
+    MuiTablePagination: {
+      styleOverrides: {
+        root: { fontSize: 12, color: colors.muted },
+      },
+    },
+    MuiFormControlLabel: {
+      styleOverrides: {
+        root: {
+          fontFamily: "inherit",
+          color: colors.muted,
+          "& .MuiTypography-root": { fontSize: 12 },
         },
       },
     },

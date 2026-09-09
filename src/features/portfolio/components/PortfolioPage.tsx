@@ -111,7 +111,7 @@ export function PortfolioPage() {
               setCreateFormNonce((n) => n + 1);
               setCreateOpen(true);
             }}
-            className="rounded-panel bg-up/15 px-4 py-2 text-sm font-semibold text-up-fg ring-1 ring-up/40 transition-colors hover:bg-up/20"
+            className="rounded-panel bg-gold/10 px-4 py-2 text-sm font-semibold text-gold-fg ring-1 ring-gold/40 transition-colors hover:bg-gold/20"
           >
             إنشاء المحفظة
           </button>
@@ -151,7 +151,7 @@ export function PortfolioPage() {
                   setAddOpen(true);
                 }}
                 disabled={saving}
-                className="flex h-8 items-center gap-1.5 rounded-panel bg-up/15 px-3 text-xs font-bold text-up-fg ring-1 ring-up/40 transition-colors hover:bg-up/20 disabled:opacity-60"
+                className="flex h-8 items-center gap-1.5 rounded-panel bg-gold/10 px-3 text-xs font-bold text-gold-fg ring-1 ring-gold/40 transition-colors hover:bg-gold/20 disabled:opacity-60"
               >
                 <PlusIcon className="h-3.5 w-3.5" />
                 إضافة عملية

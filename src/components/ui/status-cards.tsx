@@ -19,12 +19,12 @@ export function ErrorBox({
         className ?? ""
       }`}
     >
-      <p className="text-sm font-semibold text-zinc-200">{message}</p>
+      <p className="text-sm font-semibold text-foreground">{message}</p>
       {onRetry && (
         <RetryButton onRetry={onRetry} className="mt-3" />
       )}
       {code && (
-        <p className={`${num} mt-3 text-3xs text-zinc-600`} dir="ltr">
+        <p className={`${num} mt-3 text-3xs text-muted`} dir="ltr">
           {code}
         </p>
       )}

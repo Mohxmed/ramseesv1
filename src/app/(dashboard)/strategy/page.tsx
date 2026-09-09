@@ -17,7 +17,7 @@ interface GatewayFeature {
 function Feature({ text }: { text: string }) {
   return (
     <li className="flex items-start gap-2 text-2xs leading-5 text-zinc-300">
-      <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-up-fg" />
+      <CheckIcon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gold-fg" />
       <span>{text}</span>
     </li>
   );
@@ -43,14 +43,14 @@ function GatewayCard({
   return (
     <Link
       href={href}
-      className="group flex h-full flex-col justify-between gap-5 rounded-card border border-line bg-gradient-to-b from-surface-1/80 to-surface-1/40 p-6 transition-all duration-200 hover:-translate-y-0.5 hover:border-up/40 hover:shadow-pop"
+      className="group flex h-full flex-col justify-between gap-5 rounded-card border border-line bg-gradient-to-b from-surface-1/80 to-surface-1/40 p-6 transition-all duration-200 hover:-translate-y-0.5 hover:border-gold/40 hover:shadow-pop"
     >
       <div>
         <div className="flex items-start justify-between gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-panel bg-up/10 text-up-fg ring-1 ring-inset ring-up/20">
+          <div className="flex h-11 w-11 items-center justify-center rounded-panel bg-gold/10 text-gold-fg ring-1 ring-inset ring-gold/20">
             {icon}
           </div>
-          <ArrowLeftIcon className="h-4 w-4 text-muted transition-transform duration-200 group-hover:-translate-x-1 group-hover:text-up-fg" />
+          <ArrowLeftIcon className="h-4 w-4 text-muted transition-transform duration-200 group-hover:-translate-x-1 group-hover:text-gold-fg" />
         </div>
         <div className="text-3xs font-semibold uppercase tracking-[0.2em] text-muted">
           {eyebrow}
@@ -63,7 +63,7 @@ function GatewayCard({
           ))}
         </ul>
       </div>
-      <div className="flex items-center gap-1.5 text-xs font-bold text-up-fg">
+      <div className="flex items-center gap-1.5 text-xs font-bold text-gold-fg">
         {cta}
         <ArrowLeftIcon className="h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-x-0.5" />
       </div>
@@ -111,7 +111,7 @@ export default function StrategyCenterPage() {
       </div>
 
       <div className="flex items-start gap-3 rounded-panel border border-line bg-surface-1/40 px-4 py-3.5">
-        <HistoryIcon className="mt-0.5 h-4 w-4 shrink-0 text-up-fg" />
+        <HistoryIcon className="mt-0.5 h-4 w-4 shrink-0 text-gold-fg" />
         <p className="text-2xs leading-relaxed text-muted">
           كل نسخة عبارة عن لقطة ثابتة: تعديل نسخة لا يمس غيرها أبدًا، والسيناريوهات المحفوظة
           في الحاسبة تلتقط صورة كاملة من القيم وقت الحفظ، فلا تتغير بأثر رجعي عند تعديل

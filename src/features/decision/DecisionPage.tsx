@@ -45,7 +45,7 @@ export function DecisionPage() {
           </p>
           <Link
             href="/strategies"
-            className="mt-4 inline-block rounded-md bg-up/80 px-4 py-2 text-xs font-bold text-background hover:bg-up-fg"
+            className="mt-4 inline-block rounded-md bg-gold/90 px-4 py-2 text-xs font-bold text-background hover:bg-gold-fg"
           >
             إنشاء استراتيجية
           </Link>
@@ -87,7 +87,7 @@ export function DecisionPage() {
           </p>
           <Link
             href="/strategies"
-            className="mt-3 inline-block rounded-md border border-up/40 bg-up/10 px-3 py-1.5 text-xs font-semibold text-up-fg hover:bg-up/20"
+            className="mt-3 inline-block rounded-md border border-accent/40 bg-gold/10 px-3 py-1.5 text-xs font-semibold text-gold-fg hover:bg-gold/20"
           >
             إدارة الاستراتيجيات وتحريرها
           </Link>

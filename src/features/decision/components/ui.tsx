@@ -27,10 +27,10 @@ export function Card({ title, actions, children, className = "" }: {
   className?: string;
 }) {
   return (
-    <section className={`rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5 ${className}`}>
+    <section className={`rounded-card border border-line bg-surface-1/40 p-5 ${className}`}>
       {(title || actions) && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-zinc-200">{title}</h2>
+          <h2 className="text-sm font-semibold text-foreground">{title}</h2>
           {actions}
         </div>
       )}
@@ -45,10 +45,10 @@ export function StatCell({ label, value, tone }: {
   tone?: "up" | "down" | "neutral";
 }) {
   const color =
-    tone === "up" ? "text-emerald-400" : tone === "down" ? "text-red-400" : "text-zinc-100";
+    tone === "up" ? "text-up-fg" : tone === "down" ? "text-down-fg" : "text-foreground";
   return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-950/40 px-3 py-2.5">
-      <div className="text-[10px] uppercase tracking-wide text-zinc-500">{label}</div>
+    <div className="rounded-card border border-line bg-surface-1/40 px-3 py-2.5">
+      <div className="text-[10px] uppercase tracking-wide text-muted">{label}</div>
       <div className={`mt-0.5 text-sm font-bold ${color}`} dir="ltr">
         {value}
       </div>
@@ -58,7 +58,7 @@ export function StatCell({ label, value, tone }: {
 
 export function EmptyNote({ children }: { children: ReactNode }) {
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4 text-center text-xs text-zinc-500">
+    <div className="rounded-card border border-line bg-surface-1/40 p-4 text-center text-xs text-muted">
       {children}
     </div>
   );

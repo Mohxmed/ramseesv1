@@ -32,27 +32,27 @@ export const FRESHNESS_META: Record<
 > = {
   LIVE: {
     label: "مباشرة",
-    dot: "bg-emerald-400",
-    text: "text-emerald-300",
-    chip: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
+    dot: "bg-up",
+    text: "text-up-fg",
+    chip: "border-up/40 bg-up/10 text-up-fg",
   },
   RECENT: {
     label: "حديثة",
-    dot: "bg-lime-400",
-    text: "text-lime-300",
-    chip: "border-lime-500/40 bg-lime-500/10 text-lime-300",
+    dot: "bg-info",
+    text: "text-info",
+    chip: "border-info/40 bg-info/10 text-info",
   },
   STALE: {
     label: "متأخرة",
-    dot: "bg-amber-400",
-    text: "text-amber-300",
-    chip: "border-amber-500/40 bg-amber-500/10 text-amber-300",
+    dot: "bg-warn",
+    text: "text-warn-fg",
+    chip: "border-warn/40 bg-warn/10 text-warn-fg",
   },
   UNAVAILABLE: {
     label: "غير متاحة",
-    dot: "bg-zinc-500",
-    text: "text-zinc-500",
-    chip: "border-zinc-700 bg-zinc-800/40 text-zinc-500",
+    dot: "bg-muted",
+    text: "text-muted",
+    chip: "border-line bg-surface-2/40 text-muted",
   },
 };
 

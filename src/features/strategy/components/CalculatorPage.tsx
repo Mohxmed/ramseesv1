@@ -85,7 +85,7 @@ const headerIconBtnSx = {
   height: 36,
   borderRadius: "12px",
   color: "text.secondary",
-  "&:hover": { bgcolor: "rgba(255,255,255,0.05)", color: "text.primary" },
+  "&:hover": { bgcolor: "action.hover", color: "text.primary" },
   "&.Mui-disabled": { color: "text.disabled" },
 } as const;
 
@@ -414,7 +414,7 @@ export function CalculatorPage() {
       <Box sx={{ display: "grid", gridTemplateColumns: "repeat(12, 1fr)", gap: 2.5, mt: 4 }}>
         {/* Inputs — first column in RTL flow */}
         <Box sx={{ gridColumn: { xs: "span 12", md: "span 5" }, display: "flex", flexDirection: "column", gap: 2 }}>
-          <Paper variant="outlined" sx={{ p: 2.5, backgroundImage: "none", bgcolor: "rgba(24,24,27,0.6)" }}>
+          <Paper variant="outlined" sx={{ p: 2.5, backgroundImage: "none", bgcolor: (t) => t.palette.background.paper + "99" }}>
             <SectionTitle>الحساب</SectionTitle>
             <UiSelect
               value={preset?.strategyId ?? ""}
@@ -485,7 +485,7 @@ export function CalculatorPage() {
                 gap: 2,
                 borderRadius: 1.5,
                 p: 1.5,
-                bgcolor: "rgba(239,68,68,0.05)",
+                bgcolor: (t) => t.palette.error.main + "0d",
                 border: "1px solid rgba(239,68,68,0.18)",
               }}
             >
@@ -508,7 +508,7 @@ export function CalculatorPage() {
             </Box>
           </Paper>
 
-          <Paper variant="outlined" sx={{ p: 2.5, backgroundImage: "none", bgcolor: "rgba(24,24,27,0.6)" }}>
+          <Paper variant="outlined" sx={{ p: 2.5, backgroundImage: "none", bgcolor: (t) => t.palette.background.paper + "99" }}>
             <SectionTitle>الصفقة</SectionTitle>
             <Box sx={{ mb: 2 }}>
               <Typography sx={{ fontSize: 11, color: "text.secondary", mb: 0.5 }}>الاتجاه</Typography>
@@ -614,7 +614,7 @@ export function CalculatorPage() {
           {result ? (
             <CalculatorResults result={result} warnings={warnings} accountName={asset || "BTC"} accountBalance={balanceN} />
           ) : (
-            <Paper variant="outlined" sx={{ p: 6, backgroundImage: "none", bgcolor: "rgba(24,24,27,0.6)", textAlign: "center" }}>
+            <Paper variant="outlined" sx={{ p: 6, backgroundImage: "none", bgcolor: (t) => t.palette.background.paper + "99", textAlign: "center" }}>
               <NetworkIcon className="mx-auto h-8 w-8 text-muted" />
               <Typography sx={{ mt: 2, fontSize: 13, color: "text.secondary" }}>
                 أدخل قيمًا صحيحة لعرض النتائج.
@@ -628,7 +628,7 @@ export function CalculatorPage() {
           )}
 
           {/* Saved presets */}
-          <Paper variant="outlined" sx={{ mt: 2.5, p: 2.5, backgroundImage: "none", bgcolor: "rgba(24,24,27,0.6)" }}>
+          <Paper variant="outlined" sx={{ mt: 2.5, p: 2.5, backgroundImage: "none", bgcolor: (t) => t.palette.background.paper + "99" }}>
             <SectionTitle>
               المحفوظات
               <Badge tone="good" ltr>{scenarios.scenarios.length}</Badge>
@@ -655,7 +655,7 @@ export function CalculatorPage() {
                         px: 1.5,
                         py: 1.25,
                         transition: "border-color 150ms ease, background-color 150ms ease",
-                        "&:hover": { borderColor: "rgba(16,185,129,0.35)", bgcolor: "rgba(16,185,129,0.04)" },
+                        "&:hover": { borderColor: "rgba(201,169,97,0.35)", bgcolor: "rgba(201,169,97,0.04)" },
                       }}
                     >
                       <Box sx={{ minWidth: 0 }}>

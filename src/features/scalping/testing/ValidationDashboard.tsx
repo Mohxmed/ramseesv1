@@ -221,7 +221,7 @@ function Row({
       <td className="py-1 pr-2 text-zinc-300">{fmtAcc(a120)}</td>
       <td
         className="py-1 pr-2 font-semibold"
-        style={{ color: delta == null ? "#52525b" : delta >= 0 ? "#34d399" : "#f87171" }}
+        style={{ color: delta == null ? "var(--color-muted)" : delta >= 0 ? "var(--color-up-fg)" : "var(--color-down-fg)" }}
       >
         {delta == null ? "—" : fmtDelta(delta)}
       </td>

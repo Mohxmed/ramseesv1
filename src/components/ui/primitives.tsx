@@ -20,7 +20,7 @@ export type Tone = "up" | "down" | "neutral" | "warn" | "good" | "quiet";
 const text: Record<Tone, string> = {
   up: "text-up-fg",
   down: "text-down-fg",
-  neutral: "text-zinc-300",
+  neutral: "text-foreground",
   warn: "text-warn-fg",
   good: "text-good",
   quiet: "text-muted",
@@ -29,7 +29,7 @@ const text: Record<Tone, string> = {
 const border: Record<Tone, string> = {
   up: "border-up/40",
   down: "border-down/40",
-  neutral: "border-zinc-700",
+  neutral: "border-line",
   warn: "border-warn/40",
   good: "border-good/30",
   quiet: "border-line",
@@ -38,7 +38,7 @@ const border: Record<Tone, string> = {
 const bg: Record<Tone, string> = {
   up: "bg-up/10",
   down: "bg-down/10",
-  neutral: "bg-zinc-800/40",
+  neutral: "bg-surface-2/40",
   warn: "bg-warn/10",
   good: "bg-good/10",
   quiet: "bg-surface-2/40",
@@ -47,19 +47,19 @@ const bg: Record<Tone, string> = {
 const bar: Record<Tone, string> = {
   up: "bg-up",
   down: "bg-down",
-  neutral: "bg-zinc-600",
+  neutral: "bg-muted/50",
   warn: "bg-warn",
   good: "bg-good",
-  quiet: "bg-zinc-700",
+  quiet: "bg-surface-3",
 };
 
 const dot: Record<Tone, string> = {
   up: "bg-up-fg",
   down: "bg-down-fg",
-  neutral: "bg-zinc-500",
+  neutral: "bg-muted",
   warn: "bg-warn-fg",
   good: "bg-good",
-  quiet: "bg-zinc-600",
+  quiet: "bg-muted/60",
 };
 
 /* ------------------------------------------------------------------ */
@@ -99,7 +99,7 @@ export function Card({
           {eyebrow}
         </div>
       ) : null}
-      {title ? <h2 className="text-[13px] font-bold text-zinc-100">{title}</h2> : null}
+      {title ? <h2 className="text-sm font-bold text-foreground">{title}</h2> : null}
     </span>
   );
 
@@ -202,11 +202,11 @@ export function PageHeader({
         ) : null}
         <div className="min-w-0">
           {eyebrow ? (
-            <div className="truncate text-3xs font-semibold uppercase tracking-[0.22em] text-gold-fg/70">
+            <div className="truncate text-3xs font-semibold uppercase tracking-[0.18em] text-gold-fg/70">
               {eyebrow}
             </div>
           ) : null}
-          <h1 className="truncate text-[15px] leading-6 font-bold text-zinc-50">{title}</h1>
+          <h1 className="truncate text-base leading-6 font-bold text-foreground">{title}</h1>
           {description ? (
             <p className="mt-0.5 max-w-xl truncate text-2xs leading-relaxed text-muted">{description}</p>
           ) : null}
@@ -346,7 +346,7 @@ export interface StatusProps {
 /** Dot + label status. */
 export function Status({ label, tone = "quiet", pulse = false }: StatusProps) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-2xs font-semibold text-zinc-300">
+    <span className="inline-flex items-center gap-1.5 text-2xs font-semibold text-foreground">
       <Dot tone={tone} pulse={pulse} />
       {label}
     </span>
@@ -468,7 +468,7 @@ export function ScoreBar({ value, className = "", showValue = false }: ScoreBarP
     <div className={`flex items-center gap-2 ${className}`}>
       <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-line">
         {/* center marker */}
-        <span className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-zinc-600" />
+        <span className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-line" />
         <div
           className={`absolute top-0 h-full rounded-full transition-all duration-500 ${bar[tone]}`}
           style={{
@@ -505,7 +505,7 @@ export function Collapse({
       open={open}
       className={`rounded-panel border border-line bg-surface-2/40 ${className}`}
     >
-      <summary className="flex cursor-pointer select-none items-center justify-between gap-2 px-3 py-2 text-2xs font-semibold text-zinc-300 [&::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer select-none items-center justify-between gap-2 px-3 py-2 text-2xs font-semibold text-foreground [&::-webkit-details-marker]:hidden">
         <span className="flex items-center gap-2">{summary}</span>
         <span className="text-muted">⌄</span>
       </summary>

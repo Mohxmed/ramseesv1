@@ -21,10 +21,10 @@ import { defaultFlowNode } from "../templates";
 export { CATEGORY_LABELS };
 
 const FLOW_TAB_CLASS: Record<StrategyType, string> = {
-  BUY: "border-emerald-500/60 bg-emerald-500/10 text-emerald-200",
-  SELL: "border-red-500/60 bg-red-500/10 text-red-200",
-  EXIT: "border-amber-500/60 bg-amber-500/10 text-amber-200",
-  WAIT: "border-zinc-500 bg-zinc-800/60 text-zinc-200",
+  BUY: "border-up/60 bg-up/10 text-up-fg",
+  SELL: "border-down/60 bg-down/10 text-down-fg",
+  EXIT: "border-warn/60 bg-warn/10 text-warn-fg",
+  WAIT: "border-line bg-surface-2/60 text-muted",
 };
 
 export function StrategyBuilder({
@@ -132,12 +132,12 @@ export function StrategyBuilder({
       actions={
         <div className="flex flex-wrap items-center gap-2">
           {dirty && (
-            <span className="rounded border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-300">
+            <span className="rounded border border-warn/40 bg-warn/10 px-2 py-0.5 text-[11px] font-semibold text-warn-fg">
               لم يتم الحفظ
             </span>
           )}
           {savedFlash && (
-            <span className="rounded border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-300">
+            <span className="rounded border border-up/40 bg-up/10 px-2 py-0.5 text-[11px] font-semibold text-up-fg">
               ✓ تم الحفظ
             </span>
           )}
@@ -153,7 +153,7 @@ export function StrategyBuilder({
             type="button"
             onClick={save}
             disabled={!dirty}
-            className="rounded-md bg-emerald-500/80 px-3 py-1.5 text-xs font-bold text-zinc-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-md bg-gold/90 px-3 py-1.5 text-xs font-bold text-background hover:bg-gold-fg disabled:cursor-not-allowed disabled:opacity-40"
           >
             حفظ
           </button>
@@ -174,7 +174,7 @@ export function StrategyBuilder({
             type="checkbox"
             checked={draft.enabled}
             onChange={(e) => setEnabled(e.target.checked)}
-            className="accent-emerald-500"
+            className="accent-gold"
           />
           تفعيل الاستراتيجية
         </label>
@@ -224,7 +224,7 @@ export function StrategyBuilder({
       )}
 
       {/* Sticky action bar + live summary */}
-      <div className="sticky bottom-3 z-10 mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-zinc-800 bg-zinc-900/90 p-2.5 backdrop-blur">
+      <div className="sticky bottom-3 z-10 mt-4 flex flex-wrap items-center justify-between gap-2 rounded-card border border-line bg-surface-1/90 p-2.5 backdrop-blur">
         <div className="flex flex-wrap items-center gap-3 text-[11px] text-zinc-400">
           {summary ? (
             <>
@@ -263,7 +263,7 @@ export function StrategyBuilder({
             type="button"
             onClick={save}
             disabled={!dirty}
-            className="rounded-md bg-emerald-500/80 px-4 py-1.5 text-xs font-bold text-zinc-950 hover:bg-emerald-400 disabled:opacity-40"
+            className="rounded-md bg-gold/90 px-4 py-1.5 text-xs font-bold text-background hover:bg-gold-fg disabled:opacity-40"
           >
             حفظ
           </button>

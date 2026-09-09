@@ -1,5 +1,7 @@
 "use client";
 
+import { colors } from "@/components/ui/design-tokens";
+
 /** Last-resort global error boundary — replaces the whole app shell. */
 export default function GlobalError({
   error,
@@ -13,8 +15,8 @@ export default function GlobalError({
       <body
         style={{
           margin: 0,
-          background: "#09090b",
-          color: "#f4f4f5",
+          background: colors.background,
+          color: colors.foreground,
           fontFamily: "ui-sans-serif, system-ui, sans-serif",
         }}
       >
@@ -33,7 +35,7 @@ export default function GlobalError({
             <p
               style={{
                 fontSize: 12,
-                color: "#71717a",
+                color: colors.muted,
                 lineHeight: 1.7,
                 marginTop: 10,
               }}
@@ -46,8 +48,8 @@ export default function GlobalError({
               style={{
                 marginTop: 20,
                 borderRadius: 6,
-                background: "rgba(16,185,129,0.8)",
-                color: "#09090b",
+                background: colors.accent,
+                color: colors.background,
                 fontWeight: 700,
                 fontSize: 13,
                 padding: "10px 20px",

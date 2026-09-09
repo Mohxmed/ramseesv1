@@ -41,7 +41,7 @@ function Metric({
 }) {
   const color = tone === "up" ? "success.main" : tone === "down" ? "error.main" : "text.primary";
   return (
-    <Paper variant="outlined" sx={{ p: 2, backgroundImage: "none", bgcolor: "rgba(24,24,27,0.6)" }}>
+    <Paper variant="outlined" sx={{ p: 2, backgroundImage: "none", bgcolor: (t) => t.palette.background.paper + "99" }}>
       <Typography sx={{ fontSize: 11, fontWeight: 700, color: "text.secondary" }}>{label}</Typography>
       <Typography
         sx={{
@@ -121,7 +121,7 @@ export function CalculatorResults({
         <Metric label="العائد : المخاطرة" value={formatRR(r.reward.rr)} tone="up" hint="من مسافة الدخول إلى الهدف" />
       </Box>
 
-      <Paper variant="outlined" sx={{ p: 2.25, backgroundImage: "none", bgcolor: "rgba(24,24,27,0.6)" }}>
+      <Paper variant="outlined" sx={{ p: 2.25, backgroundImage: "none", bgcolor: (t) => t.palette.background.paper + "99" }}>
         <Typography sx={{ fontSize: 12, fontWeight: 800, color: "text.primary", mb: 0.75 }}>
           تفاصيل الصفقة
         </Typography>
@@ -135,19 +135,19 @@ export function CalculatorResults({
 
       <Paper
         variant="outlined"
-        sx={{ p: 2.5, backgroundImage: "none", bgcolor: "rgba(24,24,27,0.6)", borderColor: (t) => t.palette.divider }}
+        sx={{ p: 2.5, backgroundImage: "none", bgcolor: (t) => t.palette.background.paper + "99", borderColor: (t) => t.palette.divider }}
       >
         <Typography sx={{ fontSize: 12, fontWeight: 800, color: "text.primary", mb: 1.25 }}>
           صافي النتيجة
         </Typography>
         <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 2 }}>
-          <Box sx={{ p: 1.5, borderRadius: 1.5, bgcolor: "rgba(16,185,129,0.05)", border: "1px solid rgba(16,185,129,0.18)" }}>
+          <Box sx={{ p: 1.5, borderRadius: 1.5, bgcolor: (t) => t.palette.success.main + "0d", border: "1px solid rgba(16,185,129,0.18)" }}>
             <Typography sx={{ fontSize: 11, color: "success.main", fontWeight: 800 }}>عند الوصول للهدف (TP)</Typography>
             <Row label="الربح الصافي" value={`+${formatMoney(r.profit.net)}`} tone="up" />
             <Row label="مسافة الهدف" value={`+${formatPercent(r.reward.rewardPercent)}`} tone="up" />
             <Row label="نسبة من رأس المال" value={`+${pctOfBalance(r.profit.net)}`} tone="up" />
           </Box>
-          <Box sx={{ p: 1.5, borderRadius: 1.5, bgcolor: "rgba(239,68,68,0.05)", border: "1px solid rgba(239,68,68,0.18)" }}>
+          <Box sx={{ p: 1.5, borderRadius: 1.5, bgcolor: (t) => t.palette.error.main + "0d", border: "1px solid rgba(239,68,68,0.18)" }}>
             <Typography sx={{ fontSize: 11, color: "error.main", fontWeight: 800 }}>عند الوصول لوقف الخسارة (SL)</Typography>
             <Row label="صافي الخسارة" value={`-${formatMoney(Math.abs(r.loss.net))}`} tone="down" />
             <Row label="مسافة الوقف" value={`-${formatPercent(r.risk.riskPercent)}`} tone="down" />

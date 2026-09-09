@@ -86,12 +86,12 @@ export const typography = {
     "3xs": "9px",
     "2xs": "11px",
     xs: "12px",
-    sm: "13px",
-    base: "14px",
+    sm: "14px",
+    base: "16px",
     lg: "18px",
-    xl: "24px",
-    "2xl": "30px",
-    "3xl": "36px",
+    xl: "20px",
+    "2xl": "24px",
+    "3xl": "30px",
   } as const,
 } as const;
 

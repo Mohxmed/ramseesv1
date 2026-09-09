@@ -321,7 +321,7 @@ function LayerFeatureStatus({ r }: { r: FeatureResearchRun }) {
                   ) : f.reason !== "none" ? (
                     <span className="text-amber-400">{f.reason}</span>
                   ) : (
-                    <span className="text-emerald-400">جاهز</span>
+                    <span className="text-up-fg">جاهز</span>
                   )}
                 </td>
               </tr>
@@ -433,7 +433,7 @@ function FeaturePerfRow({ fs }: { fs: FeatureSplitMetrics }) {
       <td className="font-mono ltr">{fmtPct(train?.accuracy60)}</td>
       <td className="font-mono ltr">{fmtPct(val?.accuracy60)}</td>
       <td className="font-mono ltr">
-        <span className={pctBias(fs.oosAccuracy60) === "good" ? "text-emerald-400" : pctBias(fs.oosAccuracy60) === "short" ? "text-red-400" : "text-zinc-300"}>
+        <span className={pctBias(fs.oosAccuracy60) === "good" ? "text-up-fg" : pctBias(fs.oosAccuracy60) === "short" ? "text-down-fg" : "text-zinc-300"}>
           {fmtPct(fs.oosAccuracy60)}
         </span>
       </td>
@@ -441,8 +441,8 @@ function FeaturePerfRow({ fs }: { fs: FeatureSplitMetrics }) {
         <Tag tone={fs.oosEdge60Pp != null && fs.oosEdge60Pp > 0 ? "good" : fs.oosEdge60Pp != null ? "short" : "quiet"}>{fmt(fs.oosEdge60Pp)}</Tag>
       </td>
       <td className="font-mono ltr text-zinc-400">{fs.oosHorizonBest ?? "—"}</td>
-      <td className="font-mono ltr text-emerald-400">{fmt(oos?.averageMFE)}%</td>
-      <td className="font-mono ltr text-red-400">{fmt(oos?.averageMAE)}%</td>
+      <td className="font-mono ltr text-up-fg">{fmt(oos?.averageMFE)}%</td>
+      <td className="font-mono ltr text-down-fg">{fmt(oos?.averageMAE)}%</td>
     </tr>
   );
 }
@@ -475,7 +475,7 @@ function LayerAblation({ r }: { r: FeatureResearchRun }) {
                 <td className="font-mono ltr">{fmt(e.edge60Pp)}</td>
                 <td className="font-mono ltr">
                   {e.delta60Pp == null ? "—" : (
-                    <span className={e.delta60Pp > 0 ? "text-red-400" : e.delta60Pp < 0 ? "text-emerald-400" : "text-zinc-400"}>
+                    <span className={e.delta60Pp > 0 ? "text-down-fg" : e.delta60Pp < 0 ? "text-up-fg" : "text-zinc-400"}>
                       {e.delta60Pp > 0 ? "+" : ""}{e.delta60Pp.toFixed(1)}
                     </span>
                   )}
@@ -546,7 +546,7 @@ function LayerRegime({ r }: { r: FeatureResearchRun }) {
                       <td className="py-1 pr-1 text-zinc-400">{FEATURE_SOURCES[row.feature]?.label ?? row.feature}</td>
                       <td className="py-1 font-mono ltr text-zinc-500">{row.samples}</td>
                       <td className="py-1 font-mono ltr">
-                        <span className={pctBias(row.accuracy) === "good" ? "text-emerald-400" : pctBias(row.accuracy) === "short" ? "text-red-400" : "text-zinc-300"}>
+                        <span className={pctBias(row.accuracy) === "good" ? "text-up-fg" : pctBias(row.accuracy) === "short" ? "text-down-fg" : "text-zinc-300"}>
                           {fmtPct(row.accuracy)}
                         </span>
                       </td>
@@ -586,7 +586,7 @@ function LayerHorizonAndConfidence({ r }: { r: FeatureResearchRun }) {
                   const acc = m?.accuracy;
                   return (
                     <td key={h} className="font-mono ltr">
-                      <span className={pctBias(acc) === "good" ? "text-emerald-400" : pctBias(acc) === "short" ? "text-red-400" : "text-zinc-300"}>
+                      <span className={pctBias(acc) === "good" ? "text-up-fg" : pctBias(acc) === "short" ? "text-down-fg" : "text-zinc-300"}>
                         {fmtPct(acc)}
                       </span>
                       <span className="mr-1 text-[9px] text-zinc-500">(n={m?.samples ?? 0})</span>

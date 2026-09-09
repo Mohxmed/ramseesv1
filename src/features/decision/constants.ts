@@ -35,20 +35,20 @@ export const STATE_META: Record<
 > = {
   true: {
     label: "TRUE",
-    color: "text-emerald-400",
-    bg: "bg-emerald-500/15 border-emerald-500/40",
+    color: "text-up-fg",
+    bg: "bg-up/15 border-up/40",
     icon: "✓",
   },
   false: {
     label: "FALSE",
-    color: "text-red-400",
-    bg: "bg-red-500/15 border-red-500/40",
+    color: "text-down-fg",
+    bg: "bg-down/15 border-down/40",
     icon: "✕",
   },
   unknown: {
     label: "UNKNOWN",
-    color: "text-zinc-400",
-    bg: "bg-zinc-600/20 border-zinc-500/40",
+    color: "text-muted",
+    bg: "bg-muted/20 border-line",
     icon: "?",
   },
 };

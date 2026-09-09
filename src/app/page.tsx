@@ -18,7 +18,7 @@ export default function Home() {
       <div className="mt-8 flex gap-4">
         <Link
           href="/login"
-          className="rounded-panel bg-zinc-100 px-6 py-2.5 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-300"
+          className="rounded-panel bg-gold/90 px-6 py-2.5 text-sm font-bold text-background transition-colors hover:bg-gold-fg"
         >
           تسجيل الدخول
         </Link>

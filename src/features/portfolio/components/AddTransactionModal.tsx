@@ -169,7 +169,7 @@ export function AddTransactionModal({
             type="button"
             onClick={handleSubmit}
             disabled={saving}
-            className="rounded-panel bg-up/15 px-3 py-1.5 text-xs font-semibold text-up-fg ring-1 ring-up/40 transition-colors hover:bg-up/20 disabled:opacity-60"
+            className="rounded-panel bg-gold/10 px-3 py-1.5 text-xs font-semibold text-gold-fg ring-1 ring-gold/40 transition-colors hover:bg-gold/20 disabled:opacity-60"
           >
             {saving ? "جارٍ الحفظ…" : "إضافة العملية"}
           </button>

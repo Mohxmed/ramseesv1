@@ -73,7 +73,7 @@ export function StrategyCard({
         borderRadius: 2,
         p: 3,
         bgcolor: "rgba(24,24,27,0.6)",
-        borderColor: open ? "rgba(16,185,129,0.4)" : tokens.colors.line,
+        borderColor: open ? tokens.colors.up : tokens.colors.line,
       }}
     >
       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2.5, alignItems: "flex-start", justifyContent: "space-between" }}>

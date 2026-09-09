@@ -361,7 +361,7 @@ function PriceMovePanelInner({ snap }: { snap: ScalpingSnapshot }) {
                   bpsTrend === "up"
                     ? "border-warn/40 text-amber-400"
                     : bpsTrend === "down"
-                    ? "border-up/40 text-emerald-400"
+                    ? "border-up/40 text-up-fg"
                     : "border-line text-slate-400"
                 }`}
                 dir="ltr"

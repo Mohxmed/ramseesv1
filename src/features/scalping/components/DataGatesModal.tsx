@@ -221,7 +221,7 @@ export function DataGatesContent({ snap }: { snap: FlowSnapshot }) {
         <span>
           بدء متوازٍ · <span dir="ltr" style={mono}>{state.startup.startedCount}/{state.startup.totalCount}</span> منصّة
           <span
-            className={state.startup.connectStartSpreadMs != null && state.startup.connectStartSpreadMs <= 150 ? "text-emerald-300/90" : "text-warn-fg"}
+            className={state.startup.connectStartSpreadMs != null && state.startup.connectStartSpreadMs <= 150 ? "text-up-fg" : "text-warn-fg"}
             dir="ltr"
             style={mono}
           >

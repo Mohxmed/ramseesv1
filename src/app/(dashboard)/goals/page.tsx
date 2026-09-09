@@ -79,7 +79,7 @@ export default function GoalsPage() {
         <button
           type="button"
           onClick={() => setResetOpen(true)}
-          className="rounded-md border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-400 transition-colors hover:border-red-500/40 hover:text-red-400"
+          className="rounded-md border border-line px-4 py-2 text-sm font-medium text-muted transition-colors hover:border-down/40 hover:text-down-fg"
         >
           إعادة تعيين الأهداف
         </button>
@@ -138,13 +138,13 @@ export default function GoalsPage() {
       )}
 
       {saveState === "success" && (
-        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 animate-pop-in rounded-full border border-emerald-500/40 bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-lg">
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 animate-pop-in rounded-full border border-up/40 bg-up px-5 py-2.5 text-sm font-medium text-background shadow-pop">
           ✓ تم الحفظ بنجاح
         </div>
       )}
 
       {saveState === "error" && (
-        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 animate-pop-in rounded-full border border-red-500/40 bg-red-600 px-5 py-2.5 text-sm font-medium text-white shadow-lg">
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 animate-pop-in rounded-full border border-down/40 bg-down px-5 py-2.5 text-sm font-medium text-background shadow-pop">
           ✕ حدث خطأ أثناء الحفظ، حاول مرة أخرى
         </div>
       )}
