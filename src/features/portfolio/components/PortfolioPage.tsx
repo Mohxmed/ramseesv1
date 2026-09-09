@@ -5,7 +5,8 @@ import { PageHeader, Status, Tooltip } from "@/components/ui";
 import { PlusIcon, WalletIcon } from "@/components/icons/icons";
 import { usePortfolio } from "../hooks/usePortfolio";
 import { buildEquitySeries } from "../utils";
-import { PortfolioSummary } from "./PortfolioSummary";
+import type { PortfolioTxType } from "../types";
+import { BalanceHero } from "./BalanceHero";
 import { PerformancePanel } from "./PerformancePanel";
 import { DrawdownPanel } from "./DrawdownPanel";
 import { PortfolioStats } from "./PortfolioStats";
@@ -33,6 +34,7 @@ export function PortfolioPage() {
   const [addFormNonce, setAddFormNonce] = useState(0);
   const [createFormNonce, setCreateFormNonce] = useState(0);
   const [defaultTxTs, setDefaultTxTs] = useState(0);
+  const [initialTxType, setInitialTxType] = useState<PortfolioTxType>("deposit");
   const [nowMs] = useState(() => Date.now());
 
   const equityPoints = useMemo(() => {
@@ -47,6 +49,13 @@ export function PortfolioPage() {
       nowMs,
     });
   }, [meta, transactions, nowMs]);
+
+  const openAdd = (type: PortfolioTxType) => {
+    setDefaultTxTs(Date.now());
+    setInitialTxType(type);
+    setAddFormNonce((n) => n + 1);
+    setAddOpen(true);
+  };
 
   if (loading) {
     return (
@@ -145,11 +154,7 @@ export function PortfolioPage() {
             <Tooltip title="إضافة عملية جديدة">
               <button
                 type="button"
-                onClick={() => {
-                  setDefaultTxTs(Date.now());
-                  setAddFormNonce((n) => n + 1);
-                  setAddOpen(true);
-                }}
+                onClick={() => openAdd("deposit")}
                 disabled={saving}
                 className="flex h-8 items-center gap-1.5 rounded-panel bg-gold/10 px-3 text-xs font-bold text-gold-fg ring-1 ring-gold/40 transition-colors hover:bg-gold/20 disabled:opacity-60"
               >
@@ -161,14 +166,17 @@ export function PortfolioPage() {
         }
       />
 
-      <PortfolioSummary summary={meta} />
+      <BalanceHero summary={meta} onOpenAdd={openAdd} />
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        <PerformancePanel summary={meta} transactions={transactions} />
-        <DrawdownPanel summary={meta} points={equityPoints} />
+      <div className="grid gap-3 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <PerformancePanel summary={meta} transactions={transactions} />
+        </div>
+        <div className="space-y-3">
+          <PortfolioStats summary={meta} />
+          <DrawdownPanel summary={meta} points={equityPoints} />
+        </div>
       </div>
-
-      <PortfolioStats summary={meta} />
 
       <TransactionTable
         transactions={transactions}
@@ -184,6 +192,7 @@ export function PortfolioPage() {
         saving={saving}
         error={saveState === "error" ? error : null}
         defaultTimestampMs={defaultTxTs}
+        initialType={initialTxType}
         onSubmit={recordTransaction}
       />
     </div>

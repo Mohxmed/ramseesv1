@@ -28,6 +28,7 @@ export function AddTransactionModal({
   saving,
   error,
   defaultTimestampMs,
+  initialType = "deposit",
   onSubmit,
 }: {
   open: boolean;
@@ -35,9 +36,10 @@ export function AddTransactionModal({
   saving: boolean;
   error: string | null;
   defaultTimestampMs: number;
+  initialType?: PortfolioTxType;
   onSubmit: (input: AddTransactionInput) => Promise<boolean>;
 }) {
-  const [type, setType] = useState<PortfolioTxType>("deposit");
+  const [type, setType] = useState<PortfolioTxType>(initialType);
   const [impact, setImpact] = useState<PortfolioImpact>("increase");
   const [amount, setAmount] = useState("");
   const [symbol, setSymbol] = useState("");

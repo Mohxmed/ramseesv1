@@ -40,6 +40,8 @@ import {
   ArrowRight,
   ArrowLeft,
   ArrowUpDown,
+  ArrowDownToLine,
+  ArrowUpFromLine,
   Wallet,
   Download,
   Plus,
@@ -60,6 +62,8 @@ import {
   History,
   BookOpenText,
   ListOrdered,
+  Eye,
+  EyeOff,
   type LucideProps,
 } from "lucide-react";
 
@@ -137,3 +141,7 @@ export const ScaleIcon = wrap(Scale);
 export const HistoryIcon = wrap(History);
 export const TradesIcon = wrap(BookOpenText);
 export const ListNumbersIcon = wrap(ListOrdered);
+export const EyeIcon = wrap(Eye, "h-4 w-4");
+export const EyeOffIcon = wrap(EyeOff, "h-4 w-4");
+export const DepositIcon = wrap(ArrowDownToLine, "h-4 w-4");
+export const WithdrawIcon = wrap(ArrowUpFromLine, "h-4 w-4");

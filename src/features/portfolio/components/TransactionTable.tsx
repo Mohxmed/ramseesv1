@@ -14,15 +14,15 @@ const TYPE_TONE: Record<PortfolioTxType, Tone> = {
 
 const PAGE_STEP = 10;
 
-type SortKey = "timestamp" | "type" | "symbol" | "result" | "balanceBefore" | "pnl" | "balanceAfter";
+type SortKey = "timestamp" | "type" | "symbol" | "amount" | "result" | "pnl" | "balanceAfter";
 type SortDir = "asc" | "desc";
 
 const HEADERS: { key: SortKey; label: string }[] = [
   { key: "timestamp", label: "الوقت" },
   { key: "type", label: "النوع" },
   { key: "symbol", label: "الرمز" },
+  { key: "amount", label: "المبلغ" },
   { key: "result", label: "النتيجة" },
-  { key: "balanceBefore", label: "الرصيد قبل" },
   { key: "pnl", label: "الربح / الخسارة" },
   { key: "balanceAfter", label: "الرصيد بعد" },
 ];
@@ -76,14 +76,30 @@ export function TransactionTable({
       rows.map((t) => (
         <tr key={t.id} className="border-t border-line/60 transition-colors hover:bg-surface-2/20">
           <td className="px-3 py-2 text-right" dir="ltr">
-            <span className="font-mono text-2xs text-zinc-300">{fmtDateTime(t.timestamp)}</span>
+            <span className="font-mono text-2xs text-muted">{fmtDateTime(t.timestamp)}</span>
           </td>
           <td className="px-3 py-2 text-right">
             <Badge tone={TYPE_TONE[t.type]}>{PORTFOLIO_TX_TYPE_LABELS[t.type]}</Badge>
           </td>
           <td className="px-3 py-2 text-right">
-            <span className="font-mono text-xs font-semibold text-zinc-200" dir="ltr">
-              {t.symbol || "—"}
+            <span className="inline-flex items-center gap-1.5">
+              <span className="inline-flex h-5 w-5 items-center justify-center rounded-[5px] border border-line bg-surface-2/60 text-2xs font-extrabold text-gold-fg">
+                {(t.symbol || "—").slice(0, 2).toUpperCase()}
+              </span>
+              <span className="font-mono text-xs font-semibold text-foreground" dir="ltr">
+                {t.symbol || "—"}
+              </span>
+            </span>
+          </td>
+          <td className="px-3 py-2 text-right">
+            <span
+              className={`font-mono text-xs font-bold ${
+                t.impact === "increase" ? "text-good" : "text-down-fg"
+              }`}
+              dir="ltr"
+            >
+              {t.impact === "increase" ? "+" : "-"}
+              {fmtMoney(t.amount)}
             </span>
           </td>
           <td className="px-3 py-2 text-right">
@@ -100,11 +116,6 @@ export function TransactionTable({
             )}
           </td>
           <td className="px-3 py-2 text-right">
-            <span className="font-mono text-xs text-zinc-300" dir="ltr">
-              {fmtMoney(t.balanceBefore)}
-            </span>
-          </td>
-          <td className="px-3 py-2 text-right">
             <span
               className={`font-mono text-xs font-bold ${t.pnl > 0 ? "text-good" : t.pnl < 0 ? "text-down-fg" : "text-muted"}`}
               dir="ltr"
@@ -117,7 +128,7 @@ export function TransactionTable({
             </span>
           </td>
           <td className="px-3 py-2 text-right">
-            <span className="font-mono text-xs font-bold text-zinc-100" dir="ltr">
+            <span className="font-mono text-xs font-bold text-foreground" dir="ltr">
               {fmtMoney(t.balanceAfter)}
             </span>
           </td>
@@ -136,7 +147,7 @@ export function TransactionTable({
               {HEADERS.map((h) => (
                 <th
                   key={h.key}
-                  className="cursor-pointer select-none whitespace-nowrap px-3 py-2 text-right font-semibold hover:text-zinc-300"
+                  className="cursor-pointer select-none whitespace-nowrap px-3 py-2 text-right font-semibold hover:text-foreground"
                   onClick={() => cycleSort(h.key)}
                 >
                   {h.label}

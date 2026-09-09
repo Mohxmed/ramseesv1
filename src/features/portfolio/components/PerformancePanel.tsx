@@ -69,7 +69,7 @@ export function PerformancePanel({
         </div>
       </div>
 
-      <div className="mt-2 h-40 w-full">
+      <div className="mt-2 h-56 w-full">
         {points.length >= 2 ? (
           <LineChart
             data={data}
