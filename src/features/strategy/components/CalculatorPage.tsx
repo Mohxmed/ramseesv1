@@ -26,6 +26,7 @@ import {
   TrashIcon,
   NetworkIcon,
   ArrowLeftIcon,
+  WalletIcon,
 } from "@/components/icons/icons";
 import {
   PageHeader,
@@ -35,6 +36,7 @@ import {
   Card,
 } from "@/components/ui";
 import { useMarketData } from "@/features/bitcoin/store/market-context";
+import { usePortfolio } from "@/features/portfolio/hooks/usePortfolio";
 import type { Direction, OrderType } from "../types/strategy";
 import {
   DEFAULT_ACCOUNT_BALANCE,
@@ -77,6 +79,16 @@ const INHERITED_FIELDS = [
   "entryOrderType",
 ] as const;
 
+/** Compact header control — mirrors the global icon-button language. */
+const headerIconBtnSx = {
+  width: 36,
+  height: 36,
+  borderRadius: "12px",
+  color: "text.secondary",
+  "&:hover": { bgcolor: "rgba(255,255,255,0.05)", color: "text.primary" },
+  "&.Mui-disabled": { color: "text.disabled" },
+} as const;
+
 const INITIAL = {
   accountBalance: String(DEFAULT_ACCOUNT_BALANCE),
   asset: "BTC",
@@ -115,6 +127,7 @@ export function CalculatorPage() {
   const store = useStrategyNumbers();
   const scenarios = useScenarios();
   const market = useMarketData();
+  const portfolio = usePortfolio();
   const livePrice = market.livePrice;
 
   const [accountBalance, setAccountBalance] = useState(INITIAL.accountBalance);
@@ -206,6 +219,8 @@ export function CalculatorPage() {
     Number.isFinite(balanceN) && Number.isFinite(riskN) && balanceN > 0 && riskN > 0
       ? (balanceN * riskN) / 100
       : NaN;
+
+  const walletBalance = portfolio.meta?.currentBalance ?? null;
 
   const errors: ValidationErrors = useMemo(
     () =>
@@ -362,32 +377,37 @@ export function CalculatorPage() {
         title="حاسبة المخاطر"
         description="حدّد رصيد الحساب، نسبة المخاطرة، الدخول، وقف الخسارة والهدف — يُحسب حجم المركز تلقائيًا من المخاطرة ومسافة الوقف، مع الربح والخسارة الصافية والرسوم والتمويل."
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Status
-              label={
-                scenarios.status === "saved"
-                  ? "إعدادات محفوظة"
-                  : scenarios.status === "saving"
-                    ? "جارٍ الحفظ…"
-                    : scenarios.status === "error"
-                      ? "خطأ في المزامنة"
-                      : "محلي"
-              }
-              tone={scenarios.status === "saved" || scenarios.status === "local" ? "good" : scenarios.status === "error" ? "down" : "warn"}
-            />
-            <Button size="small" variant="outlined" startIcon={<RotateIcon className="h-4 w-4" />} onClick={resetAll}>
-              إعادة الضبط
-            </Button>
-            <Button
-              size="small"
-              variant="contained"
-              startIcon={<SaveIcon className="h-4 w-4" />}
-              disabled={!result}
-              onClick={openSave}
-            >
-              حفظ الإعدادات
-            </Button>
+          <div className="flex items-center gap-2">
+            <Tooltip title="إعادة الضبط">
+              <span>
+                <IconButton onClick={resetAll} aria-label="إعادة الضبط" sx={headerIconBtnSx}>
+                  <RotateIcon className="h-[18px] w-[18px]" />
+                </IconButton>
+              </span>
+            </Tooltip>
+            <Tooltip title="حفظ الإعدادات">
+              <span>
+                <IconButton onClick={openSave} disabled={!result} aria-label="حفظ الإعدادات" sx={headerIconBtnSx}>
+                  <SaveIcon className="h-[18px] w-[18px]" />
+                </IconButton>
+              </span>
+            </Tooltip>
           </div>
+        }
+        right={
+          <Status
+            label={
+              scenarios.status === "saved"
+                ? "تمت المزامنة"
+                : scenarios.status === "saving"
+                  ? "جارٍ الحفظ…"
+                  : scenarios.status === "error"
+                    ? "خطأ في المزامنة"
+                    : "محلي"
+            }
+            tone={scenarios.status === "saved" || scenarios.status === "local" ? "good" : scenarios.status === "error" ? "down" : "warn"}
+            pulse={scenarios.status === "loading" || scenarios.status === "saving"}
+          />
         }
       />
 
@@ -434,6 +454,27 @@ export function CalculatorPage() {
                 adornment="x"
                 chip={presetChip("leverage")}
               />
+            </Box>
+            <Box sx={{ mt: 2, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ fontSize: 11.5, fontWeight: 700, color: "text.secondary" }}>
+                  استيراد رصيد الحساب من محفظة النظام
+                </Typography>
+                <Typography sx={{ mt: 0.25, fontSize: 10, color: "text.disabled" }}>
+                  {walletBalance != null
+                    ? `رصيد المحفظة الحالي: ${formatMoney(walletBalance)}`
+                    : "لا توجد محفظة بعد — أنشئها من صفحة المحفظة"}
+                </Typography>
+              </Box>
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<WalletIcon className="h-4 w-4" />}
+                disabled={walletBalance == null}
+                onClick={() => walletBalance != null && setAccountBalance(String(walletBalance))}
+              >
+                استيراد
+              </Button>
             </Box>
             <Divider sx={{ my: 2 }} />
             <Box
@@ -589,12 +630,12 @@ export function CalculatorPage() {
           {/* Saved presets */}
           <Paper variant="outlined" sx={{ mt: 2.5, p: 2.5, backgroundImage: "none", bgcolor: "rgba(24,24,27,0.6)" }}>
             <SectionTitle>
-              إعدادات محفوظة
+              المحفوظات
               <Badge tone="good" ltr>{scenarios.scenarios.length}</Badge>
             </SectionTitle>
             {scenarios.scenarios.length === 0 ? (
               <Typography sx={{ mt: 1.5, fontSize: 12, color: "text.secondary" }}>
-                لا توجد إعدادات محفوظة بعد. احفظ إعدادات الحساب والمخاطرة والرسوم لاسترجاعها لأي صفقة.
+                لا توجد محفوظات بعد. احفظ إعدادات الحساب والمخاطرة والرسوم لاسترجاعها لأي صفقة.
               </Typography>
             ) : (
               <Box sx={{ mt: 1.5, display: "flex", flexDirection: "column", gap: 1 }}>

@@ -86,19 +86,6 @@ export function NumbersPage() {
         description="إصدارات كاملة من أرقام المخاطر والتداول والتنفيذ. كل نسخة لقطة مستقلة — تعديل نسخة لا يمس غيرها، والنسخة النشطة هي مصدر الحاسبة."
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Status
-              label={
-                status === "saved"
-                  ? "محفوظ"
-                  : status === "saving"
-                    ? "جارٍ الحفظ…"
-                    : status === "error"
-                      ? "خطأ في المزامنة"
-                      : "محلي"
-              }
-              tone={status === "saved" || status === "local" ? "good" : status === "error" ? "down" : "warn"}
-              pulse={status === "loading" || status === "saving"}
-            />
             <Button
               size="small"
               variant="outlined"
@@ -112,6 +99,21 @@ export function NumbersPage() {
               إنشاء استراتيجية
             </Button>
           </div>
+        }
+        right={
+          <Status
+            label={
+              status === "saved"
+                ? "تمت المزامنة"
+                : status === "saving"
+                  ? "جارٍ الحفظ…"
+                  : status === "error"
+                    ? "خطأ في المزامنة"
+                    : "محلي"
+            }
+            tone={status === "saved" || status === "local" ? "good" : status === "error" ? "down" : "warn"}
+            pulse={status === "loading" || status === "saving"}
+          />
         }
       />
 
