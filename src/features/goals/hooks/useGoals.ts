@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useStrategyNumbers } from "@/features/strategy/hooks/useStrategyNumbers";
+import { usePortfolio } from "@/features/portfolio/hooks/usePortfolio";
 import { goalsService } from "../services/goals.service";
 import {
   createInitialData,
@@ -31,6 +32,17 @@ export function useGoals() {
   const userId = user?.uid ?? null;
 
   const { strategies } = useStrategyNumbers();
+  const { meta: walletMeta } = usePortfolio();
+
+  // Wallet-driven anchor: a freshly created/restarted goal ladder starts from
+  // the wallet's current value instead of the hardcoded 100. Imported wallets
+  // use the live exchange equity; manual wallets the ledger current balance.
+  const walletSeed: number | undefined = useMemo(() => {
+    if (walletMeta == null) return undefined;
+    const v =
+      walletMeta.source === "binance" ? walletMeta.financials.currentEquity : walletMeta.currentBalance;
+    return Number.isFinite(v) && v > 0 ? v : undefined;
+  }, [walletMeta]);
 
   const derived: DerivedGoalGrowth = useMemo(
     () => deriveFromStrategies(strategies),
@@ -65,7 +77,7 @@ export function useGoals() {
             await goalsService.saveProgress(userId, adapted);
           }
         } else {
-          const initial = createInitialData(derived);
+          const initial = createInitialData(derived, walletSeed);
           setData(initial);
           await goalsService.saveProgress(userId, initial);
         }
@@ -79,7 +91,7 @@ export function useGoals() {
     if (!authLoading && userId) {
       load();
     }
-  }, [userId, authLoading, derived]);
+  }, [userId, authLoading, derived, walletSeed]);
 
   const previewCheck = useCallback(
     (input: ProgressCheckInput) => {
@@ -117,7 +129,7 @@ export function useGoals() {
     if (!userId) return;
     setSaveState("saving");
     try {
-      const initial = resetData(derived);
+      const initial = resetData(derived, walletSeed);
       setData(initial);
       setProjected(null);
       await goalsService.saveProgress(userId, initial);
@@ -125,7 +137,7 @@ export function useGoals() {
     } catch {
       setSaveState("error");
     }
-  }, [userId, derived]);
+  }, [userId, derived, walletSeed]);
 
   const clearSaveState = useCallback(() => setSaveState("idle"), []);
 

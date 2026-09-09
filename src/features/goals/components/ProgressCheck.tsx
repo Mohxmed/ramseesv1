@@ -16,6 +16,10 @@ type ProgressCheckProps = {
   onPreview: (input: ProgressCheckInput) => ProgressCheckResult | null;
   onConfirm: (input: ProgressCheckInput) => void;
   onClose: () => void;
+  defaultStartingValue?: string;
+  defaultEndingValue?: string;
+  liveWalletValue?: number | null;
+  walletLabel?: string | null;
 };
 
 export function ProgressCheck({
@@ -25,9 +29,13 @@ export function ProgressCheck({
   onPreview,
   onConfirm,
   onClose,
+  defaultStartingValue = "",
+  defaultEndingValue = "",
+  liveWalletValue,
+  walletLabel,
 }: ProgressCheckProps) {
-  const [startingValue, setStartingValue] = useState<string>("");
-  const [endingValue, setEndingValue] = useState<string>("");
+  const [startingValue, setStartingValue] = useState<string>(defaultStartingValue);
+  const [endingValue, setEndingValue] = useState<string>(defaultEndingValue);
   const [result, setResult] = useState<ProgressCheckResult | null>(null);
   const [computed, setComputed] = useState(false);
 
@@ -137,6 +145,28 @@ export function ProgressCheck({
               />
             </div>
           </div>
+
+          {liveWalletValue != null && liveWalletValue > 0 && (
+            <div className="flex items-center justify-between gap-2 rounded-panel border border-line/60 bg-surface-2/30 px-3 py-2">
+              <p className="text-2xs text-muted">
+                قيمة {walletLabel || "محفظتك"} الحالية:{" "}
+                <span className="font-mono tabular-nums font-bold text-zinc-200">
+                  {liveWalletValue.toLocaleString("en-US", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                </span>{" "}
+                $
+              </p>
+              <button
+                type="button"
+                onClick={() => setEndingValue(String(liveWalletValue))}
+                className="rounded-panel border border-line px-2.5 py-1 text-2xs font-medium text-zinc-300 hover:bg-surface-2"
+              >
+                استخدام
+              </button>
+            </div>
+          )}
 
           {showGrowth && (
             <div className="rounded-panel bg-surface-2/40 p-3 text-center">

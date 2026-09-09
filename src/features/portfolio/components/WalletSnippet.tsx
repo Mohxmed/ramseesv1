@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowRightIcon, WalletIcon } from "@/components/icons/icons";
 import { usePortfolio } from "../hooks/usePortfolio";
 import { fmtPct } from "../utils";
-import type { PortfolioSummary } from "../types";
+import type { PortfolioSummary, ImportedPortfolioSummary } from "../types";
 
 /**
  * محفظة — the hero card of the home dashboard. One glance: current balance and
@@ -61,7 +61,7 @@ export function WalletSnippet() {
     );
   }
 
-  const imported = meta.source === "binance" ? meta : null;
+  const imported = meta.source === "binance" ? (meta as ImportedPortfolioSummary) : null;
 
   // Imported wallet: equity is the exchange-driven, server-valued figure and
   // the P&L is realized + unrealized (no manual starting balance). When
@@ -85,7 +85,20 @@ export function WalletSnippet() {
       {titleRow("bg-up/10 text-up-fg ring-1 ring-up/20")}
 
       <div className="mt-6">
-        <p className="text-2xs text-muted">{imported ? "إجمالي قيمة المحفظة" : "الرصيد الحالي"}</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-2xs text-muted">{imported ? "إجمالي قيمة المحفظة" : "الرصيد الحالي"}</p>
+          {imported && (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-line/70 bg-surface-2/60 px-2 py-0.5 text-2xs font-semibold text-zinc-300">
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  imported.syncStatus === "HEALTHY" ? "bg-good" : "bg-warn"
+                }`}
+              />
+              {imported.accountName}
+              {imported.accountType ? ` • ${imported.accountType}` : ""}
+            </span>
+          )}
+        </div>
         <p className={`mt-1.5 font-mono tabular-nums text-4xl font-extrabold leading-none tracking-tight text-zinc-50`}>
           {money(balance)}
         </p>

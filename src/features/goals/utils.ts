@@ -63,18 +63,21 @@ export function getNextTarget(
   );
 }
 
-export function createInitialData(derived: DerivedGoalGrowth): GoalsData {
+export function createInitialData(
+  derived: DerivedGoalGrowth,
+  seedStartingValue?: number
+): GoalsData {
+  const startingValue =
+    seedStartingValue != null && Number.isFinite(seedStartingValue) && seedStartingValue > 0
+      ? seedStartingValue
+      : GOALS_CONFIG.STARTING_VALUE;
   const moves: GoalsMove[] = Array.from(
     { length: GOALS_CONFIG.TOTAL_CARDS },
     (_, i) => {
       const move = i + 1;
       return {
         move,
-        targetValue: targetForMove(
-          move,
-          GOALS_CONFIG.STARTING_VALUE,
-          derived.pct
-        ),
+        targetValue: targetForMove(move, startingValue, derived.pct),
         completed: false,
       };
     }
@@ -83,8 +86,8 @@ export function createInitialData(derived: DerivedGoalGrowth): GoalsData {
   return {
     currentMove: 1,
     completedMoves: 0,
-    currentValue: GOALS_CONFIG.STARTING_VALUE,
-    startingValue: GOALS_CONFIG.STARTING_VALUE,
+    currentValue: startingValue,
+    startingValue,
     perMoveGrowthPercent: derived.pct,
     strategyRef:
       derived.strategyName && derived.version
@@ -189,8 +192,8 @@ export function applyCompletedMove(
   };
 }
 
-export function resetData(derived: DerivedGoalGrowth): GoalsData {
-  return createInitialData(derived);
+export function resetData(derived: DerivedGoalGrowth, seedStartingValue?: number): GoalsData {
+  return createInitialData(derived, seedStartingValue);
 }
 
 export function getMoveStatus(

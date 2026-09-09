@@ -31,6 +31,25 @@ service cloud.firestore {
             || get(/databases/$(database)/documents/users/$(userId)/portfolio/meta).data.source == null);
     }
 
+    // ── Client-owned feature collections (owner read/write) ────────────────
+    // Goals, strategy numbers/scenarios, decision strategies & golden target
+    // are all written by the client SDKs directly for the signed-in user.
+    match /users/{userId}/goals/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /users/{userId}/strategyNumbers/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /users/{userId}/strategyScenarios/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /users/{userId}/strategies/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /users/{userId}/goldenTarget/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
     // ── Normalized exchange data under the fixed `main` doc ────────────────
     // Clients read these directly to render the Wallet UI, but may never write
     // them — writes flow only through the server-side Portfolio Engine.

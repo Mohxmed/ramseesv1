@@ -26,22 +26,60 @@ interface ManualMeta {
   updatedAt: number | null;
 }
 
-export async function readManualMeta(userId: string): Promise<ManualMeta> {
+export interface PortfolioMetaRead extends ManualMeta {
+  /** "manual" — ledger-driven; "imported" — exchange-driven (financials); "none" — absent. */
+  source: "manual" | "imported" | "none";
+  /** Exchange-valued equity for imported wallets (0 for manual/none). */
+  equity: number;
+}
+
+const EMPTY_META: PortfolioMetaRead = {
+  source: "none",
+  currentBalance: 0,
+  initialBalance: 0,
+  peakBalance: 0,
+  equity: 0,
+  updatedAt: null,
+};
+
+function numOf(d: Record<string, unknown>, key: string, fallback: number): number {
+  const v = d[key];
+  return typeof v === "number" && Number.isFinite(v) ? v : fallback;
+}
+
+/** Read the wallet meta via Admin SDK, source-aware (manual vs imported). */
+export async function readPortfolioMeta(userId: string): Promise<PortfolioMetaRead> {
   const ref = getAdminDb().collection("users").doc(userId).collection("portfolio").doc("meta");
   try {
     const snap = await ref.get();
-    if (!snap.exists) return { currentBalance: 0, initialBalance: 0, peakBalance: 0, updatedAt: null };
+    if (!snap.exists) return EMPTY_META;
     const d = snap.data() as Record<string, unknown>;
-    const num = (k: string, fb: number) => (typeof d[k] === "number" && Number.isFinite(d[k]) ? (d[k] as number) : fb);
+    const source = d.source === "binance" ? "imported" : d.source === "manual" || d.source == null ? "manual" : "none";
+    const fin = (source === "imported" && d.financials && typeof d.financials === "object"
+      ? (d.financials as Record<string, unknown>)
+      : {}) as Record<string, unknown>;
     return {
-      currentBalance: num("currentBalance", 0),
-      initialBalance: num("initialBalance", 0),
-      peakBalance: num("peakBalance", 0),
-      updatedAt: num("updatedAt", 0) || null,
+      source,
+      currentBalance: source === "manual" ? numOf(d, "currentBalance", 0) : 0,
+      initialBalance: numOf(d, "initialBalance", 0),
+      peakBalance: numOf(d, "peakBalance", 0),
+      equity: source === "imported" ? numOf(fin, "currentEquity", 0) : 0,
+      updatedAt: numOf(d, "updatedAt", 0) || null,
     };
   } catch {
-    return { currentBalance: 0, initialBalance: 0, peakBalance: 0, updatedAt: null };
+    return EMPTY_META;
   }
+}
+
+/** Backward-compatible manual-only read (imported wallets report 0). */
+export async function readManualMeta(userId: string): Promise<ManualMeta> {
+  const m = await readPortfolioMeta(userId);
+  return {
+    currentBalance: m.currentBalance,
+    initialBalance: m.initialBalance,
+    peakBalance: m.peakBalance,
+    updatedAt: m.updatedAt,
+  };
 }
 
 /* ─── User-level aggregate snapshot ────────────────────────────────── */
@@ -65,10 +103,26 @@ export interface UserAggregate {
 
 export async function aggregateUser(userId: string, accounts: StoredAccount[]): Promise<UserAggregate> {
   const aggregatedAt = Date.now();
-  const manual = await readManualMeta(userId);
-  const breakdown: AggregateBreakdownLine[] = [
-    { source: "MANUAL", accountId: "manual", accountType: "SPOT", displayName: "المحفظة اليدوية", equity: manual.currentBalance, asOf: manual.updatedAt },
-  ];
+  const meta = await readPortfolioMeta(userId);
+
+  // An imported wallet's meta mirrors the exchange account's financials — the
+  // account itself is already included in `accounts`, so never double count the
+  // meta as a separate manual line.
+  const manualEquity = meta.source === "manual" ? meta.currentBalance : 0;
+  const breakdown: AggregateBreakdownLine[] =
+    manualEquity > 0 || meta.source === "manual"
+      ? [
+          {
+            source: "MANUAL",
+            accountId: "manual",
+            accountType: "SPOT",
+            displayName: "المحفظة اليدوية",
+            equity: manualEquity,
+            asOf: meta.updatedAt,
+          },
+        ]
+      : [];
+
   let exchangeEquity = 0;
   for (const a of accounts) {
     exchangeEquity += a.financials?.currentEquity ?? 0;
@@ -81,8 +135,8 @@ export async function aggregateUser(userId: string, accounts: StoredAccount[]): 
       asOf: a.financials?.lastValuedAt ?? a.lastSuccessfulSync,
     });
   }
-  const totalEquity = manual.currentBalance + exchangeEquity;
-  return { totalEquity, manualEquity: manual.currentBalance, exchangeEquity, breakdown, aggregatedAt };
+  const totalEquity = manualEquity + exchangeEquity;
+  return { totalEquity, manualEquity, exchangeEquity, breakdown, aggregatedAt };
 }
 
 /** Build a StoredSnapshot for one account after a sync. */

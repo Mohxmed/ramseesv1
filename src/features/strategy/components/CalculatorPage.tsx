@@ -146,6 +146,24 @@ export function CalculatorPage() {
   const [slippagePercent, setSlippagePercent] = useState(INITIAL.slippagePercent);
   const [fundingFeePercent, setFundingFeePercent] = useState(INITIAL.fundingFeePercent);
 
+  // Wallet-driven balance: the wallet's live value pre-fills the balance field
+  // until the user types / loads a scenario / clicks استيراد (then it sticks).
+  const walletBalance =
+    portfolio.meta == null
+      ? null
+      : portfolio.meta.source === "binance"
+        ? portfolio.meta.financials.currentEquity
+        : portfolio.meta.currentBalance;
+  const walletLabel =
+    portfolio.meta == null
+      ? null
+      : portfolio.meta.source === "binance"
+        ? `${portfolio.meta.accountName}${portfolio.meta.accountType ? ` (${portfolio.meta.accountType})` : ""}`
+        : "المحفظة اليدوية";
+  const [balanceTouched, setBalanceTouched] = useState(false);
+  const effectiveBalance =
+    walletBalance != null && !balanceTouched ? String(walletBalance) : accountBalance;
+
   const [preset, setPreset] = useState<Preset | null>(null);
   const [inherited, setInherited] = useState<Set<string>>(() => new Set());
 
@@ -204,7 +222,7 @@ export function CalculatorPage() {
     ) : null;
 
   // --- Derived numbers ----------------------------------------------------------
-  const balanceN = asNum(accountBalance);
+  const balanceN = asNum(effectiveBalance);
   const riskN = asNum(riskPercent);
   const leverageN = asNum(leverage);
   const entryN = asNum(entry);
@@ -215,17 +233,10 @@ export function CalculatorPage() {
   const takerN = asNum(takerFee);
   const slipN = asNum(slippagePercent);
 
-  const maxLoss =
+const maxLoss =
     Number.isFinite(balanceN) && Number.isFinite(riskN) && balanceN > 0 && riskN > 0
       ? (balanceN * riskN) / 100
       : NaN;
-
-  const walletBalance =
-    portfolio.meta == null
-      ? null
-      : portfolio.meta.source === "binance"
-        ? portfolio.meta.financials.currentEquity
-        : portfolio.meta.currentBalance;
 
   const errors: ValidationErrors = useMemo(
     () =>
@@ -333,6 +344,7 @@ export function CalculatorPage() {
   const loadSaved = (sc: SavedScenario) => {
     const snap = sc.snapshot;
     setAccountBalance(String(snap.accountBalance));
+    setBalanceTouched(true);
     setAsset(snap.asset || "BTC");
     setRiskPercent(String(snap.riskPercent ?? DEFAULT_RISK_PERCENT));
     setLeverage(String(snap.leverage));
@@ -356,6 +368,7 @@ export function CalculatorPage() {
 
   const resetAll = () => {
     setAccountBalance(INITIAL.accountBalance);
+    setBalanceTouched(false);
     setAsset(INITIAL.asset);
     setRiskPercent(INITIAL.riskPercent);
     setLeverage(INITIAL.leverage);
@@ -441,7 +454,16 @@ export function CalculatorPage() {
                 : "اختر استراتيجية لاستيراد نسبة المخاطرة والرافعة والرسوم."}
             </FormHelperText>
             <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 1.75, mt: 2 }}>
-              <NumField label="رصيد الحساب" value={accountBalance} onChange={setAccountBalance} error={errors.accountBalance} adornment="USD" />
+              <NumField
+                label="رصيد الحساب"
+                value={effectiveBalance}
+                onChange={(v) => {
+                  setAccountBalance(v);
+                  setBalanceTouched(true);
+                }}
+                error={errors.accountBalance}
+                adornment="USD"
+              />
               <NumField label="الأصل / العملة" value={asset} onChange={setAsset} text />
               <NumField
                 label="نسبة المخاطرة %"
@@ -467,7 +489,7 @@ export function CalculatorPage() {
                 </Typography>
                 <Typography sx={{ mt: 0.25, fontSize: 10, color: "text.disabled" }}>
                   {walletBalance != null
-                    ? `رصيد المحفظة الحالي: ${formatMoney(walletBalance)}`
+                    ? `رصيد ${walletLabel ?? "المحفظة"} الحالي: ${formatMoney(walletBalance)}`
                     : "لا توجد محفظة بعد — أنشئها من صفحة المحفظة"}
                 </Typography>
               </Box>
@@ -476,7 +498,11 @@ export function CalculatorPage() {
                 variant="outlined"
                 startIcon={<WalletIcon className="h-4 w-4" />}
                 disabled={walletBalance == null}
-                onClick={() => walletBalance != null && setAccountBalance(String(walletBalance))}
+                onClick={() => {
+                  if (walletBalance == null) return;
+                  setAccountBalance(String(walletBalance));
+                  setBalanceTouched(true);
+                }}
               >
                 استيراد
               </Button>
