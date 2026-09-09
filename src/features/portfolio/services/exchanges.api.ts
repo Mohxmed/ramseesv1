@@ -34,9 +34,27 @@ async function authFetch(path: string, init: RequestInit = {}): Promise<Response
 }
 
 async function readJson<T>(res: Response): Promise<T> {
-  const body = (await res.json().catch(() => null)) as { error?: string } | null;
+  const text = await res.text();
+  let body: unknown = null;
+  try {
+    body = text ? (JSON.parse(text) as unknown) : null;
+  } catch {
+    body = null;
+  }
   if (!res.ok) {
-    throw new ExchangeApiError(body?.error ?? "فشل الطلب — حاول مجددًا.");
+    // Server errors always carry `{ error }`. A non-JSON body (e.g. a platform
+    // 500 with an HTML page) leaves body null — surface the HTTP status so
+    // misconfigurations are debuggable.
+    const message =
+      body != null && typeof body === "object" && "error" in (body as Record<string, unknown>)
+        ? (() => {
+            const err = body as Record<string, unknown>;
+            const base = String(err.error ?? "");
+            const detail = typeof err.detail === "string" && err.detail ? String(err.detail) : null;
+            return detail ? `${base} (${detail})` : base;
+          })()
+        : `فشل الطلب — حاول مجددًا. (HTTP ${res.status})`;
+    throw new ExchangeApiError(message);
   }
   return body as T;
 }
