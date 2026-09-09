@@ -78,6 +78,13 @@ export function PerformancePanel({
             height="100%"
             yFormatter={(v) => fmtMoney(v, { compact: true })}
             valueFormatter={(v) => <span dir="ltr">{fmtMoney(Number(v))}</span>}
+            yDomain={["dataMin", "auto"]}
+            fillGradient
+            referenceLines={
+              startBalance != null
+                ? [{ y: startBalance, label: "رأس البداية", color: colors.muted, strokeDasharray: "4 5" }]
+                : undefined
+            }
             showGrid
           />
         ) : (

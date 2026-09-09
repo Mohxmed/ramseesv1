@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import {
   ResponsiveContainer,
   LineChart as RC_Line,
@@ -14,6 +15,7 @@ import {
   Tooltip,
   Legend,
   Cell,
+  ReferenceLine,
 } from "recharts";
 import {
   chartTheme,
@@ -34,6 +36,13 @@ export interface ChartSeries {
   dataKeyForCellColor?: string;
 }
 
+export interface ChartReferenceLine {
+  y: number;
+  label?: string;
+  color?: string;
+  strokeDasharray?: string;
+}
+
 export type ChartKind = "line" | "area" | "bar";
 
 export interface ChartContainerProps {
@@ -43,7 +52,7 @@ export interface ChartContainerProps {
   kind: ChartKind;
   height?: number | string;
   yFormatter?: (v: number) => string;
-  xFormatter?: (v: unknown) => React.ReactNode;
+  xFormatter?: (v: number | string) => string;
   valueFormatter?: (v: number | string | null, name: string) => React.ReactNode;
   showLegend?: boolean;
   showGrid?: boolean;
@@ -51,6 +60,14 @@ export interface ChartContainerProps {
   showYAxis?: boolean;
   /** RTL-safe y-axis orientation (defaults to right side). */
   yAxisOrientation?: "left" | "right";
+  /** Force the y-domain (e.g. ['dataMin', 'auto'] for a non-zero baseline). */
+  yDomain?: [number | string, number | string];
+  /** Soft vertical gradient fill under the curve (uses the first series colour). */
+  fillGradient?: boolean;
+  /** Horizontal dashed benchmarks (e.g. initial capital line). */
+  referenceLines?: ChartReferenceLine[];
+  /** Minimum pixel gap between x ticks (auto-thins crowded axes). */
+  minTickGap?: number;
   className?: string;
 }
 
@@ -66,6 +83,8 @@ const defaultColors = [
 /**
  * ChartContainer — one place that owns Recharts theming/responsiveness so
  * every chart is consistent and no chart re-implements axis/grid/tooltip.
+ * All colours resolve from the design tokens; gradients/reference-lines are
+ * optional so existing callers keep identical output unless they opt in.
  */
 export function ChartContainer({
   data,
@@ -81,8 +100,17 @@ export function ChartContainer({
   showXAxis = true,
   showYAxis = true,
   yAxisOrientation = "right",
+  yDomain,
+  fillGradient = false,
+  referenceLines,
+  minTickGap = 14,
   className = "",
 }: ChartContainerProps) {
+  const gradId = useId().replace(/[^a-zA-Z0-9]/g, "");
+  const gradColor = fillGradient
+    ? (series[0]?.color ?? defaultColors[0])
+    : undefined;
+
   const chartProps = {
     data,
     margin: { top: 6, right: 4, left: 4, bottom: 0 },
@@ -93,7 +121,10 @@ export function ChartContainer({
       {showXAxis ? (
         <XAxis
           dataKey={xKey}
-          tickFormatter={xFormatter as undefined}
+          tickFormatter={
+            xFormatter ? (v) => xFormatter(v as number | string) : undefined
+          }
+          minTickGap={minTickGap}
           tick={{ ...tickStyle }}
         />
       ) : null}
@@ -101,6 +132,7 @@ export function ChartContainer({
         <YAxis
           orientation={yAxisOrientation === "right" ? "right" : "left"}
           tickFormatter={yFormatter ? (v) => yFormatter(Number(v)) : undefined}
+          domain={yDomain}
           width={46}
           tick={{ ...tickStyle }}
         />
@@ -121,25 +153,72 @@ export function ChartContainer({
     />
   ) : null;
 
+  const gradientDefs = gradColor ? (
+    <defs>
+      <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stopColor={gradColor} stopOpacity={0.3} />
+        <stop offset="60%" stopColor={gradColor} stopOpacity={0.08} />
+        <stop offset="100%" stopColor={gradColor} stopOpacity={0.02} />
+      </linearGradient>
+    </defs>
+  ) : null;
+
+  const activeDot = { r: 4, strokeWidth: 2, stroke: colors.background };
+
   const body = (() => {
     switch (kind) {
       case "line":
         return (
           <RC_Line {...chartProps}>
+            {gradientDefs}
             {showGrid ? <CartesianGrid {...gridProps} /> : null}
             {axes}
             {tooltip}
             {legend}
-            {series.map((s, i) => (
-              <Line
-                key={s.key}
-                type="monotone"
-                dataKey={s.key}
-                name={s.name}
-                stroke={s.color ?? defaultColors[i % defaultColors.length]}
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 3 }}
+            {series.map((s, i) =>
+              fillGradient ? (
+                <Area
+                  key={s.key}
+                  type="monotone"
+                  dataKey={s.key}
+                  name={s.name}
+                  stroke={s.color ?? defaultColors[i % defaultColors.length]}
+                  strokeWidth={2}
+                  fill={`url(#${gradId})`}
+                  fillOpacity={1}
+                  dot={false}
+                  activeDot={activeDot}
+                />
+              ) : (
+                <Line
+                  key={s.key}
+                  type="monotone"
+                  dataKey={s.key}
+                  name={s.name}
+                  stroke={s.color ?? defaultColors[i % defaultColors.length]}
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 3 }}
+                />
+              )
+            )}
+            {referenceLines?.map((rl, i) => (
+              <ReferenceLine
+                key={i}
+                y={rl.y}
+                stroke={rl.color ?? colors.lineSoft}
+                strokeDasharray={rl.strokeDasharray ?? "5 5"}
+                label={
+                  rl.label
+                    ? {
+                        value: rl.label,
+                        position: "insideTopRight",
+                        fill: rl.color ?? colors.muted,
+                        fontSize: 10,
+                        fontFamily: chartTheme.fontFamily,
+                      }
+                    : undefined
+                }
               />
             ))}
           </RC_Line>
@@ -147,6 +226,7 @@ export function ChartContainer({
       case "area":
         return (
           <RC_Area {...chartProps}>
+            {gradientDefs}
             {showGrid ? <CartesianGrid {...gridProps} /> : null}
             {axes}
             {tooltip}
@@ -158,9 +238,29 @@ export function ChartContainer({
                 dataKey={s.key}
                 name={s.name}
                 stroke={s.color ?? defaultColors[i % defaultColors.length]}
-                fill={s.color ?? defaultColors[i % defaultColors.length]}
-                fillOpacity={s.fillOpacity ?? 0.18}
+                fill={fillGradient ? `url(#${gradId})` : s.color ?? defaultColors[i % defaultColors.length]}
+                fillOpacity={fillGradient ? 1 : s.fillOpacity ?? 0.18}
                 strokeWidth={2}
+                activeDot={activeDot}
+              />
+            ))}
+            {referenceLines?.map((rl, i) => (
+              <ReferenceLine
+                key={i}
+                y={rl.y}
+                stroke={rl.color ?? colors.lineSoft}
+                strokeDasharray={rl.strokeDasharray ?? "5 5"}
+                label={
+                  rl.label
+                    ? {
+                        value: rl.label,
+                        position: "insideTopRight",
+                        fill: rl.color ?? colors.muted,
+                        fontSize: 10,
+                        fontFamily: chartTheme.fontFamily,
+                      }
+                    : undefined
+                }
               />
             ))}
           </RC_Area>

@@ -49,7 +49,10 @@ export function DrawdownPanel({
             height="100%"
             yFormatter={(v) => `${v.toFixed(0)}%`}
             valueFormatter={(v) => <span dir="ltr">{fmtDdPct(Number(v))}</span>}
+            yDomain={["dataMin", 0]}
+            fillGradient
             showGrid
+            minTickGap={20}
           />
         ) : (
           <div className="flex h-full items-center justify-center text-2xs text-muted">

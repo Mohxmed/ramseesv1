@@ -1,6 +1,6 @@
 "use client";
 
-import { colors, typography } from "../ui/design-tokens";
+import { colors, shadows, typography } from "../ui/design-tokens";
 
 /**
  * Shared Recharts theming + tooltip. Every chart wrapper imports from here so
@@ -18,6 +18,7 @@ export const chartTheme = {
     border: `1px solid ${colors.line}`,
     radius: 8,
     padding: "8px 10px",
+    shadow: shadows.pop,
   },
 };
 
@@ -50,7 +51,7 @@ export function ChartTooltip({
         padding: chartTheme.tooltip.padding,
         fontFamily: chartTheme.fontFamily,
         fontSize: 11,
-        boxShadow: "0 8px 28px -6px rgb(0 0 0 / 0.6)",
+        boxShadow: chartTheme.tooltip.shadow,
         direction: "rtl",
       }}
     >
