@@ -9,6 +9,7 @@ import {
   Area,
   BarChart as RC_Bar,
   Bar,
+  ComposedChart,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -168,15 +169,18 @@ export function ChartContainer({
   const body = (() => {
     switch (kind) {
       case "line":
-        return (
-          <RC_Line {...chartProps}>
-            {gradientDefs}
-            {showGrid ? <CartesianGrid {...gridProps} /> : null}
-            {axes}
-            {tooltip}
-            {legend}
-            {series.map((s, i) =>
-              fillGradient ? (
+        // recharts v3 renders <Area> only inside AreaChart/ComposedChart — it
+        // silently returns null inside a LineChart, so gradient-filled curves
+        // must be composed rather than passed to RC_Line.
+        if (fillGradient) {
+          return (
+            <ComposedChart {...chartProps}>
+              {gradientDefs}
+              {showGrid ? <CartesianGrid {...gridProps} /> : null}
+              {axes}
+              {tooltip}
+              {legend}
+              {series.map((s, i) => (
                 <Area
                   key={s.key}
                   type="monotone"
@@ -189,19 +193,47 @@ export function ChartContainer({
                   dot={false}
                   activeDot={activeDot}
                 />
-              ) : (
-                <Line
-                  key={s.key}
-                  type="monotone"
-                  dataKey={s.key}
-                  name={s.name}
-                  stroke={s.color ?? defaultColors[i % defaultColors.length]}
-                  strokeWidth={2}
-                  dot={false}
-                  activeDot={{ r: 3 }}
+              ))}
+              {referenceLines?.map((rl, i) => (
+                <ReferenceLine
+                  key={i}
+                  y={rl.y}
+                  stroke={rl.color ?? colors.lineSoft}
+                  strokeDasharray={rl.strokeDasharray ?? "5 5"}
+                  label={
+                    rl.label
+                      ? {
+                          value: rl.label,
+                          position: "insideTopRight",
+                          fill: rl.color ?? colors.muted,
+                          fontSize: 10,
+                          fontFamily: chartTheme.fontFamily,
+                        }
+                      : undefined
+                  }
                 />
-              )
-            )}
+              ))}
+            </ComposedChart>
+          );
+        }
+        return (
+          <RC_Line {...chartProps}>
+            {showGrid ? <CartesianGrid {...gridProps} /> : null}
+            {axes}
+            {tooltip}
+            {legend}
+            {series.map((s, i) => (
+              <Line
+                key={s.key}
+                type="monotone"
+                dataKey={s.key}
+                name={s.name}
+                stroke={s.color ?? defaultColors[i % defaultColors.length]}
+                strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 3 }}
+              />
+            ))}
             {referenceLines?.map((rl, i) => (
               <ReferenceLine
                 key={i}
@@ -294,7 +326,7 @@ export function ChartContainer({
   })();
 
   return (
-    <div className={className} style={{ width: "100%", height }}>
+    <div dir="ltr" className={className} style={{ width: "100%", height }}>
       <ResponsiveContainer width="100%" height="100%">
         {body}
       </ResponsiveContainer>
