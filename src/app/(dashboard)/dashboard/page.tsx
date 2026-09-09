@@ -7,8 +7,8 @@ import {
 } from "@/features/dashboard/hooks/useMarketMovers";
 import { MarketMoversSection } from "@/features/dashboard/components/MarketMoversSection";
 import { WalletSnippet } from "@/features/portfolio/components/WalletSnippet";
-import { GoldenTargetSnippet } from "@/features/golden-target/components/GoldenTargetSnippet";
 import { StrategySnippet } from "@/features/strategy/components/StrategySnippet";
+import { GoalsSnippet } from "@/features/goals/components/GoalsSnippet";
 import { CrossMarketSection } from "@/features/market-influence/components/CrossMarketSection";
 
 export default function DashboardPage() {
@@ -20,12 +20,12 @@ export default function DashboardPage() {
         eyebrow="Overview"
         icon={<DashboardIcon className="h-5 w-5 text-muted" />}
         title="لوحة التحكم"
-        description="أداء محفظتك وهدفك الذهبي وأرقام استراتيجيتك النشطة في لمحة واحدة."
+        description="أداء محفظتك وأهدافك الشهرية وأرقام استراتيجيتك النشطة في لمحة واحدة."
       />
 
       <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-3">
         <WalletSnippet />
-        <GoldenTargetSnippet />
+        <GoalsSnippet />
         <StrategySnippet />
       </div>
 
