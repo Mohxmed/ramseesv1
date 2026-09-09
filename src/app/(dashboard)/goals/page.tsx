@@ -11,6 +11,7 @@ import { ProgressCheck } from "@/features/goals/components/ProgressCheck";
 import { ResetConfirmation } from "@/features/goals/components/ResetConfirmation";
 import { GOALS_CONFIG } from "@/features/goals/constants";
 import { formatNumber } from "@/features/goals/utils";
+import { usePortfolio } from "@/features/portfolio/hooks/usePortfolio";
 import type { ProgressCheckInput } from "@/features/goals/types";
 import { Badge, Card } from "@/components/ui/index";
 import { PageSkeleton } from "@/components/loading/PageSkeleton";
@@ -28,6 +29,18 @@ export default function GoalsPage() {
     reset,
     clearSaveState,
   } = useGoals();
+  const { meta: walletMeta } = usePortfolio();
+
+  const liveWallet = walletMeta
+    ? walletMeta.source === "binance"
+      ? walletMeta.financials.currentEquity
+      : walletMeta.currentBalance
+    : null;
+  const walletLabel = walletMeta
+    ? walletMeta.source === "binance"
+      ? `${walletMeta.accountName}${walletMeta.accountType ? ` (${walletMeta.accountType})` : ""}`
+      : "المحفظة اليدوية"
+    : null;
 
   const [checkOpen, setCheckOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
@@ -157,6 +170,10 @@ export default function GoalsPage() {
           onPreview={previewCheck}
           onConfirm={handleConfirmCheck}
           onClose={handleCloseCheck}
+          defaultStartingValue={String(data.currentValue ?? data.startingValue)}
+          defaultEndingValue={liveWallet != null && liveWallet > 0 ? String(liveWallet) : ""}
+          liveWalletValue={liveWallet}
+          walletLabel={walletLabel}
         />
       )}
 
