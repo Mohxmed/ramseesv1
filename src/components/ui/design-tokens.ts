@@ -66,6 +66,7 @@ export const radius = {
   chip: "4px",
   panel: "6px",
   card: "8px",
+  lift: "16px",
   pill: "9999px",
 } as const;
 
