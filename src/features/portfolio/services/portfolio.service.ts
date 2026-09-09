@@ -1,6 +1,7 @@
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   onSnapshot,
   OrderByDirection,
@@ -328,6 +329,12 @@ export const portfolioService = {
   },
 
   /* ─── Realtime listeners ────────────────────────────────────────── */
+
+  /** One-shot read of the summary doc (used by the boot data warm-up). */
+  async fetchSummary(userId: string): Promise<PortfolioSummary | null> {
+    const snap = await getDoc(metaRef(userId));
+    return snap.exists() ? deserializeMeta(snap.data()) : null;
+  },
 
   subscribeMeta(userId: string, onNext: (summary: PortfolioSummary | null) => void): () => void {
     return onSnapshot(metaRef(userId), (snap) => {

@@ -15,6 +15,7 @@ const TASK_LABEL: Record<BootTaskKey, (mode: BootMode) => string> = {
     mode === "restore" ? "استعادة الإعدادات المحفوظة" : "تحميل مساحة العمل",
   session: (mode) =>
     mode === "restore" ? "استعادة الجلسة" : "التحقق من الجلسة",
+  data: () => "تحميل بيانات الحساب",
   shell: () => "تجهيز واجهة التداول",
 };
 

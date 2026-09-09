@@ -14,6 +14,7 @@ import {
   getBootModeServerSnapshot,
   markBooted,
 } from "@/features/boot/restore";
+import { useBootDataWarmup } from "@/features/boot/warmup";
 import { BootScreen } from "@/components/boot/BootScreen";
 import { BootFailure } from "@/components/boot/BootFailure";
 
@@ -24,7 +25,7 @@ import { BootFailure } from "@/components/boot/BootFailure";
  *  - auth/provider timeout → real failure card with retry (no blank screen).
  */
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, status, retry } = useAuth();
+  const { isAuthenticated, user, status, retry } = useAuth();
   const router = useRouter();
   const mode = useSyncExternalStore(
     subscribeBootMode,
@@ -39,9 +40,15 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
         ? "error"
         : "resolved";
 
+  // Wait for the account's Firestore data only when there is an authenticated
+  // user; unauthenticated boots skip the data gate as soon as auth resolves.
+  const warmupReady = useBootDataWarmup(user?.uid ?? null);
+  const dataReady = user != null ? warmupReady === true : status !== "unknown";
+
   const { phase, tasks, errorId, restart } = useBootSession({
     mode,
     sessionStatus,
+    dataReady,
   });
 
   useEffect(() => {

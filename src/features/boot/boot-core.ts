@@ -6,8 +6,11 @@
  *  - No fake progress: state changes only on REAL events (task settles, auth
  *    resolves, timers tick). The UI never fabricates a percentage.
  *  - Only CRITICAL resources may block the shell: the `session` task gates
- *    the app (auth resolution). `kernel`, `config` run in parallel and a
- *    timeout on them is NON-fatal — the app still becomes ready.
+ *    the app (auth resolution) and `data` gates it on the account's Firestore
+ *    content (portfolio/scenarios/strategies being actually loaded). `kernel`,
+ *    `config` run in parallel and a timeout on them is NON-fatal.
+ *  - `data` is intentionally non-fatal: a slow/missing read must never block
+ *    the shell forever — after its timeout the machine proceeds.
  *  - Every task has a timeout so startup can never hang.
  *  - A minimum display window exists ONLY for the startup screen itself
  *    (optional, per mode) — never for data loading.
@@ -15,7 +18,7 @@
 
 export type BootMode = "init" | "restore";
 
-export type BootTaskKey = "kernel" | "config" | "session" | "shell";
+export type BootTaskKey = "kernel" | "config" | "session" | "data" | "shell";
 
 export type BootTaskState = "pending" | "running" | "done" | "error";
 
@@ -25,6 +28,7 @@ export const BOOT_TASK_ORDER: BootTaskKey[] = [
   "kernel",
   "config",
   "session",
+  "data",
   "shell",
 ];
 
@@ -33,6 +37,7 @@ export const BOOT_TIMEOUTS_MS: Record<BootTaskKey, number> = {
   kernel: 3_000,
   config: 3_000,
   session: 6_000,
+  data: 10_000,
   shell: 3_000,
 };
 
@@ -80,7 +85,7 @@ export function createInitialBootState(mode: BootMode): BootState {
   return { mode, phase: "booting", startedAt: null, readyAt: null, errorId: null, tasks };
 }
 
-/** Start (or restart) the boot. All parallel tasks run; shell waits for session. */
+/** Start (or restart) the boot. All parallel tasks run; shell waits for session + data. */
 export function bootStart(state: BootState, now: number, mode: BootMode): BootState {
   const tasks = {} as Record<BootTaskKey, BootTaskStatus>;
   for (const key of BOOT_TASK_ORDER) {
@@ -94,6 +99,27 @@ export function bootStart(state: BootState, now: number, mode: BootMode): BootSt
   return { ...state, mode, phase: "booting", startedAt: now, readyAt: null, errorId: null, tasks };
 }
 
+/**
+ * The shell may start only once BOTH critical resources are settled: the
+ * session (auth) AND the account data. A data failure/timeout is non-fatal,
+ * so an errored `data` task still unblocks the shell.
+ */
+function maybeStartShell(state: BootState, now: number): BootState {
+  if (state.phase !== "booting") return state;
+  const t = state.tasks;
+  if (t.shell.status !== "pending") return state;
+  if (t.session.status !== "done") return state;
+  const dataSettled = t.data.status === "done" || t.data.status === "error";
+  if (!dataSettled) return state;
+  return {
+    ...state,
+    tasks: {
+      ...t,
+      shell: { ...t.shell, status: "running", startedAt: now, elapsedMs: 0 },
+    },
+  };
+}
+
 /** A task completed successfully. */
 export function bootSettleDone(
   state: BootState,
@@ -101,35 +127,26 @@ export function bootSettleDone(
   now: number
 ): BootState {
   const prev = state.tasks[key];
-  const tasks = {
-    ...state.tasks,
-    [key]: {
-      ...prev,
-      status: "done",
-      settledAt: now,
-      elapsedMs: prev.startedAt == null ? null : now - prev.startedAt,
-      timedOut: false,
-    },
+  const settled = {
+    ...prev,
+    status: "done",
+    settledAt: now,
+    elapsedMs: prev.startedAt == null ? null : now - prev.startedAt,
+    timedOut: false,
   };
+  const tasks = { ...state.tasks, [key]: settled };
 
-  if (key === "session" && tasks.shell.status === "pending") {
-    tasks.shell = {
-      ...tasks.shell,
-      status: "running",
-      startedAt: now,
-      elapsedMs: 0,
-    };
-  }
+  const next = maybeStartShell({ ...state, tasks }, now);
 
   let readyAt = state.readyAt;
   let phase = state.phase;
-  if (key === "shell" && tasks.shell.status === "done") {
+  if (key === "shell" && next.tasks.shell.status === "done") {
     const startedAt = state.startedAt ?? now;
     readyAt = Math.max(now, startedAt + BOOT_MIN_DISPLAY_MS[state.mode]);
     if (now >= readyAt) phase = "ready";
   }
 
-  return { ...state, tasks, readyAt, phase };
+  return { ...next, readyAt, phase };
 }
 
 /** A task failed. Only `session` and `shell` are fatal (critical resources). */
@@ -152,7 +169,9 @@ export function bootSettleError(
   if (FATAL_TASKS.has(key)) {
     return { ...state, tasks, phase: "error", errorId: generateErrorId(now) };
   }
-  return { ...state, tasks };
+  // Non-fatal failures (kernel/config/data) still unblock the shell when the
+  // rest of the critical path is settled.
+  return maybeStartShell({ ...state, tasks }, now);
 }
 
 /** Advance time — updates running-task elapsed times and applies timeouts. */
@@ -182,7 +201,8 @@ export function bootTick(state: BootState, now: number): BootState {
       return { ...state, tasks, phase: "error", errorId: generateErrorId(now) };
     }
   }
-  return { ...state, tasks };
+  // A timed-out (non-fatal) data task still unblocks the shell if session is done.
+  return maybeStartShell({ ...state, tasks }, now);
 }
 
 /** Flip to ready once the shell is done and the minimum display has elapsed. */
