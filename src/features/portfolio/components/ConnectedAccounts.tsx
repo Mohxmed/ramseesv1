@@ -1,12 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { PlusIcon, LinkIcon, TrashIcon } from "@/components/icons/icons";
+import { LinkIcon, TrashIcon } from "@/components/icons/icons";
 import { Badge, Status, Tooltip } from "@/components/ui";
 import { timeAgo } from "@/features/notifications/format";
 import type { ExchangeAccountDto } from "../types";
-import { useExchangeAccounts } from "../hooks/useExchangeAccounts";
-import { ConnectBinanceModal } from "./ConnectBinanceModal";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -42,19 +40,21 @@ function freshnessStatus(f: Freshness) {
   }
 }
 
-export function ConnectedAccounts() {
-  const {
-    accounts,
-    exchanges,
-    loading,
-    error,
-    busy,
-    connect,
-    disconnect,
-    syncNow,
-    refresh,
-  } = useExchangeAccounts();
-  const [connectOpen, setConnectOpen] = useState(false);
+export function ConnectedAccounts({
+  accounts,
+  busy,
+  error,
+  onConnect,
+  onSync,
+  onDisconnect,
+}: {
+  accounts: ExchangeAccountDto[];
+  busy: boolean;
+  error: string | null;
+  onConnect: () => void;
+  onSync: (accountId: string) => Promise<boolean>;
+  onDisconnect: (accountId: string) => Promise<boolean>;
+}) {
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
@@ -63,8 +63,6 @@ export function ConnectedAccounts() {
     const t = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(t);
   }, []);
-
-  const binanceSupported = exchanges.some((e) => e.exchangeType.toUpperCase() === "BINANCE");
 
   return (
     <section className="rounded-card border border-line bg-surface-1/40 p-3">
@@ -75,34 +73,14 @@ export function ConnectedAccounts() {
             ربط API يقرأ أرصدتك وحركاتك ويحدّثها تلقائيًا — بدون إرسال صفقات.
           </p>
         </div>
-        {binanceSupported ? (
-          <button
-            type="button"
-            onClick={() => setConnectOpen(true)}
-            disabled={busy || loading}
-            className="flex h-8 items-center gap-1.5 rounded-panel bg-gold/10 px-3 text-xs font-bold text-gold-fg ring-1 ring-gold/40 transition-colors hover:bg-gold/20 disabled:opacity-60"
-          >
-            <PlusIcon className="h-3.5 w-3.5" />
-            ربط حساب
-          </button>
-        ) : null}
       </div>
 
       {error ? (
-        <p className="mt-2 rounded-panel bg-down/10 px-3 py-2 text-xs font-medium text-down-fg">
-          {error}
-          <button type="button" onClick={() => void refresh()} className="mr-2 font-bold underline">
-            إعادة المحاولة
-          </button>
-        </p>
+        <p className="mt-2 rounded-panel bg-down/10 px-3 py-2 text-xs font-medium text-down-fg">{error}</p>
       ) : null}
 
       <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-        {loading && accounts.length === 0 ? (
-          Array.from({ length: 2 }).map((_, i) => (
-            <div key={i} className="h-24 animate-pulse rounded-card border border-line bg-surface-1/40" />
-          ))
-        ) : accounts.length === 0 ? (
+        {accounts.length === 0 ? (
           <div className="flex flex-col items-center gap-2 rounded-card border border-dashed border-line px-4 py-8 text-center sm:col-span-2 xl:col-span-3">
             <span className="flex h-10 w-10 items-center justify-center rounded-panel bg-gold/10 text-gold-fg ring-1 ring-gold/30">
               <LinkIcon className="h-5 w-5" />
@@ -111,16 +89,14 @@ export function ConnectedAccounts() {
             <p className="text-2xs text-muted">
               اربط حساب Binance لتتحقق الأرصدة والصفقات تلقائيًا داخل المحفظة.
             </p>
-            {binanceSupported ? (
-              <button
-                type="button"
-                onClick={() => setConnectOpen(true)}
-                disabled={busy}
-                className="rounded-panel bg-gold/10 px-3 py-1.5 text-xs font-bold text-gold-fg ring-1 ring-gold/40 transition-colors hover:bg-gold/20 disabled:opacity-60"
-              >
-                ربط حساب Binance
-              </button>
-            ) : null}
+            <button
+              type="button"
+              onClick={onConnect}
+              disabled={busy}
+              className="rounded-panel bg-gold/10 px-3 py-1.5 text-xs font-bold text-gold-fg ring-1 ring-gold/40 transition-colors hover:bg-gold/20 disabled:opacity-60"
+            >
+              ربط حساب Binance
+            </button>
           </div>
         ) : (
           accounts.map((a) => {
@@ -171,7 +147,7 @@ export function ConnectedAccounts() {
                     <button
                       type="button"
                       disabled={syncing || busy}
-                      onClick={() => void syncNow(a.id)}
+                      onClick={() => void onSync(a.id)}
                       className="rounded-chip border border-line px-2 py-1 text-2xs font-bold text-muted transition-colors hover:text-zinc-200 disabled:opacity-50"
                     >
                       {syncing ? "جارٍ…" : "مزامنة"}
@@ -190,7 +166,7 @@ export function ConnectedAccounts() {
                         type="button"
                         disabled={busy}
                         onClick={async () => {
-                          const ok = await disconnect(a.id);
+                          const ok = await onDisconnect(a.id);
                           if (ok) setConfirmId(null);
                         }}
                         className="rounded-chip border border-down/40 bg-down/10 px-2 py-1 text-2xs font-bold text-down-fg transition-colors hover:bg-down/20 disabled:opacity-50"
@@ -209,14 +185,6 @@ export function ConnectedAccounts() {
           })
         )}
       </div>
-
-      <ConnectBinanceModal
-        open={connectOpen}
-        onClose={() => setConnectOpen(false)}
-        busy={busy}
-        error={error}
-        onSubmit={connect}
-      />
     </section>
   );
 }
