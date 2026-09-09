@@ -17,6 +17,8 @@ import {
 import { getDb } from "@/lib/firebase/client";
 import type {
   AddTransactionInput,
+  ImportedPortfolioSummary,
+  PortfolioMeta,
   PortfolioSummary,
   PortfolioTransaction,
 } from "../types";
@@ -78,7 +80,12 @@ function assertImpacted(input: AddTransactionInput): void {
 
 /* ─── (De)serialization ───────────────────────────────────────────── */
 
-function deserializeMeta(raw: Record<string, unknown>): PortfolioSummary {
+function deserializeMeta(raw: Record<string, unknown>): PortfolioMeta {
+  if (raw.source === "binance") return deserializeImportedMeta(raw);
+  return deserializeManualMeta(raw);
+}
+
+function deserializeManualMeta(raw: Record<string, unknown>): PortfolioSummary {
   const num = (k: string, fallback = 0) => {
     const v = raw[k];
     return typeof v === "number" && Number.isFinite(v) ? v : fallback;
@@ -89,6 +96,7 @@ function deserializeMeta(raw: Record<string, unknown>): PortfolioSummary {
   };
   const toMs = (v: unknown) => (v instanceof Timestamp ? v.toDate().getTime() : 0);
   return {
+    source: "manual",
     initialBalance: num("initialBalance"),
     currentBalance: num("currentBalance"),
     peakBalance: num("peakBalance"),
@@ -109,6 +117,52 @@ function deserializeMeta(raw: Record<string, unknown>): PortfolioSummary {
     transactionCount: num("transactionCount"),
     createdAt: toMs(raw.createdAt),
     updatedAt: toMs(raw.updatedAt),
+  };
+}
+
+function deserializeImportedMeta(raw: Record<string, unknown>): ImportedPortfolioSummary {
+  const num = (k: string, fallback = 0) => {
+    const v = raw[k];
+    return typeof v === "number" && Number.isFinite(v) ? v : fallback;
+  };
+  const nullable = (k: string) => {
+    const v = raw[k];
+    return typeof v === "number" && Number.isFinite(v) ? v : null;
+  };
+  const toMs = (v: unknown) =>
+    typeof v === "number" && Number.isFinite(v)
+      ? v
+      : v instanceof Timestamp
+        ? v.toDate().getTime()
+        : 0;
+  const f = (raw.financials ?? {}) as Record<string, unknown>;
+  const fnum = (k: string, fallback = 0) =>
+    typeof f[k] === "number" && Number.isFinite(f[k]) ? (f[k] as number) : fallback;
+  return {
+    source: "binance",
+    exchangeType: typeof raw.exchangeType === "string" ? raw.exchangeType : "BINANCE",
+    accountType: typeof raw.accountType === "string" ? raw.accountType : "",
+    accountId: typeof raw.accountId === "string" ? raw.accountId : "",
+    accountName: typeof raw.accountName === "string" ? raw.accountName : "حساب Binance",
+    importedAt: num("importedAt"),
+    createdAt: toMs(raw.createdAt),
+    updatedAt: toMs(raw.updatedAt),
+    syncStatus: (raw.syncStatus as ImportedPortfolioSummary["syncStatus"]) ?? "CONNECTING",
+    lastSuccessfulSync: nullable("lastSuccessfulSync"),
+    lastAttemptedSync: nullable("lastAttemptedSync"),
+    lastError: typeof raw.lastError === "string" ? raw.lastError : null,
+    lastErrorAt: nullable("lastErrorAt"),
+    financials: {
+      baselineEquity: fnum("baselineEquity"),
+      baselineAt: typeof f.baselineAt === "number" ? f.baselineAt : null,
+      currentEquity: fnum("currentEquity"),
+      lastValuedAt: typeof f.lastValuedAt === "number" ? f.lastValuedAt : null,
+      netDeposits: fnum("netDeposits"),
+      netWithdrawals: fnum("netWithdrawals"),
+      totalFees: fnum("totalFees"),
+      realizedPnl: fnum("realizedPnl"),
+      unrealizedPnl: fnum("unrealizedPnl"),
+    },
   };
 }
 
@@ -230,6 +284,7 @@ function buildMetaDoc(
   const profitFactor = totalLoss > 0 ? totalProfit / totalLoss : null;
 
   const meta: Record<string, unknown> = {
+    source: "manual",
     initialBalance,
     currentBalance: balanceAfter,
     peakBalance,
@@ -292,13 +347,18 @@ export const portfolioService = {
     await runTransaction(getDb(), async (trx) => {
       const mRef = metaRef(userId);
       const metaSnap = await trx.get(mRef);
-      const prev: PortfolioSummary | null = metaSnap.exists() ? deserializeMeta(metaSnap.data()) : null;
+      const prev: PortfolioMeta | null = metaSnap.exists() ? deserializeMeta(metaSnap.data()) : null;
 
+      if (metaSnap.exists() && prev?.source !== "manual") {
+        throw new PortfolioError(
+          "هذه المحفظة مستوردة من منصة وتُدار تلقائيًا — لا حاجة لإضافة عمليات يدوية."
+        );
+      }
       if (!metaSnap.exists() && !opts.allowCreate) {
         throw new PortfolioError("أنشئ المحفظة أولاً قبل إضافة العمليات.");
       }
 
-      const balanceBefore = prev ? prev.currentBalance : 0;
+      const balanceBefore = prev && prev.source === "manual" ? (prev as PortfolioSummary).currentBalance : 0;
       const balanceAfter = balanceBefore + signed;
 
       // Integrity guards — never allow negative balance, NaN, or a zero-flow row.
@@ -317,7 +377,8 @@ export const portfolioService = {
       const txId = doc(txCol(userId)).id; // unique id → duplicate-safe
       const txRef = doc(txCol(userId), txId);
       const txDoc = buildTxDoc(input, balanceBefore, balanceAfter, txId);
-      const meta = buildMetaDoc(prev, balanceAfter, signed, input);
+      const manualPrev = prev && prev.source === "manual" ? (prev as PortfolioSummary) : null;
+      const meta = buildMetaDoc(manualPrev, balanceAfter, signed, input);
 
       await trx.set(txRef, txDoc);
       await trx.set(
@@ -331,12 +392,12 @@ export const portfolioService = {
   /* ─── Realtime listeners ────────────────────────────────────────── */
 
   /** One-shot read of the summary doc (used by the boot data warm-up). */
-  async fetchSummary(userId: string): Promise<PortfolioSummary | null> {
+  async fetchSummary(userId: string): Promise<PortfolioMeta | null> {
     const snap = await getDoc(metaRef(userId));
     return snap.exists() ? deserializeMeta(snap.data()) : null;
   },
 
-  subscribeMeta(userId: string, onNext: (summary: PortfolioSummary | null) => void): () => void {
+  subscribeMeta(userId: string, onNext: (meta: PortfolioMeta | null) => void): () => void {
     return onSnapshot(metaRef(userId), (snap) => {
       onNext(snap.exists() ? deserializeMeta(snap.data()) : null);
     });

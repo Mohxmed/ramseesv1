@@ -5,7 +5,7 @@ import { useAuth } from "@/features/auth/hooks/useAuth";
 import { portfolioService, PortfolioError, PORTFOLIO_TX_PAGE } from "../services/portfolio.service";
 import type {
   AddTransactionInput,
-  PortfolioSummary,
+  PortfolioMeta,
   PortfolioTransaction,
 } from "../types";
 
@@ -15,7 +15,7 @@ export function usePortfolio() {
   const { user, loading: authLoading } = useAuth();
   const userId = user?.uid ?? null;
 
-  const [summary, setSummary] = useState<PortfolioSummary | null>(null);
+  const [summary, setSummary] = useState<PortfolioMeta | null>(null);
   const [transactions, setTransactions] = useState<PortfolioTransaction[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMeta, setLoadingMeta] = useState(true);

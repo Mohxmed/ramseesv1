@@ -94,6 +94,63 @@ export async function patchAccount(uid: string, accountId: string, patch: Partia
   } as FirebaseFirestore.UpdateData<StoredAccount>);
 }
 
+/* ─── Wallet meta (one wallet per user; `source` drives the UI) ──── */
+
+export interface ImportedMetaState {
+  financials?: StoredAccount["financials"];
+  status: "HEALTHY" | "SYNCING" | "ERROR";
+  lastError?: string | null;
+  lastErrorAt?: number | null;
+  lastSuccessfulSync?: number | null;
+  lastAttemptedSync?: number | null;
+}
+
+export async function getPortfolioMeta(uid: string): Promise<Record<string, unknown> | null> {
+  const snap = await portfolioCol(uid).doc("meta").get();
+  return snap.exists ? (snap.data() as Record<string, unknown>) : null;
+}
+
+/** Register the wallet as an imported (exchange-driven) portfolio. */
+export async function createImportedPortfolioMeta(uid: string, account: StoredAccount): Promise<void> {
+  const now = Date.now();
+  await portfolioCol(uid).doc("meta").set({
+    source: "binance",
+    exchangeType: account.exchangeType,
+    accountType: account.accountType,
+    accountId: account.id,
+    accountName: account.name,
+    importedAt: now,
+    syncStatus: "CONNECTING",
+    lastSuccessfulSync: null,
+    lastAttemptedSync: null,
+    lastError: null,
+    lastErrorAt: null,
+    financials: account.financials,
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
+/** Mirror sync financials + status into the wallet meta (server-side only). */
+export async function syncImportedPortfolioMeta(
+  uid: string,
+  accountId: string,
+  state: ImportedMetaState
+): Promise<void> {
+  const meta = await getPortfolioMeta(uid);
+  if (!meta || meta.source !== "binance" || meta.accountId !== accountId) return;
+  const patch: Record<string, unknown> = {
+    syncStatus: state.status,
+    lastError: state.lastError ?? null,
+    lastErrorAt: state.lastErrorAt ?? null,
+    lastSuccessfulSync: state.lastSuccessfulSync ?? null,
+    lastAttemptedSync: state.lastAttemptedSync ?? null,
+    updatedAt: Date.now(),
+  };
+  if (state.financials) patch.financials = state.financials;
+  await portfolioCol(uid).doc("meta").update(patch);
+}
+
 /* ─── Balances (current state, overwrite per asset) ───────────────── */
 
 export async function saveBalances(uid: string, accountId: string, balances: StoredBalance[]): Promise<void> {

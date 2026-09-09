@@ -3,6 +3,7 @@ import type {
   ExchangeAccountDto,
   ExchangeDescriptorDto,
   ExchangeSyncStatusDto,
+  ImportedAccountDetailDto,
 } from "../types";
 
 /**
@@ -46,6 +47,8 @@ export interface ConnectInput {
   apiKey: string;
   secret: string;
   name?: string;
+  /** When true the account becomes the single imported wallet. */
+  createPortfolio?: boolean;
 }
 
 export const exchangesApi = {
@@ -53,7 +56,12 @@ export const exchangesApi = {
     return readJson(await authFetch("/api/portfolio/exchanges"));
   },
 
-  async connect(input: ConnectInput): Promise<{ account: ExchangeAccountDto }> {
+  async connect(
+    input: ConnectInput
+  ): Promise<{
+    account: ExchangeAccountDto;
+    portfolio: { source: string; accountId: string } | null;
+  }> {
     return readJson(
       await authFetch("/api/portfolio/exchanges", {
         method: "POST",
@@ -62,8 +70,8 @@ export const exchangesApi = {
     );
   },
 
-  async detail(accountId: string) {
-    return readJson<Record<string, unknown>>(
+  async detail(accountId: string): Promise<ImportedAccountDetailDto> {
+    return readJson(
       await authFetch(`/api/portfolio/exchanges/${encodeURIComponent(accountId)}`)
     );
   },

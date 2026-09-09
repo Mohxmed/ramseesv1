@@ -4,16 +4,15 @@ import { useMemo, useState } from "react";
 import { PageHeader, Status, Tooltip } from "@/components/ui";
 import { PlusIcon, LinkIcon, WalletIcon } from "@/components/icons/icons";
 import { usePortfolio } from "../hooks/usePortfolio";
-import { useExchangeAccounts } from "../hooks/useExchangeAccounts";
 import { buildEquitySeries } from "../utils";
-import type { PortfolioTxType } from "../types";
+import type { ImportedPortfolioSummary, PortfolioSummary, PortfolioTxType } from "../types";
 import { BalanceHero } from "./BalanceHero";
 import { PerformancePanel } from "./PerformancePanel";
 import { DrawdownPanel } from "./DrawdownPanel";
 import { PortfolioStats } from "./PortfolioStats";
 import { TransactionTable } from "./TransactionTable";
-import { ConnectedAccounts } from "./ConnectedAccounts";
-import { ConnectBinanceModal } from "./ConnectBinanceModal";
+import { ImportedPortfolioView } from "./ImportedPortfolioView";
+import { ImportPortfolioModal } from "./ImportPortfolioModal";
 import { AddTransactionModal } from "./AddTransactionModal";
 import { CreatePortfolioModal } from "./CreatePortfolioModal";
 
@@ -34,58 +33,26 @@ export function PortfolioPage() {
 
   const [addOpen, setAddOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
-  const [connectOpen, setConnectOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [addFormNonce, setAddFormNonce] = useState(0);
   const [createFormNonce, setCreateFormNonce] = useState(0);
-  const [connectFormNonce, setConnectFormNonce] = useState(0);
+  const [importFormNonce, setImportFormNonce] = useState(0);
   const [defaultTxTs, setDefaultTxTs] = useState(0);
   const [initialTxType, setInitialTxType] = useState<PortfolioTxType>("deposit");
   const [nowMs] = useState(() => Date.now());
 
-  const exchange = useExchangeAccounts();
-
-  // Binance is the only registered platform today; if the descriptor fetch
-  // fails we still show the connect CTA (the error banner explains the cause).
-  const binanceSupported =
-    exchange.exchanges.length === 0 ||
-    exchange.exchanges.some((e) => e.exchangeType.toUpperCase() === "BINANCE");
-
-  const openConnect = () => {
-    setConnectFormNonce((n) => n + 1);
-    setConnectOpen(true);
-  };
-
-  const connectButton = binanceSupported ? (
-    <button
-      type="button"
-      onClick={openConnect}
-      disabled={exchange.busy || exchange.loading}
-      className="flex h-8 items-center gap-1.5 rounded-panel bg-gold/10 px-3 text-xs font-bold text-gold-fg ring-1 ring-gold/40 transition-colors hover:bg-gold/20 disabled:opacity-60"
-    >
-      <LinkIcon className="h-3.5 w-3.5" />
-      ربط حساب
-    </button>
-  ) : null;
-
-  const connectModal = (
-    <ConnectBinanceModal
-      key={connectFormNonce}
-      open={connectOpen}
-      onClose={() => setConnectOpen(false)}
-      busy={exchange.busy}
-      error={exchange.error}
-      onSubmit={exchange.connect}
-    />
-  );
+  const imported: ImportedPortfolioSummary | null =
+    meta?.source === "binance" ? (meta as ImportedPortfolioSummary) : null;
 
   const equityPoints = useMemo(() => {
-    if (!meta) return [];
+    const m = meta;
+    if (!m || m.source !== "manual") return [];
     return buildEquitySeries({
       transactionsDesc: transactions,
-      currentBalance: meta.currentBalance,
-      peakBalance: meta.peakBalance,
-      currentDrawdown: meta.currentDrawdown,
-      initialBalance: meta.initialBalance,
+      currentBalance: m.currentBalance,
+      peakBalance: m.peakBalance,
+      currentDrawdown: m.currentDrawdown,
+      initialBalance: m.initialBalance,
       sinceMs: 0,
       nowMs,
     });
@@ -143,39 +110,55 @@ export function PortfolioPage() {
           icon={<WalletIcon />}
           title="المحفظة"
           description="تتبع رصيدك وصفقاتك وإيداعاتك من مكان واحد."
-          right={connectButton}
         />
-        <div className="flex flex-col items-center gap-4 rounded-card border border-line bg-surface-1/40 px-6 py-14 text-center">
-          <span className="flex h-16 w-16 items-center justify-center rounded-panel bg-up/10 text-up-fg ring-1 ring-up/30">
-            <WalletIcon className="h-8 w-8" />
-          </span>
-          <div>
-            <h2 className="text-base font-bold text-zinc-100">المحفظة جاهزة للبدء</h2>
-            <p className="mx-auto mt-1 max-w-sm text-xs leading-6 text-muted">
-              أنشئ محفظتك برأس مال ابتدائي، وسنوثّق كل عملية لاحقة في سجل واحد — تظهر
-              المؤشرات والمخططات مباشرة من بياناتك الحقيقية.
-            </p>
-          </div>
+        <div className="grid gap-3 md:grid-cols-2">
           <button
             type="button"
             onClick={() => {
               setCreateFormNonce((n) => n + 1);
               setCreateOpen(true);
             }}
-            className="rounded-panel bg-gold/10 px-4 py-2 text-sm font-semibold text-gold-fg ring-1 ring-gold/40 transition-colors hover:bg-gold/20"
+            className="group flex flex-col gap-3 rounded-card border p-5 text-start transition-colors hover:border-gold/40"
           >
-            إنشاء المحفظة
+            <span className="flex h-11 w-11 items-center justify-center rounded-panel bg-up/10 text-up-fg ring-1 ring-up/30">
+              <PlusIcon className="h-5 w-5" />
+            </span>
+            <span>
+              <span className="block text-sm font-bold text-zinc-100">محفظة يدوية</span>
+              <span className="mt-1 block text-2xs leading-5 text-muted">
+                أنشئ المحفظة برأس مال ابتدائي وسجّل كل عملية بنفسك (إيداع، سحب، صفقة)
+                — تظهر المؤشرات والمخططات مباشرة من بياناتك.
+              </span>
+            </span>
+            <span className="text-2xs font-bold text-gold-fg">إنشاء المحفظة ←</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setImportFormNonce((n) => n + 1);
+              setImportOpen(true);
+            }}
+            className="group flex flex-col gap-3 rounded-card border p-5 text-start transition-colors hover:border-gold/40"
+          >
+            <span className="flex h-11 w-11 items-center justify-center rounded-panel bg-gold/10 text-gold-fg ring-1 ring-gold/30">
+              <LinkIcon className="h-5 w-5" />
+            </span>
+            <span>
+              <span className="block text-sm font-bold text-zinc-100">استيراد تلقائي من منصة</span>
+              <span className="mt-1 block text-2xs leading-5 text-muted">
+                اربط حساب Binance فيُستورد كامل سجل عملياتك (بنقرات API) وتُسجَّل
+                كل عملية لاحقة تلقائيًا — بدون رصيد بداية تقديري.
+              </span>
+            </span>
+            <span className="text-2xs font-bold text-gold-fg">اختيار المنصة ←</span>
           </button>
         </div>
-        <ConnectedAccounts
-          accounts={exchange.accounts}
-          busy={exchange.busy}
-          error={exchange.error}
-          onConnect={openConnect}
-          onSync={exchange.syncNow}
-          onDisconnect={exchange.disconnect}
-        />
-        {connectModal}
+        <p className="text-2xs text-muted">
+          <b className="font-semibold text-zinc-300">ملاحظة:</b> المحفظة واحدة لكل مستخدم —
+          ستظهر هذه الشاشة مرة واحدة فقط عند عدم وجود محفظة.
+        </p>
+
         <CreatePortfolioModal
           key={createFormNonce}
           open={createOpen}
@@ -184,9 +167,21 @@ export function PortfolioPage() {
           error={saveState === "error" ? error : null}
           onSubmit={createPortfolio}
         />
+        <ImportPortfolioModal
+          key={importFormNonce}
+          open={importOpen}
+          onClose={() => setImportOpen(false)}
+          onImported={() => setImportOpen(false)}
+        />
       </div>
     );
   }
+
+  if (imported) {
+    return <ImportedPortfolioView meta={imported} />;
+  }
+
+  const manual = meta as PortfolioSummary;
 
   return (
     <div className="space-y-3">
@@ -213,31 +208,21 @@ export function PortfolioPage() {
                 إضافة عملية
               </button>
             </Tooltip>
-            {connectButton}
           </>
         }
       />
 
-      <BalanceHero summary={meta} onOpenAdd={openAdd} />
+      <BalanceHero summary={manual} onOpenAdd={openAdd} />
 
       <div className="grid gap-3 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <PerformancePanel summary={meta} transactions={transactions} />
+          <PerformancePanel summary={manual} transactions={transactions} />
         </div>
         <div className="space-y-3">
-          <PortfolioStats summary={meta} />
-          <DrawdownPanel summary={meta} points={equityPoints} />
+          <PortfolioStats summary={manual} />
+          <DrawdownPanel summary={manual} points={equityPoints} />
         </div>
       </div>
-
-      <ConnectedAccounts
-        accounts={exchange.accounts}
-        busy={exchange.busy}
-        error={exchange.error}
-        onConnect={openConnect}
-        onSync={exchange.syncNow}
-        onDisconnect={exchange.disconnect}
-      />
 
       <TransactionTable
         transactions={transactions}
@@ -256,7 +241,6 @@ export function PortfolioPage() {
         initialType={initialTxType}
         onSubmit={recordTransaction}
       />
-      {connectModal}
     </div>
   );
 }

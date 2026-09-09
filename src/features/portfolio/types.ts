@@ -10,6 +10,14 @@
 export type PortfolioTxType = "deposit" | "withdrawal" | "trade" | "adjustment";
 export type PortfolioImpact = "increase" | "decrease";
 
+/**
+ * How the wallet's data is produced:
+ *  - `manual`  → the owner records every operation by hand (legacy flow).
+ *  - `binance` → the wallet is imported from an exchange and every operation
+ *    is recorded automatically during server-side syncs.
+ */
+export type PortfolioSource = "manual" | "binance";
+
 export const PORTFOLIO_TX_TYPE_LABELS: Record<PortfolioTxType, string> = {
   deposit: "إيداع",
   withdrawal: "سحب",
@@ -45,6 +53,7 @@ export interface PortfolioTransaction {
 
 /** Aggregated portfolio state — mirrored 1:1 from `portfolio/meta`. */
 export interface PortfolioSummary {
+  source: "manual";
   initialBalance: number;
   currentBalance: number;
   peakBalance: number;
@@ -67,6 +76,81 @@ export interface PortfolioSummary {
   transactionCount: number;
   createdAt: number;
   updatedAt: number;
+}
+
+/** Aggregated state of an imported (exchange-driven) wallet — same meta doc. */
+export interface ImportedPortfolioSummary {
+  source: "binance";
+  exchangeType: string;
+  accountType: string;
+  accountId: string;
+  accountName: string;
+  importedAt: number;
+  createdAt: number;
+  updatedAt: number;
+  syncStatus: "HEALTHY" | "SYNCING" | "ERROR" | "CONNECTING" | "DISCONNECTED";
+  lastSuccessfulSync: number | null;
+  lastAttemptedSync: number | null;
+  lastError: string | null;
+  lastErrorAt: number | null;
+  financials: ExchangeFinancialsDto;
+}
+
+export type PortfolioMeta = PortfolioSummary | ImportedPortfolioSummary;
+
+/** A single auto-recorded operation shown in the imported wallet's table. */
+export interface ImportedOpRow {
+  id: string;
+  kind: "transaction" | "trade";
+  typeLabel: string;
+  symbol: string | null;
+  side: "BUY" | "SELL" | null;
+  amount: number;
+  asset: string | null;
+  usdValue: number | null;
+  fee: number;
+  realizedPnlUsd: number | null;
+  status: string | null;
+  timestamp: number;
+}
+
+/** `GET /api/portfolio/exchanges/[id]` — what the imported wallet view reads. */
+export interface ImportedAccountDetailDto {
+  account: {
+    id: string;
+    name: string;
+    accountType: string;
+    exchangeType: string;
+    status: string;
+    lastSuccessfulSync: number | null;
+    lastAttemptedSync: number | null;
+    lastError: string | null;
+    lastErrorAt: number | null;
+    financials: ExchangeFinancialsDto;
+  };
+  transactions: Array<{
+    id: string;
+    type: string;
+    asset: string;
+    amount: number;
+    usdValue: number;
+    fee: number;
+    status: string | null;
+    timestamp: number;
+  }>;
+  trades: Array<{
+    id: string;
+    symbol: string;
+    side: "BUY" | "SELL";
+    quantity: number;
+    price: number;
+    quoteAmount: number;
+    fee: number;
+    feeAsset: string | null;
+    realizedPnlUsd: number | null;
+    timestamp: number;
+  }>;
+  syncInProgress: boolean;
 }
 
 /** Input accepted by the ledger layer when appending a manual transaction. */

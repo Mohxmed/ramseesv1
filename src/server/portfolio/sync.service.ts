@@ -41,6 +41,7 @@ import {
 import { getPrices } from "./priceProvider";
 import { buildAccountSnapshot, valuateAccount } from "./engine/portfolio";
 import { reconcileAssets, reconcileEquity, type ReconciliationVerdict } from "./reconciliation";
+import { syncImportedPortfolioMeta } from "./portfolioDb";
 import type {
   StoredAccount,
   StoredOrder,
@@ -372,6 +373,13 @@ async function runSync(uid: string, accountId: string, mode: SyncMode, manager: 
     lastErrorAt: null,
     financials: fin,
   } as Partial<StoredAccount>);
+  await syncImportedPortfolioMeta(uid, account.id, {
+    status: "HEALTHY",
+    financials: fin,
+    lastSuccessfulSync: nowMs(),
+    lastError: null,
+    lastErrorAt: null,
+  });
 
   await manager.finish({
     status: "SUCCESS",
@@ -478,6 +486,11 @@ export async function startBackgroundSync(uid: string, accountId: string, mode: 
         lastError: e?.message ?? "unknown error",
         lastErrorAt: nowMs(),
       } as Partial<StoredAccount>);
+      await syncImportedPortfolioMeta(uid, accountId, {
+        status: "ERROR",
+        lastError: e?.message ?? "unknown error",
+        lastErrorAt: nowMs(),
+      });
       throw e;
     })
     .finally(() => {

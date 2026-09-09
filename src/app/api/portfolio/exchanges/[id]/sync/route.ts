@@ -11,7 +11,7 @@
 import { NextResponse } from "next/server";
 import { authenticateRequest } from "@/server/auth";
 import { routeErrorResponse, requireOwnedAccount } from "@/server/portfolio/apiHelpers";
-import { getRunningSync, getSnapshots } from "@/server/portfolio/portfolioDb";
+import { getRunningSync, getSnapshots, syncImportedPortfolioMeta } from "@/server/portfolio/portfolioDb";
 import { startBackgroundSync } from "@/server/portfolio/sync.service";
 
 export const runtime = "nodejs";
@@ -66,6 +66,13 @@ export async function POST(
     }
 
     const sync = await startBackgroundSync(uid, id, mode);
+    if (sync.inProgress) {
+      await syncImportedPortfolioMeta(uid, id, {
+        status: "SYNCING",
+        financials: account.financials,
+        lastAttemptedSync: Date.now(),
+      });
+    }
     return NextResponse.json({ status: sync.status, inProgress: sync.inProgress, startedAt: Date.now() });
   } catch (err) {
     return routeErrorResponse(err);

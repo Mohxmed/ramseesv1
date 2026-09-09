@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowRightIcon, WalletIcon } from "@/components/icons/icons";
 import { usePortfolio } from "../hooks/usePortfolio";
 import { fmtPct } from "../utils";
+import type { PortfolioSummary } from "../types";
 
 /**
  * محفظة — the hero card of the home dashboard. One glance: current balance and
@@ -60,7 +61,23 @@ export function WalletSnippet() {
     );
   }
 
-  const up = meta.totalPnl >= 0;
+  const imported = meta.source === "binance" ? meta : null;
+
+  // Imported wallet: equity is the exchange-driven, server-valued figure and
+  // the P&L is realized + unrealized (no manual starting balance). When
+  // `imported` is null the meta is by construction the manual shape.
+  const manual = imported == null ? (meta as PortfolioSummary) : null;
+  const balance = imported ? imported.financials.currentEquity : manual!.currentBalance;
+  const totalPnl = imported
+    ? imported.financials.realizedPnl + imported.financials.unrealizedPnl
+    : manual!.totalPnl;
+  const pnlPercent = imported
+    ? imported.financials.baselineEquity > 0
+      ? (totalPnl / imported.financials.baselineEquity) * 100
+      : 0
+    : manual!.totalPnlPercent;
+
+  const up = totalPnl >= 0;
   const tone = up ? "text-good" : "text-down-fg";
 
   return (
@@ -68,9 +85,9 @@ export function WalletSnippet() {
       {titleRow("bg-up/10 text-up-fg ring-1 ring-up/20")}
 
       <div className="mt-6">
-        <p className="text-2xs text-muted">الرصيد الحالي</p>
+        <p className="text-2xs text-muted">{imported ? "إجمالي قيمة المحفظة" : "الرصيد الحالي"}</p>
         <p className={`mt-1.5 font-mono tabular-nums text-4xl font-extrabold leading-none tracking-tight text-zinc-50`}>
-          {money(meta.currentBalance)}
+          {money(balance)}
         </p>
       </div>
 
@@ -78,13 +95,13 @@ export function WalletSnippet() {
         <div className="rounded-panel border border-line/60 bg-surface-2/20 p-3">
           <p className="text-2xs text-muted">إجمالي الربح / الخسارة</p>
           <p className={`mt-1 font-mono tabular-nums text-lg font-bold leading-none ${tone}`}>
-            {money(meta.totalPnl, { signed: true })}
+            {money(totalPnl, { signed: true })}
           </p>
         </div>
         <div className="rounded-panel border border-line/60 bg-surface-2/20 p-3">
           <p className="text-2xs text-muted">إجمالي العائد</p>
           <p className={`mt-1 font-mono tabular-nums text-lg font-bold leading-none ${tone}`}>
-            {fmtPct(meta.totalPnlPercent)}
+            {fmtPct(pnlPercent)}
           </p>
         </div>
       </div>

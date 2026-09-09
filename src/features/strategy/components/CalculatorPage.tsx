@@ -220,7 +220,12 @@ export function CalculatorPage() {
       ? (balanceN * riskN) / 100
       : NaN;
 
-  const walletBalance = portfolio.meta?.currentBalance ?? null;
+  const walletBalance =
+    portfolio.meta == null
+      ? null
+      : portfolio.meta.source === "binance"
+        ? portfolio.meta.financials.currentEquity
+        : portfolio.meta.currentBalance;
 
   const errors: ValidationErrors = useMemo(
     () =>

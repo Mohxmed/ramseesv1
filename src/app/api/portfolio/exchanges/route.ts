@@ -2,11 +2,13 @@
  * /api/portfolio/exchanges
  *
  *   GET  → connected exchange accounts (enabled) + registered platform
- *          descriptors. The UI polls this to render ConnectedAccounts.
+ *          descriptors.
  *   POST → connect an exchange API key:
  *            testConnection → permissions → vault-encrypt → create credential
  *            + account → fire an INITIAL background sync (returns STARTED
- *            immediately; the UI polls freshness).
+ *            immediately; the UI polls freshness). With `createPortfolio: true`
+ *            the account BECOMES the user's wallet (imported portfolio); the
+ *            request is rejected with 409 when the user already has a wallet.
  *
  * The plaintext API secret is used ONLY to encrypt it into the server vault
  * (AES-256-GCM, key via EXCHANGE_CREDENTIALS_ENC_KEY). It is never returned,
@@ -35,7 +37,10 @@ import { encryptSecret } from "@/server/portfolio/vault";
 import {
   createAccount as persistAccount,
   createCredential as persistCredential,
+  createImportedPortfolioMeta,
+  getPortfolioMeta,
   listAccounts,
+  syncImportedPortfolioMeta,
 } from "@/server/portfolio/portfolioDb";
 import { startBackgroundSync } from "@/server/portfolio/sync.service";
 
@@ -61,6 +66,8 @@ interface ConnectBody {
   apiKey: string;
   secret: string;
   name?: string;
+  /** When true the account becomes the wallet source (imported portfolio). */
+  createPortfolio?: boolean;
 }
 
 const allowedAccountType = (v: string): AccountType | null =>
@@ -152,14 +159,37 @@ export async function POST(req: Request): Promise<Response> {
     };
     await persistAccount(account);
 
+    // Imported wallet: this account becomes the source of the single wallet.
+    // Rejected when the user already has ANY wallet (manual or imported).
+    if (body.createPortfolio === true) {
+      const existing = await getPortfolioMeta(uid);
+      if (existing != null) {
+        return NextResponse.json(
+          {
+            error: "لديك محفظة بالفعل — احذفها ثم أعد الاستيراد إذا أردت استبدالها.",
+          },
+          { status: 409 }
+        );
+      }
+      await createImportedPortfolioMeta(uid, account);
+    }
+
     const sync = await startBackgroundSync(uid, accountId, "INITIAL");
     await patchAccountStatus(uid, accountId, sync);
+    if (sync.inProgress && body.createPortfolio === true) {
+      await syncImportedPortfolioMeta(uid, accountId, {
+        status: "SYNCING",
+        financials: account.financials,
+        lastAttemptedSync: Date.now(),
+      });
+    }
 
     return NextResponse.json(
       {
         account,
         credentialHint: { id: credId, apiKeyHint: credential.apiKeyHint },
         sync: { status: sync.status, inProgress: sync.inProgress },
+        portfolio: body.createPortfolio === true ? { source: "binance", accountId } : null,
       },
       { status: 201 }
     );
