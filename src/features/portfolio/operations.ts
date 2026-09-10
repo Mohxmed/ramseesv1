@@ -7,9 +7,10 @@ import type {
 
 /**
  * Operations feed — the imported wallet's auto-recorded operations, split into
- * clear sections: أرباح المراكز / خسائر المراكز / رسوم الصفقات / الضرائب /
- * التمويل / الودائع والسحب. Every row carries a signed `pnl` (the money
- * effect) and is bucketed by its nature first, then by the PnL sign.
+ * clear sections: أرباح المراكز / خسائر المراكز / رسوم الصفقات (تشمل الضرائب
+ * والتمويل والأقساط) / الودائع والسحب والتحويلات / أخرى. Every row carries a
+ * signed `pnl` (the money effect) and is bucketed by its nature first, then by
+ * the PnL sign.
  *
  * The income feed is the authoritative economic ledger for futures: REALIZED_PNL
  * rows cover every closed position (without the per-symbol scoping of the trade
@@ -46,33 +47,33 @@ const INCOME_LABELS: Record<string, string> = {
   COIN_SWAP_WITHDRAW: "تحويل عملة",
 };
 
-export const OP_FILTERS: { key: OpFilter; label: string; tone: "good" | "down" | "gold" | "warn" | "up" | "neutral" }[] = [
-  { key: "all", label: "الكل", tone: "neutral" },
-  { key: "profit", label: "أرباح مراكز", tone: "good" },
-  { key: "loss", label: "خسائر مراكز", tone: "down" },
-  { key: "fee", label: "رسوم الصفقات", tone: "gold" },
-  { key: "tax", label: "الضرائب", tone: "warn" },
-  { key: "funding", label: "التمويل", tone: "up" },
-  { key: "flow", label: "ودائع وسحب", tone: "neutral" },
-  { key: "other", label: "أخرى", tone: "neutral" },
+export const OP_FILTERS: { key: OpFilter; label: string }[] = [
+  { key: "all", label: "الكل" },
+  { key: "profit", label: "أرباح مراكز" },
+  { key: "loss", label: "خسائر مراكز" },
+  { key: "fee", label: "رسوم الصفقات" },
+  { key: "flow", label: "ودائع وسحب" },
+  { key: "other", label: "أخرى" },
 ];
 
-/** Bucket by nature first (flow / funding / tax / fees), then by PnL sign. */
+/** Bucket by nature (flows first), then realized PnL sign. */
 export function bucketOf(
   type: string,
   incomeType: string | null,
   pnl: number | null
 ): OpCategory {
   if (type === "DEPOSIT" || type === "WITHDRAWAL" || type === "TRANSFER") return "flow";
-  if (type === "FUNDING" || incomeType === "FUNDING_FEE") return "funding";
   if (incomeType != null) {
-    if (/TAX/i.test(incomeType)) return "tax";
-    if (/COMMISSION/i.test(incomeType) || /REBATE/i.test(incomeType)) return "fee";
     if (/REALIZED_PNL/i.test(incomeType)) {
       if (pnl == null) return "other";
       return pnl > 0 ? "profit" : pnl < 0 ? "loss" : "other";
     }
+    // Commissions, taxes, funding and insurance are all wallet costs → رسوم
+    // الصفقات (rebates reduce them). Everything else (bonuses, claims, …)
+    // stays "أخرى".
+    if (/COMMISSION/i.test(incomeType) || /TAX/i.test(incomeType) || /REBATE/i.test(incomeType) || /FUNDING/i.test(incomeType) || /INSURANCE/i.test(incomeType)) return "fee";
   }
+  // Spot trade fills carry their own realized PnL when the platform reports it.
   if (type === "TRADE") {
     if (pnl == null) return "other";
     return pnl > 0 ? "profit" : pnl < 0 ? "loss" : "other";
@@ -148,20 +149,14 @@ export interface OpStatement {
   profit: number;
   /** Gross position losses as a positive magnitude. */
   loss: number;
-  /** Trade fees / commissions — signed (negative = paid). */
+  /** Wallet costs — commissions, taxes, funding, insurance — signed. */
   fees: number;
-  /** Taxes paid (negative). */
-  tax: number;
-  /** Funding — signed net (received − paid). */
-  fundingNet: number;
-  /** Deposits − withdrawals (signed net flow). */
+  /** Deposits + transfers-in − withdrawals − transfers-out (signed net). */
   flow: number;
   count: number;
   profitCount: number;
   lossCount: number;
   feeCount: number;
-  taxCount: number;
-  fundingCount: number;
   flowCount: number;
 }
 
@@ -170,15 +165,11 @@ export function computeStatement(ops: ImportedOpRow[]): OpStatement {
     profit: 0,
     loss: 0,
     fees: 0,
-    tax: 0,
-    fundingNet: 0,
     flow: 0,
     count: 0,
     profitCount: 0,
     lossCount: 0,
     feeCount: 0,
-    taxCount: 0,
-    fundingCount: 0,
     flowCount: 0,
   };
   for (const o of ops) {
@@ -188,14 +179,6 @@ export function computeStatement(ops: ImportedOpRow[]): OpStatement {
     if (o.category === "other") continue;
     st.count += 1;
     switch (o.category) {
-      case "tax":
-        st.tax += o.pnl;
-        st.taxCount += 1;
-        break;
-      case "funding":
-        st.fundingNet += o.pnl;
-        st.fundingCount += 1;
-        break;
       case "fee":
         st.fees += o.pnl;
         st.feeCount += 1;

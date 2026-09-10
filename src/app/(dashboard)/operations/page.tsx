@@ -12,7 +12,7 @@ import { buildOps, computeStatement } from "@/features/portfolio/operations";
 import { OperationsTable } from "@/features/portfolio/components/OperationsTable";
 import type { OpFilter } from "@/features/portfolio/types";
 
-const VALID_FILTERS: OpFilter[] = ["all", "profit", "loss", "fee", "tax", "funding", "flow", "other"];
+const VALID_FILTERS: OpFilter[] = ["all", "profit", "loss", "fee", "flow", "other"];
 
 function toFilter(v: string | null): OpFilter {
   return VALID_FILTERS.includes((v ?? "") as OpFilter) ? (v as OpFilter) : "all";
@@ -90,43 +90,23 @@ function OperationsPageInner() {
       tone: "text-down-fg",
     },
     {
-      label: "رسوم الصفقات",
+      label: "رسوم الصفقات (صافي)",
       value: (
         <span dir="ltr" className={statement.fees > 0 ? "text-good" : "text-gold-fg"}>
           {fmtMoney(statement.fees, { signed: true })}
         </span>
       ),
-      hint: `${statement.feeCount} عملية رسوم`,
+      hint: `${statement.feeCount} عملية — عمولات وضرائب وتمويل`,
       tone: statement.fees > 0 ? "text-good" : "text-gold-fg",
     },
     {
-      label: "الضرائب",
-      value: (
-        <span dir="ltr" className="text-warn-fg">
-          {fmtMoney(statement.tax, { signed: true })}
-        </span>
-      ),
-      hint: `${statement.taxCount} رصيد ضريبي`,
-      tone: "text-warn-fg",
-    },
-    {
-      label: "التمويل (صافي)",
-      value: (
-        <span dir="ltr" className={statement.fundingNet > 0 ? "text-good" : statement.fundingNet < 0 ? "text-down-fg" : "text-muted"}>
-          {fmtMoney(statement.fundingNet, { signed: true })}
-        </span>
-      ),
-      hint: `${statement.fundingCount} رصيد تمويل`,
-      tone: statement.fundingNet > 0 ? "text-good" : statement.fundingNet < 0 ? "text-down-fg" : "text-muted",
-    },
-    {
-      label: "ودائع وسحب (صافي)",
+      label: "صافي الودائع والسحب",
       value: (
         <span dir="ltr" className={statement.flow > 0 ? "text-up-fg" : statement.flow < 0 ? "text-zinc-200" : "text-muted"}>
           {fmtMoney(statement.flow, { signed: true })}
         </span>
       ),
-      hint: `${statement.flowCount} عملية`,
+      hint: `${statement.flowCount} عملية — إيداعات وسحوبات وتحويلات`,
       tone: statement.flow > 0 ? "text-up-fg" : statement.flow < 0 ? "text-zinc-200" : "text-muted",
     },
   ];
@@ -142,7 +122,7 @@ function OperationsPageInner() {
           eyebrow="Portfolio"
           icon={<HistoryIcon />}
           title="العمليات"
-          description="كامل سجل العمليات المسجّلة تلقائيًا — أرباح وخسائر وضرائب وتمويل."
+          description="كامل سجل العمليات المسجّلة تلقائيًا — أرباح وخسائر المراكز، رسوم الصفقات، والودائع والسحب."
         />
         <div className="flex flex-col items-center gap-3 rounded-card border border-down/30 bg-down/5 p-10 text-center">
           <p className="text-sm font-semibold text-down-fg">{error}</p>
@@ -165,7 +145,7 @@ function OperationsPageInner() {
           eyebrow="Portfolio"
           icon={<HistoryIcon />}
           title="العمليات"
-          description="كامل سجل العمليات المسجّلة تلقائيًا — أرباح وخسائر وضرائب وتمويل."
+          description="كامل سجل العمليات المسجّلة تلقائيًا — أرباح وخسائر المراكز، رسوم الصفقات، والودائع والسحب."
         />
         <div className="flex flex-col items-center gap-3 rounded-card border border-line bg-surface-2/30 p-10 text-center">
           <WalletIcon className="h-8 w-8 text-gold-fg" />
@@ -193,13 +173,13 @@ function OperationsPageInner() {
           eyebrow="Portfolio"
           icon={<HistoryIcon />}
           title="العمليات"
-          description="كامل سجل العمليات المسجّلة تلقائيًا — أرباح وخسائر وضرائب وتمويل."
+          description="كامل سجل العمليات المسجّلة تلقائيًا — أرباح وخسائر المراكز، رسوم الصفقات، والودائع والسحب."
         />
         <div className="flex flex-col items-center gap-3 rounded-card border border-line bg-surface-2/30 p-10 text-center">
           <WalletIcon className="h-8 w-8 text-gold-fg" />
           <p className="text-sm text-zinc-200">
-            سجل العمليات التفصيلي (أرباح / خسائر / ضرائب / تمويل) خاص بالمحفظة
-            المستوردة تلقائيًا من المنصة.
+            سجل العمليات التفصيلي (أرباح / خسائر / رسوم صفقات / ودائع وسحب)
+            خاص بالمحفظة المستوردة تلقائيًا من المنصة.
           </p>
           <p className="text-2xs text-muted">
             محفظتك الحالية يدوية — سجلها الكامل موجود داخل صفحة المحفظة.
@@ -221,7 +201,7 @@ function OperationsPageInner() {
         eyebrow="Portfolio"
         icon={<HistoryIcon />}
         title="العمليات"
-        description="كامل سجل العمليات المسجّلة تلقائيًا — أرباح وخسائر المراكز، رسوم الصفقات، الضرائب، التمويل، والودائع والسحب."
+        description="كامل سجل العمليات المسجّلة تلقائيًا — أرباح وخسائر المراكز، رسوم الصفقات (عمولات وضرائب وتمويل)، والودائع والسحب والتحويلات."
         right={
           <>
             {detailError ? <Status label="تعذر التحديث" tone="down" /> : null}
@@ -248,7 +228,7 @@ function OperationsPageInner() {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         {stats.map((s) => (
           <div key={s.label} className="rounded-panel border border-line/60 bg-surface-2/30 px-3 py-2.5">
             <div className="text-2xs font-semibold text-muted">{s.label}</div>

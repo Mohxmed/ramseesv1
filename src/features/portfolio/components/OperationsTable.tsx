@@ -18,9 +18,10 @@ function fmtAmount(v: number): string {
 }
 
 /**
- * Auto-recorded operations table with the أرباح / خسائر / ضرائب / تمويل
- * filters. `limit` trims rows (wallet page keeps the last 10); `viewAllHref`
- * adds a shortcut to the full operations page when there is more to see.
+ * Auto-recorded operations table with the أرباح مراكز / خسائر مراكز /
+ * رسوم صفقات / ودائع وسحب / أخرى filters. `limit` trims rows (wallet page
+ * keeps the last 10); `viewAllHref` adds a shortcut to the full operations page
+ * when there is more to see.
  */
 export function OperationsTable({
   ops,
@@ -42,7 +43,7 @@ export function OperationsTable({
   const filtered = filterOps(ops, filter);
   const rows = filtered.slice(0, limit);
   const counts = new Map<OpFilter, number>([["all", ops.length]]);
-  for (const key of ["profit", "loss", "fee", "tax", "funding", "flow", "other"] as const) {
+  for (const key of ["profit", "loss", "fee", "flow", "other"] as const) {
     let c = 0;
     for (const o of ops) if (o.category === key) c += 1;
     counts.set(key, c);
@@ -75,11 +76,9 @@ export function OperationsTable({
                 ? "border-down/60 bg-down/15 text-down-fg"
                 : f.key === "fee"
                   ? "border-gold/60 bg-gold/15 text-gold-fg"
-                  : f.key === "tax"
-                    ? "border-warn/60 bg-warn/15 text-warn-fg"
-                    : f.key === "funding"
-                      ? "border-up/60 bg-up/15 text-up-fg"
-                      : "border-line bg-surface-2/60 text-muted";
+                  : f.key === "flow"
+                    ? "border-up/60 bg-up/15 text-up-fg"
+                    : "border-line bg-surface-2/60 text-muted";
           return (
             <button
               key={f.key}

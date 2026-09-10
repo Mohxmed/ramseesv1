@@ -9,20 +9,15 @@ import {
 import type { ImportedAccountDetailDto } from "../types";
 
 describe("bucketOf", () => {
-  it("buckets funding rows regardless of the PnL sign", () => {
-    expect(bucketOf("FUNDING", "FUNDING_FEE", -25.5)).toBe("funding");
-    expect(bucketOf("FEE", "FUNDING_FEE", 12)).toBe("funding");
-  });
-
-  it("buckets taxes from the income type", () => {
-    expect(bucketOf("FEE", "TAX", -3.2)).toBe("tax");
-    expect(bucketOf("FEE", "TAX_COMMISSION", -1.4)).toBe("tax");
-  });
-
-  it("buckets trade fees/rebates as 'fee'", () => {
+  it("buckets commissions, taxes, funding and insurance as fees", () => {
     expect(bucketOf("FEE", "COMMISSION", -2)).toBe("fee");
     expect(bucketOf("FEE", "COMMISSION_REBATE", 8)).toBe("fee");
     expect(bucketOf("FEE", "CONTRACT_REBATE", 5)).toBe("fee");
+    expect(bucketOf("FEE", "TAX", -3.2)).toBe("fee");
+    expect(bucketOf("FEE", "TAX_COMMISSION", -1.4)).toBe("fee");
+    expect(bucketOf("FUNDING", "FUNDING_FEE", -25.5)).toBe("fee");
+    expect(bucketOf("FEE", "FUNDING_FEE", 12)).toBe("fee");
+    expect(bucketOf("FEE", "INSURANCE_CLEAR", -2)).toBe("fee");
   });
 
   it("buckets realized PnL income into profit/loss by sign", () => {
@@ -37,11 +32,11 @@ describe("bucketOf", () => {
     expect(bucketOf("TRANSFER", null, null)).toBe("flow");
   });
 
-  it("buckets trade rows by signed pnl and other transactions as other", () => {
+  it("buckets trade rows by signed pnl and unmapped incomes as other", () => {
     expect(bucketOf("TRADE", null, 10)).toBe("profit");
     expect(bucketOf("TRADE", null, -10)).toBe("loss");
     expect(bucketOf("TRADE", null, 0)).toBe("other");
-    expect(bucketOf("FEE", "INSURANCE_CLEAR", -2)).toBe("other");
+    expect(bucketOf("FEE", "POSITION_CLAIM_TRANSFER", -5)).toBe("other");
   });
 });
 
@@ -76,6 +71,7 @@ const DETAIL: ImportedAccountDetailDto = {
     { id: "t5", type: "FEE", asset: "USDT", amount: 20, usdValue: 0, fee: 20, feeAsset: "USDT", income: -20, incomeType: "REALIZED_PNL", status: "CONFIRMED", timestamp: 250 },
     { id: "t6", type: "FEE", asset: "USDT", amount: 2.5, usdValue: 0, fee: 2.5, feeAsset: "USDT", income: -2.5, incomeType: "COMMISSION", status: "CONFIRMED", timestamp: 150 },
     { id: "t7", type: "WITHDRAWAL", asset: "USDT", amount: 300, usdValue: 300, fee: 0, feeAsset: null, income: null, incomeType: null, status: "CONFIRMED", timestamp: 100 },
+    { id: "t8", type: "FEE", asset: "USDT", amount: 2, usdValue: 0, fee: 2, feeAsset: "USDT", income: -2, incomeType: "INSURANCE_CLEAR", status: "CONFIRMED", timestamp: 60 },
   ],
   trades: [
     { id: "tr1", symbol: "BTCUSDT", side: "SELL", quantity: 1, price: 100, quoteAmount: 100, fee: 0.1, feeAsset: "USDT", realizedPnlUsd: 50, timestamp: 400 },
@@ -87,12 +83,12 @@ const DETAIL: ImportedAccountDetailDto = {
 describe("buildOps", () => {
   it("merges transactions and trades, newest first, with signed pnl + category", () => {
     const ops = buildOps(DETAIL);
-    expect(ops.map((o) => o.id)).toEqual(["tx:t4", "tr:tr1", "tr:tr2", "tx:t1", "tx:t5", "tx:t2", "tx:t6", "tx:t7", "tx:t3"]);
+    expect(ops.map((o) => o.id)).toEqual(["tx:t4", "tr:tr1", "tr:tr2", "tx:t1", "tx:t5", "tx:t2", "tx:t6", "tx:t7", "tx:t8", "tx:t3"]);
     const funding = ops.find((o) => o.id === "tx:t1")!;
-    expect(funding.category).toBe("funding");
+    expect(funding.category).toBe("fee");
     expect(funding.pnl).toBeCloseTo(-25.5, 6);
     const tax = ops.find((o) => o.id === "tx:t2")!;
-    expect(tax.category).toBe("tax");
+    expect(tax.category).toBe("fee");
     expect(tax.pnl).toBeCloseTo(-3.2, 6);
     const realized = ops.find((o) => o.id === "tx:t4")!;
     expect(realized.category).toBe("profit");
@@ -119,21 +115,17 @@ describe("buildOps", () => {
 });
 
 describe("computeStatement", () => {
-  it("splits positions, fees, taxes, funding and flow (ignores informational trades)", () => {
+  it("splits positions, fees and flows (ignores informational trades)", () => {
     const st = computeStatement(buildOps(DETAIL));
     expect(st.profit).toBeCloseTo(50, 6);
     expect(st.loss).toBeCloseTo(20, 6);
-    expect(st.fees).toBeCloseTo(-2.5, 6);
-    expect(st.tax).toBeCloseTo(-3.2, 6);
-    expect(st.fundingNet).toBeCloseTo(-25.5, 6);
+    expect(st.fees).toBeCloseTo(-25.5 - 3.2 - 2.5 - 2, 6);
     expect(st.flow).toBeCloseTo(1000 - 300, 6);
     expect(st.profitCount).toBe(1);
     expect(st.lossCount).toBe(1);
-    expect(st.feeCount).toBe(1);
-    expect(st.taxCount).toBe(1);
-    expect(st.fundingCount).toBe(1);
+    expect(st.feeCount).toBe(4);
     expect(st.flowCount).toBe(2);
-    expect(st.count).toBe(7);
+    expect(st.count).toBe(8);
   });
 });
 
@@ -141,16 +133,14 @@ describe("filterOps", () => {
   it("filters by category and keeps everything for 'all'", () => {
     const ops = buildOps(DETAIL);
     expect(filterOps(ops, "all").length).toBe(ops.length);
-    expect(filterOps(ops, "funding").map((o) => o.id)).toEqual(["tx:t1"]);
-    expect(filterOps(ops, "tax").map((o) => o.id)).toEqual(["tx:t2"]);
-    expect(filterOps(ops, "fee").map((o) => o.id)).toEqual(["tx:t6"]);
     expect(filterOps(ops, "profit").map((o) => o.id)).toEqual(["tx:t4"]);
     expect(filterOps(ops, "loss").map((o) => o.id)).toEqual(["tx:t5"]);
+    expect(filterOps(ops, "fee").map((o) => o.id)).toEqual(["tx:t1", "tx:t2", "tx:t6", "tx:t8"]);
     expect(filterOps(ops, "flow").map((o) => o.id)).toEqual(["tx:t7", "tx:t3"]);
     expect(filterOps(ops, "other").map((o) => o.id)).toEqual(["tr:tr1", "tr:tr2"]);
   });
 
   it("exposes the requested section chips", () => {
-    expect(OP_FILTERS.map((f) => f.key)).toEqual(["all", "profit", "loss", "fee", "tax", "funding", "flow", "other"]);
+    expect(OP_FILTERS.map((f) => f.key)).toEqual(["all", "profit", "loss", "fee", "flow", "other"]);
   });
 });

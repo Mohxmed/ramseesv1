@@ -101,14 +101,14 @@ export type PortfolioMeta = PortfolioSummary | ImportedPortfolioSummary;
 /**
  * Operations feed classification — the sections the user filters by, derived
  * live from each row's type / incomeType / realized PnL sign:
- *  - profit  → أرباح المراكز (REALIZED_PNL > 0)
- *  - loss    → خسائر المراكز (REALIZED_PNL < 0)
- *  - fee     → رسوم الصفقات (commissions/rebates)
- *  - tax     → الضرائب (TAX*)
- *  - funding → التمويل (FUNDING_FEE)
- *  - flow    → الودائع والسحب (deposits / withdrawals / transfers)
+ *  - profit → أرباح المراكز (REALIZED_PNL > 0)
+ *  - loss   → خسائر المراكز (REALIZED_PNL < 0)
+ *  - fee    → رسوم الصفقات (commissions, taxes, funding, insurance — all
+ *             wallet costs; rebates reduce them)
+ *  - flow   → الودائع والسحب والتحويلات (deposits / withdrawals / transfers)
+ *  - other  → الباقي (غير مصنّف)
  */
-export type OpCategory = "profit" | "loss" | "fee" | "tax" | "funding" | "flow" | "other";
+export type OpCategory = "profit" | "loss" | "fee" | "flow" | "other";
 export type OpFilter = OpCategory | "all";
 
 /** A single auto-recorded operation shown in the imported wallet's table. */

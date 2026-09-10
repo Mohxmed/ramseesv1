@@ -39,6 +39,7 @@ import {
   idempotentId,
 } from "./portfolioDb";
 import { getPrices } from "./priceProvider";
+import { getTransactions, getTrades } from "./queries";
 import { buildAccountSnapshot, valuateAccount } from "./engine/portfolio";
 import { reconcileAssets, reconcileEquity, type ReconciliationVerdict } from "./reconciliation";
 import { syncImportedPortfolioMeta } from "./portfolioDb";
@@ -201,19 +202,36 @@ function discoverSymbols(
   return [...symbols].slice(0, 200);
 }
 
-function accumulateFinancials(
+/**
+ * Recompute financials from ALL stored, confirmed rows so the account wallet,
+ * the operations feed and the dashboard card necessarily agree (no window /
+ * drift bugs). Rules mirror `bucketOf`/`computeStatement` in the operations
+ * feed:
+ *  - DEPOSIT / TRANSFER-in increase netDeposits; WITHDRAWAL / TRANSFER-out
+ *    increase netWithdrawals (a futures wallet receives its funds as transfers,
+ *    which is exactly what "صافي الإيداع" must reflect there).
+ *  - REALIZED_PNL income is realized position P&L (authoritative for futures).
+ *  - Every other fee-family row (commissions, taxes, funding, insurance) is a
+ *    wallet cost → totalFees (rebates reduce it).
+ */
+async function recomputeFinancials(
   target: {
     netDeposits: number;
     netWithdrawals: number;
     totalFees: number;
     realizedPnl: number;
   },
-  insertedTx: StoredTransaction[],
-  insertedTrades: StoredTrade[],
+  storedTx: StoredTransaction[],
+  storedTrades: StoredTrade[],
   accountType: AccountType
-): void {
-  for (const tx of insertedTx) {
+): Promise<void> {
+  target.netDeposits = 0;
+  target.netWithdrawals = 0;
+  target.totalFees = 0;
+  target.realizedPnl = 0;
+  for (const tx of storedTx) {
     if (tx.status !== "CONFIRMED") continue;
+    const income = typeof tx.metadata?.income === "number" ? tx.metadata.income : null;
     switch (tx.type) {
       case "DEPOSIT":
         target.netDeposits += tx.amount;
@@ -221,31 +239,32 @@ function accumulateFinancials(
       case "WITHDRAWAL":
         target.netWithdrawals += tx.amount;
         break;
+      case "TRANSFER":
+        // Signed wallet movements; rows persisted before the sign-preserving
+        // mapper carry no income and are skipped.
+        if (income != null) {
+          if (income >= 0) target.netDeposits += income;
+          else target.netWithdrawals += -income;
+        }
+        break;
+      case "FUNDING":
+        // Signed cost/income of the margin wallet (positive = received). Rows
+        // without metadata.income fall back to "paid" (a cost).
+        target.totalFees += -(income != null ? income : -tx.amount);
+        break;
       case "FEE": {
-        // The income feed is the authoritative economic ledger for futures:
-        // commissions & taxes are fees; REALIZED_PNL rows are realized PnL
-        // events (they mirror — but fully supersede — per-fill trade PnL).
-        const isRealizedPnl = tx.metadata?.incomeType === "REALIZED_PNL";
-        if (isRealizedPnl && typeof tx.metadata?.income === "number") {
-          target.realizedPnl += tx.metadata.income;
+        if (tx.metadata?.incomeType === "REALIZED_PNL" && income != null) {
+          target.realizedPnl += income;
         } else {
-          target.totalFees += tx.fee;
+          target.totalFees += income != null ? -income : tx.fee;
         }
         break;
       }
-      case "FUNDING":
-        // Funding is a signed cost/income of the margin wallet (positive =
-        // received). Treated here as a fee offset so `realizedPnl` stays equal
-        // to position P&L (REALIZED_PNL only) — matching the wallet, operations
-        // page and dashboard card. Rows persisted before the sign-preserving
-        // mapper lack metadata.income and fall back to "paid" (a cost).
-        target.totalFees += -(typeof tx.metadata?.income === "number" ? tx.metadata.income : -tx.amount);
-        break;
       default:
         break;
     }
   }
-  for (const trade of insertedTrades) {
+  for (const trade of storedTrades) {
     if (accountType !== "FUTURES" && trade.realizedPnlUsd != null && Number.isFinite(trade.realizedPnlUsd)) {
       target.realizedPnl += trade.realizedPnlUsd;
     }
@@ -330,7 +349,12 @@ async function runSync(uid: string, accountId: string, mode: SyncMode, manager: 
     fin.baselineEquity = valuation.totalEquity;
     fin.baselineAt = startedAt;
   }
-  accumulateFinancials(fin, txResult.inserted, tradeResult.inserted, account.accountType);
+  await recomputeFinancials(
+    fin,
+    await getTransactions(uid, account.id, { limit: 1000 }),
+    await getTrades(uid, account.id, { limit: 1000 }),
+    account.accountType
+  );
   fin.currentEquity = valuation.totalEquity;
   fin.lastValuedAt = valuation.computedAt;
   fin.unrealizedPnl = valuation.unrealizedPnl;
