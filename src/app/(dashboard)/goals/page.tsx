@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useGoals } from "@/features/goals/hooks/useGoals";
 import { GoalsHeader } from "@/features/goals/components/GoalsHeader";
 import { WalletStatusBanner } from "@/features/goals/components/WalletStatusBanner";
+import { LoadIssueBanner } from "@/features/goals/components/LoadIssueBanner";
 import { ProgressOverview } from "@/features/goals/components/ProgressOverview";
 import { ProgressBar } from "@/features/goals/components/ProgressBar";
 import { GoalBoard } from "@/features/goals/components/GoalBoard";
@@ -22,6 +23,7 @@ export default function GoalsPage() {
     loading,
     progress,
     saveState,
+    loadIssue,
     derived,
     wallet,
     reset,
@@ -76,6 +78,8 @@ export default function GoalsPage() {
           إعادة تعيين الأهداف
         </button>
       </div>
+
+      <LoadIssueBanner issue={loadIssue} />
 
       <WalletStatusBanner wallet={wallet} />
 

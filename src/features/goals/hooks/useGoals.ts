@@ -20,7 +20,12 @@ import {
   totalGrowthForMonth,
 } from "../utils";
 import { GOALS_CONFIG } from "../constants";
-import type { GoalsData, GoalsWalletContext, DerivedGoalGrowth } from "../types";
+import type {
+  GoalsData,
+  GoalsDocument,
+  GoalsWalletContext,
+  DerivedGoalGrowth,
+} from "../types";
 import type { ImportedPortfolioSummary, PortfolioMeta } from "@/features/portfolio/types";
 
 type SaveState = "idle" | "saving" | "success" | "error";
@@ -107,6 +112,7 @@ export function useGoals() {
   const [rawData, setRawData] = useState<GoalsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [loadIssue, setLoadIssue] = useState<string | null>(null);
 
   // Realtime wallet meta re-renders the hook; the load effect reads the freshest
   // snapshot through this ref (updated in an effect, never during render) and
@@ -160,10 +166,21 @@ async function awaitUsableWallet(
     async function load() {
       if (!userId) return;
       setLoading(true);
+      // The saved-plan read must NEVER blank the page: a rejected read (e.g.
+      // security rules not deployed yet) just falls back to a fresh, read-only
+      // plan — loadIssue explains the fallback in a visible banner instead.
+      let doc: GoalsDocument | null = null;
       try {
-        const doc = await goalsService.getProgress(userId);
-        const anchor = await awaitUsableWallet(walletMetaRef);
-        const walletAnchor = Number.isFinite(anchor) ? anchor : undefined;
+        doc = await goalsService.getProgress(userId);
+      } catch (e) {
+        doc = null;
+        setLoadIssue(
+          e instanceof Error ? e.message : "تعذر قراءة الأهداف المحفوظة"
+        );
+      }
+      const anchor = await awaitUsableWallet(walletMetaRef);
+      const walletAnchor = Number.isFinite(anchor) ? anchor : undefined;
+      try {
         if (doc) {
           const dataOnly: GoalsData = {
             currentMove: doc.currentMove,
@@ -177,7 +194,9 @@ async function awaitUsableWallet(
           };
           const adapted = adaptTargets(dataOnly, derived);
           const applied =
-            walletAnchor != null ? rebaseToWallet(adapted, walletAnchor) : adapted;
+            walletAnchor != null
+              ? rebaseToWallet(adapted, walletAnchor)
+              : adapted;
           setRawData(applied);
           // Persistence is best-effort here: a rejected write (e.g. rules not
           // deployed yet) must NEVER blank the page — the rebased ladder is
@@ -194,8 +213,11 @@ async function awaitUsableWallet(
           setRawData(initial);
           goalsService.saveProgress(userId, initial).catch(() => {});
         }
+        if (doc) setLoadIssue(null);
       } catch {
-        setRawData(null);
+        // Last-resort fallback: never blank the page — render a constant-anchored
+        // plan so the goals board always has data behind it.
+        setRawData((prev) => prev ?? createInitialData(derived, undefined));
       } finally {
         setLoading(false);
       }
@@ -254,6 +276,7 @@ async function awaitUsableWallet(
     loading,
     progress,
     saveState,
+    loadIssue,
     derived,
     wallet,
     reset,
