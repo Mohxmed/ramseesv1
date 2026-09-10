@@ -50,6 +50,10 @@ export const API_ENDPOINTS = {
   MARKET_OVERVIEW:
     "https://api.coingecko.com/api/v3/coins/bitcoin?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false",
   GLOBAL_MARKET: "https://api.coingecko.com/api/v3/global",
+  /** Same-origin proxies (server-to-server) — CoinGecko sends no CORS headers
+   *  and its free tier rate-limits client polling. */
+  MARKET_OVERVIEW_PROXY: "/api/coingecko?kind=bitcoin",
+  GLOBAL_MARKET_PROXY: "/api/coingecko?kind=global",
   FUTURES_FUNDING:
     "https://fapi.binance.com/fapi/v1/fundingRate?symbol=BTCUSDT&limit=8",
   FUTURES_FUNDING_RATE:

@@ -189,11 +189,11 @@ export const spotApi = {
 
 export const marketApi = {
   async overview(): Promise<CoinGeckoCoinRaw> {
-    return fetchJson<CoinGeckoCoinRaw>(API_ENDPOINTS.MARKET_OVERVIEW);
+    return fetchJson<CoinGeckoCoinRaw>(API_ENDPOINTS.MARKET_OVERVIEW_PROXY);
   },
 
   async global(): Promise<CoinGeckoGlobalRaw> {
-    return fetchJson<CoinGeckoGlobalRaw>(API_ENDPOINTS.GLOBAL_MARKET);
+    return fetchJson<CoinGeckoGlobalRaw>(API_ENDPOINTS.GLOBAL_MARKET_PROXY);
   },
 };
 
