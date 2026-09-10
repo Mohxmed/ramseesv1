@@ -12,9 +12,11 @@ import type {
  * signed `pnl` (the money effect) and is bucketed by its nature first, then by
  * the PnL sign.
  *
- * The income feed is the authoritative economic ledger for futures: REALIZED_PNL
- * rows cover every closed position (without the per-symbol scoping of the trade
- * history), so trade fills are informational only on that path.
+ * Futures closes are reported twice: once in the trade feed (userTrades, per
+ * fill with an explicit realizedPnlUsd) and once in the income feed
+ * (REALIZED_PNL). The trade history is scoped per-symbol (so partial), and the
+ * income feed is complete but can miss closes — we merge both and dedupe closes
+ * that appear in both feeds so a realized PnL is never counted twice.
  */
 
 const TX_LABELS: Record<string, string> = {
@@ -84,6 +86,18 @@ export function bucketOf(
 export function buildOps(detail: ImportedAccountDetailDto | null): ImportedOpRow[] {
   if (!detail) return [];
   const isFutures = detail.account?.accountType === "FUTURES";
+  // Futures closes with a realized PnL carry it authoritatively in the trade
+  // feed (userTrades). A matching REALIZED_PNL income row is the same close —
+  // we keep the trade fill and mark the income row as informational ("أخرى").
+  const closingFills = isFutures
+    ? detail.trades.filter((tr) => tr.realizedPnlUsd != null && tr.realizedPnlUsd !== 0)
+    : [];
+  const isDupeClose = (income: number, incomeTs: number) =>
+    closingFills.some(
+      (tr) =>
+        Math.abs(Math.abs(tr.realizedPnlUsd!) - Math.abs(income)) < 1e-6 &&
+        Math.abs(tr.timestamp - incomeTs) <= 120_000
+    );
   const rows: ImportedOpRow[] = [
     ...detail.transactions.map((t) => {
       const incomeType = t.incomeType ?? null;
@@ -92,6 +106,10 @@ export function buildOps(detail: ImportedAccountDetailDto | null): ImportedOpRow
       // money effect is the amount itself. Everything else keeps the income.
       const pnl = income ?? (t.type === "DEPOSIT" ? t.amount : t.type === "WITHDRAWAL" ? -t.amount : null);
       const incomeLabel = incomeType != null ? INCOME_LABELS[incomeType] : undefined;
+      let category = bucketOf(t.type, incomeType, pnl);
+      if (isFutures && incomeType === "REALIZED_PNL" && income != null && isDupeClose(income, t.timestamp)) {
+        category = "other";
+      }
       return {
         id: `tx:${t.id}`,
         kind: "transaction" as const,
@@ -107,7 +125,7 @@ export function buildOps(detail: ImportedAccountDetailDto | null): ImportedOpRow
         status: t.status ?? null,
         timestamp: t.timestamp,
         pnl,
-        category: bucketOf(t.type, incomeType, pnl),
+        category,
       };
     }),
     ...detail.trades.map((tr) => {
@@ -128,11 +146,10 @@ export function buildOps(detail: ImportedAccountDetailDto | null): ImportedOpRow
         status: null,
         timestamp: tr.timestamp,
         pnl,
-        // For futures, realized PnL is reported authoritatively by the income
-        // feed (REALIZED_PNL rows cover every closed position, without the
-        // per-symbol scoping of the trade history). Trade fills stay visible
-        // as informational rows so their PnL is not double-counted.
-        category: isFutures ? "other" : bucketOf("TRADE", null, pnl),
+        // Futures fills only close a position when the platform reports a
+        // realized PnL; fills with zero are opens/partials → informational.
+        // Spot fills carry their own realized PnL when available.
+        category: isFutures && (pnl == null || pnl === 0) ? "other" : bucketOf("TRADE", null, pnl),
       };
     }),
   ];
@@ -174,8 +191,8 @@ export function computeStatement(ops: ImportedOpRow[]): OpStatement {
   };
   for (const o of ops) {
     if (o.pnl == null) continue;
-    // Informational rows (e.g. futures trade fills, whose PnL is authoritative
-    // in the REALIZED_PNL income feed) never feed the statement.
+    // Informational rows (futures fills with no realized PnL, closes mirrored
+    // from both feeds, bonuses/claims, …) never feed the statement.
     if (o.category === "other") continue;
     st.count += 1;
     switch (o.category) {

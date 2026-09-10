@@ -210,7 +210,9 @@ function discoverSymbols(
  *  - DEPOSIT / TRANSFER-in increase netDeposits; WITHDRAWAL / TRANSFER-out
  *    increase netWithdrawals (a futures wallet receives its funds as transfers,
  *    which is exactly what "صافي الإيداع" must reflect there).
- *  - REALIZED_PNL income is realized position P&L (authoritative for futures).
+ *  - REALIZED_PNL income is realized position P&L. Futures closes are also
+ *    reported in the trade feed (userTrades) — the same close is only counted
+ *    once (the income row is skipped when a matching fill exists).
  *  - Every other fee-family row (commissions, taxes, funding, insurance) is a
  *    wallet cost → totalFees (rebates reduce it).
  */
@@ -229,6 +231,20 @@ async function recomputeFinancials(
   target.netWithdrawals = 0;
   target.totalFees = 0;
   target.realizedPnl = 0;
+  // Futures closes are reported twice (userTrades fill + income REALIZED_PNL
+  // row). The trade feed carries the authoritative per-close PnL; when the same
+  // close exists there, we keep the trade's value and skip the income row so
+  // realized PnL is never double-counted.
+  const closingFills =
+    accountType === "FUTURES"
+      ? storedTrades.filter((tx) => tx.realizedPnlUsd != null && tx.realizedPnlUsd !== 0)
+      : [];
+  const isDupeClose = (income: number, incomeTs: number) =>
+    closingFills.some(
+      (trade) =>
+        Math.abs(Math.abs(trade.realizedPnlUsd!) - Math.abs(income)) < 1e-6 &&
+        Math.abs(trade.timestamp - incomeTs) <= 120_000
+    );
   for (const tx of storedTx) {
     if (tx.status !== "CONFIRMED") continue;
     const income = typeof tx.metadata?.income === "number" ? tx.metadata.income : null;
@@ -254,7 +270,11 @@ async function recomputeFinancials(
         break;
       case "FEE": {
         if (tx.metadata?.incomeType === "REALIZED_PNL" && income != null) {
-          target.realizedPnl += income;
+          // Skip income rows that mirror a close already captured in the trade
+          // feed; unmatched rows cover closes outside the trade history.
+          if (!(accountType === "FUTURES" && isDupeClose(income, tx.timestamp))) {
+            target.realizedPnl += income;
+          }
         } else {
           target.totalFees += income != null ? -income : tx.fee;
         }
@@ -265,7 +285,10 @@ async function recomputeFinancials(
     }
   }
   for (const trade of storedTrades) {
-    if (accountType !== "FUTURES" && trade.realizedPnlUsd != null && Number.isFinite(trade.realizedPnlUsd)) {
+    if (trade.realizedPnlUsd == null || !Number.isFinite(trade.realizedPnlUsd)) continue;
+    // Spot fills report no realized PnL; futures closes carry the authoritative
+    // realized value here (matched income rows are already skipped above).
+    if (accountType === "FUTURES" || trade.realizedPnlUsd !== 0) {
       target.realizedPnl += trade.realizedPnlUsd;
     }
   }

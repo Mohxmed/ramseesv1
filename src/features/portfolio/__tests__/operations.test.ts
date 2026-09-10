@@ -90,10 +90,6 @@ describe("buildOps", () => {
     const tax = ops.find((o) => o.id === "tx:t2")!;
     expect(tax.category).toBe("fee");
     expect(tax.pnl).toBeCloseTo(-3.2, 6);
-    const realized = ops.find((o) => o.id === "tx:t4")!;
-    expect(realized.category).toBe("profit");
-    expect(realized.pnl).toBe(50);
-    expect(realized.typeLabel).toBe("ربح/خسارة المركز");
     const fee = ops.find((o) => o.id === "tx:t6")!;
     expect(fee.category).toBe("fee");
     expect(fee.pnl).toBeCloseTo(-2.5, 6);
@@ -103,10 +99,44 @@ describe("buildOps", () => {
     const withdrawal = ops.find((o) => o.id === "tx:t7")!;
     expect(withdrawal.category).toBe("flow");
     expect(withdrawal.pnl).toBe(-300);
-    const trade = ops.find((o) => o.id === "tr:tr1")!;
-    expect(trade.category).toBe("other");
-    expect(trade.pnl).toBe(50);
-    expect(trade.typeLabel).toBe("صفقة بيع");
+  });
+
+  it("counts futures closes once: trade fill carries the PnL, the mirrored income row is informational", () => {
+    const ops = buildOps(DETAIL);
+    // t4 (+50 @500) mirrors tr1 (+50 @400); t5 (−20 @250) mirrors tr2 (−20 @350).
+    const profitClose = ops.find((o) => o.id === "tr:tr1")!;
+    expect(profitClose.category).toBe("profit");
+    expect(profitClose.pnl).toBe(50);
+    expect(profitClose.typeLabel).toBe("صفقة بيع");
+    const lossClose = ops.find((o) => o.id === "tr:tr2")!;
+    expect(lossClose.category).toBe("loss");
+    expect(lossClose.pnl).toBe(-20);
+    expect(ops.find((o) => o.id === "tx:t4")!.category).toBe("other");
+    expect(ops.find((o) => o.id === "tx:t5")!.category).toBe("other");
+  });
+
+  it("does not double count a close reported by both feeds", () => {
+    const d: ImportedAccountDetailDto = {
+      ...DETAIL,
+      trades: [
+        ...DETAIL.trades,
+        { ...DETAIL.trades[0], id: "tr-dup", realizedPnlUsd: 30, timestamp: 600 },
+      ],
+      transactions: [
+        ...DETAIL.transactions,
+        {
+          ...DETAIL.transactions[0],
+          id: "t-dup",
+          type: "FEE",
+          fee: 30,
+          income: 30,
+          incomeType: "REALIZED_PNL",
+          timestamp: 610,
+        },
+      ],
+    };
+    const st = computeStatement(buildOps(d));
+    expect(st.profit).toBeCloseTo(50 + 30, 6); // tr1 + tr-dup, t-dup deduped
   });
 
   it("returns [] for a null detail", () => {
@@ -133,11 +163,11 @@ describe("filterOps", () => {
   it("filters by category and keeps everything for 'all'", () => {
     const ops = buildOps(DETAIL);
     expect(filterOps(ops, "all").length).toBe(ops.length);
-    expect(filterOps(ops, "profit").map((o) => o.id)).toEqual(["tx:t4"]);
-    expect(filterOps(ops, "loss").map((o) => o.id)).toEqual(["tx:t5"]);
+    expect(filterOps(ops, "profit").map((o) => o.id)).toEqual(["tr:tr1"]);
+    expect(filterOps(ops, "loss").map((o) => o.id)).toEqual(["tr:tr2"]);
     expect(filterOps(ops, "fee").map((o) => o.id)).toEqual(["tx:t1", "tx:t2", "tx:t6", "tx:t8"]);
     expect(filterOps(ops, "flow").map((o) => o.id)).toEqual(["tx:t7", "tx:t3"]);
-    expect(filterOps(ops, "other").map((o) => o.id)).toEqual(["tr:tr1", "tr:tr2"]);
+    expect(filterOps(ops, "other").map((o) => o.id)).toEqual(["tx:t4", "tx:t5"]);
   });
 
   it("exposes the requested section chips", () => {
