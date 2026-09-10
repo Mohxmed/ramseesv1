@@ -58,6 +58,8 @@ const DETAIL: ImportedAccountDetailDto = {
     { id: "t1", type: "FUNDING", asset: "USDT", amount: 25.5, usdValue: 0, fee: 0, feeAsset: null, income: -25.5, incomeType: "FUNDING_FEE", status: "CONFIRMED", timestamp: 300 },
     { id: "t2", type: "FEE", asset: "USDT", amount: 3.2, usdValue: 0, fee: 3.2, feeAsset: "USDT", income: -3.2, incomeType: "TAX", status: "CONFIRMED", timestamp: 200 },
     { id: "t3", type: "DEPOSIT", asset: "USDT", amount: 1000, usdValue: 1000, fee: 0, feeAsset: null, income: null, incomeType: null, status: "CONFIRMED", timestamp: 100 },
+    { id: "t4", type: "FEE", asset: "USDT", amount: 50, usdValue: 0, fee: 50, feeAsset: "USDT", income: 50, incomeType: "REALIZED_PNL", status: "CONFIRMED", timestamp: 500 },
+    { id: "t5", type: "FEE", asset: "USDT", amount: 20, usdValue: 0, fee: 20, feeAsset: "USDT", income: -20, incomeType: "REALIZED_PNL", status: "CONFIRMED", timestamp: 250 },
   ],
   trades: [
     { id: "tr1", symbol: "BTCUSDT", side: "SELL", quantity: 1, price: 100, quoteAmount: 100, fee: 0.1, feeAsset: "USDT", realizedPnlUsd: 50, timestamp: 400 },
@@ -69,17 +71,21 @@ const DETAIL: ImportedAccountDetailDto = {
 describe("buildOps", () => {
   it("merges transactions and trades, newest first, with signed pnl + category", () => {
     const ops = buildOps(DETAIL);
-    expect(ops.map((o) => o.id)).toEqual(["tr:tr1", "tr:tr2", "tx:t1", "tx:t2", "tx:t3"]);
+    expect(ops.map((o) => o.id)).toEqual(["tx:t4", "tr:tr1", "tr:tr2", "tx:t1", "tx:t5", "tx:t2", "tx:t3"]);
     const funding = ops.find((o) => o.id === "tx:t1")!;
     expect(funding.category).toBe("funding");
     expect(funding.pnl).toBeCloseTo(-25.5, 6);
     const tax = ops.find((o) => o.id === "tx:t2")!;
     expect(tax.category).toBe("tax");
     expect(tax.pnl).toBeCloseTo(-3.2, 6);
-    const profit = ops.find((o) => o.id === "tr:tr1")!;
-    expect(profit.category).toBe("profit");
-    expect(profit.pnl).toBe(50);
-    expect(profit.typeLabel).toBe("صفقة بيع");
+    const realized = ops.find((o) => o.id === "tx:t4")!;
+    expect(realized.category).toBe("profit");
+    expect(realized.pnl).toBe(50);
+    expect(realized.typeLabel).toBe("صافي الربح المكتمل");
+    const trade = ops.find((o) => o.id === "tr:tr1")!;
+    expect(trade.category).toBe("other");
+    expect(trade.pnl).toBe(50);
+    expect(trade.typeLabel).toBe("صفقة بيع");
     const deposit = ops.find((o) => o.id === "tx:t3")!;
     expect(deposit.category).toBe("other");
   });
@@ -90,7 +96,7 @@ describe("buildOps", () => {
 });
 
 describe("computeStatement", () => {
-  it("splits gross profits, gross losses, taxes and funding", () => {
+  it("splits gross profits, gross losses, taxes and funding (ignores informational trades)", () => {
     const st = computeStatement(buildOps(DETAIL));
     expect(st.profit).toBeCloseTo(50, 6);
     expect(st.loss).toBeCloseTo(20 + 3.2 + 25.5, 6);
@@ -107,10 +113,10 @@ describe("filterOps", () => {
   it("filters by category and keeps everything for 'all'", () => {
     const ops = buildOps(DETAIL);
     expect(filterOps(ops, "all").length).toBe(ops.length);
-    expect(filterOps(ops, "funding").map((o) => o.category)).toEqual(["funding"]);
-    expect(filterOps(ops, "tax").map((o) => o.category)).toEqual(["tax"]);
-    expect(filterOps(ops, "profit").map((o) => o.category)).toEqual(["profit"]);
-    expect(filterOps(ops, "loss").map((o) => o.category)).toEqual(["loss"]);
+    expect(filterOps(ops, "funding").map((o) => o.id)).toEqual(["tx:t1"]);
+    expect(filterOps(ops, "tax").map((o) => o.id)).toEqual(["tx:t2"]);
+    expect(filterOps(ops, "profit").map((o) => o.id)).toEqual(["tx:t4"]);
+    expect(filterOps(ops, "loss").map((o) => o.id)).toEqual(["tx:t5"]);
   });
 
   it("exposes the four requested filter chips", () => {

@@ -49,8 +49,8 @@ export interface ExchangeAdapter {
 
   getWithdrawals(creds: ExchangeCredentials, window?: ExchangeDataWindow): Promise<ExchangeTransaction[]>;
 
-  /** Funding income (perpetual funding payments) history. */
-  getFundingHistory(creds: ExchangeCredentials, accountType: AccountType, window?: ExchangeDataWindow): Promise<ExchangeTransaction[]>;
+  /** Income history (funding payments, commissions, taxes, realized PnL…). */
+  getIncomeHistory(creds: ExchangeCredentials, accountType: AccountType, window?: ExchangeDataWindow): Promise<ExchangeTransaction[]>;
 
   /** Optional platform account-history snapshots. */
   getAccountSnapshots?(creds: ExchangeCredentials, window?: ExchangeDataWindow): Promise<unknown[]>;

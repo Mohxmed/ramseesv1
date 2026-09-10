@@ -55,11 +55,11 @@ export function useImportedPortfolio(accountId: string, limit = 50) {
     };
   }, [accountId, refresh]);
 
-  const syncNow = useCallback(async (): Promise<boolean> => {
+  const syncNow = useCallback(async (mode: "INITIAL" | "INCREMENTAL" = "INCREMENTAL"): Promise<boolean> => {
     if (!accountId) return false;
     setSyncingNow(true);
     try {
-      await exchangesApi.sync(accountId, "INCREMENTAL");
+      await exchangesApi.sync(accountId, mode);
       setError(null);
       return true;
     } catch (e) {

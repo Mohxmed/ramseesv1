@@ -61,9 +61,9 @@ export async function POST(
     const body = (await req.json().catch(() => null)) as { mode?: string } | null;
 
     const mode = body?.mode === "INITIAL" ? "INITIAL" : "INCREMENTAL";
-    if (mode === "INITIAL" && account.lastSuccessfulSync != null) {
-      return NextResponse.json({ error: "الحساب مُزامن مسبقًا — استخدم المزامنة المتزايدة." }, { status: 400 });
-    }
+    // INITIAL is allowed at any time — sync is idempotent (upserts keyed by
+    // externalId, financials accumulate from inserted rows only), so a full
+    // re-sync is a safe way to backfill history after a format/source change.
 
     const sync = await startBackgroundSync(uid, id, mode);
     if (sync.inProgress) {

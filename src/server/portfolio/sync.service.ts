@@ -19,7 +19,7 @@
  */
 
 import { getAdapter } from "../exchanges";
-import type { ExchangeBalance, ExchangeCredentials, ExchangeDataWindow, ExchangeOrder, ExchangePosition } from "../exchanges/core";
+import type { ExchangeBalance, ExchangeCredentials, ExchangeDataWindow, ExchangeOrder, ExchangePosition, AccountType } from "../exchanges/core";
 import { decryptSecret } from "./vault";
 import {
   getAccount,
@@ -167,7 +167,7 @@ async function fetchAll(
     }
   }
   if (isFutures && caps.supportsFunding) {
-    for (const f of await adapter.getFundingHistory(creds, accountType, window)) {
+    for (const f of await adapter.getIncomeHistory(creds, accountType, window)) {
       transactions.push({ ...f, id: idempotentId(f.exchange, account.id, f.externalId), source: account.exchangeType, userId: account.userId, accountId: account.id, syncedAt: Date.now(), createdAt: Date.now() });
     }
   }
@@ -209,7 +209,8 @@ function accumulateFinancials(
     realizedPnl: number;
   },
   insertedTx: StoredTransaction[],
-  insertedTrades: StoredTrade[]
+  insertedTrades: StoredTrade[],
+  accountType: AccountType
 ): void {
   for (const tx of insertedTx) {
     if (tx.status !== "CONFIRMED") continue;
@@ -220,19 +221,32 @@ function accumulateFinancials(
       case "WITHDRAWAL":
         target.netWithdrawals += tx.amount;
         break;
-      case "FEE":
-        target.totalFees += tx.fee;
+      case "FEE": {
+        // The income feed is the authoritative economic ledger for futures:
+        // commissions & taxes are fees; REALIZED_PNL rows are realized PnL
+        // events (they mirror — but fully supersede — per-fill trade PnL).
+        const isRealizedPnl = tx.metadata?.incomeType === "REALIZED_PNL";
+        if (isRealizedPnl && typeof tx.metadata?.income === "number") {
+          target.realizedPnl += tx.metadata.income;
+        } else {
+          target.totalFees += tx.fee;
+        }
         break;
+      }
       case "FUNDING":
-        // Funding is realized income per exchange income records.
-        target.realizedPnl += tx.amount;
+        // Funding income is signed (positive = received, negative = paid).
+        // Rows persisted before the sign-preserving mapper lack metadata.income
+        // and fall back to the absolute amount; a full re-sync restores it.
+        target.realizedPnl += typeof tx.metadata?.income === "number" ? tx.metadata.income : tx.amount;
         break;
       default:
         break;
     }
   }
   for (const trade of insertedTrades) {
-    if (trade.realizedPnlUsd != null && Number.isFinite(trade.realizedPnlUsd)) target.realizedPnl += trade.realizedPnlUsd;
+    if (accountType !== "FUTURES" && trade.realizedPnlUsd != null && Number.isFinite(trade.realizedPnlUsd)) {
+      target.realizedPnl += trade.realizedPnlUsd;
+    }
   }
 }
 
@@ -314,7 +328,7 @@ async function runSync(uid: string, accountId: string, mode: SyncMode, manager: 
     fin.baselineEquity = valuation.totalEquity;
     fin.baselineAt = startedAt;
   }
-  accumulateFinancials(fin, txResult.inserted, tradeResult.inserted);
+  accumulateFinancials(fin, txResult.inserted, tradeResult.inserted, account.accountType);
   fin.currentEquity = valuation.totalEquity;
   fin.lastValuedAt = valuation.computedAt;
   fin.unrealizedPnl = valuation.unrealizedPnl;

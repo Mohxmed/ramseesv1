@@ -123,4 +123,20 @@ describe("deposit/withdrawal/funding mappers", () => {
     expect(f.metadata?.incomeType).toBe("FUNDING_FEE");
     expect(f.metadata?.income).toBeCloseTo(-25.5, 6);
   });
+
+  it.each([
+    ["COMMISSION", -0.4],
+    ["REALIZED_PNL", 120],
+    ["REALIZED_PNL", -30],
+    ["TAX", -5.2],
+    ["TAX_COMMISSION", -1.3],
+    ["INSURANCE_CLEAR", -12],
+    ["COMMISSION_REBATE", 8],
+  ] as const)("maps %s income (non-funding) as FEE with signed income", (incomeType, income) => {
+    const f = mapFuturesIncome({ tranId: 100, incomeType, income: String(income), asset: "USDT", time: 1_700_000_000_000 } as RawFuturesIncome, FUT_KEY);
+    expect(f.type).toBe("FEE");
+    expect(f.metadata?.incomeType).toBe(incomeType);
+    expect(f.metadata?.income).toBeCloseTo(income, 6);
+    expect(f.amount).toBeCloseTo(Math.abs(income), 6);
+  });
 });

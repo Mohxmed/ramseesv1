@@ -406,6 +406,10 @@ export function mapFuturesIncome(
   raw: RawFuturesIncome,
   accountKey: { exchange: ExchangeType; accountId: string; accountType: AccountType }
 ): ExchangeTransaction {
+  // REALIZED_PNL rows are realized PnL events (one per closed position / fill);
+  // the rest (funding, commissions, taxes, insurance, bonuses) are fees or
+  // income and stay marked as fees/funding. The signed `income` and the raw
+  // `incomeType` are preserved in metadata for the operations feed.
   const type = raw.incomeType === "FUNDING_FEE" ? "FUNDING" : "FEE";
   const income = toAmount(raw.income, "income");
   return {

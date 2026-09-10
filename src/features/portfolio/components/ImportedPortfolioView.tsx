@@ -69,13 +69,24 @@ export function ImportedPortfolioView({ meta }: { meta: ImportedPortfolioSummary
             <Status label={st.label} tone={st.tone} pulse={st.pulse} />
             <button
               type="button"
-              onClick={() => void syncNow()}
+              onClick={() => void syncNow("INCREMENTAL")}
               disabled={syncingNow || isSyncing}
               className="flex h-8 items-center gap-1.5 rounded-panel bg-gold/10 px-3 text-xs font-bold text-gold-fg ring-1 ring-gold/40 transition-colors hover:bg-gold/20 disabled:opacity-60"
             >
               <RefreshIcon className={syncingNow ? "animate-spin" : ""} />
               {syncingNow || isSyncing ? "جارٍ المزامنة…" : "مزامنة الآن"}
             </button>
+            {!isSyncing && (
+              <button
+                type="button"
+                onClick={() => void syncNow("INITIAL")}
+                disabled={syncingNow}
+                className="flex h-8 items-center rounded-panel px-3 text-xs font-semibold text-muted ring-1 ring-line/60 transition-colors hover:bg-surface-2 hover:text-foreground disabled:opacity-60"
+                title="إعادة سحب كامل سجل العمليات من المنصة (يُستخدم لاسترداد الخسائر والضرائب والرسوم القديمة)"
+              >
+                إعادة مزامنة كاملة
+              </button>
+            )}
           </>
         }
       />

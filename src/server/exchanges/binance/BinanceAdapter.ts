@@ -345,7 +345,7 @@ return (raw ?? []).map((r) => mapSpotOrder(r));
     return rows.map((r) => mapWithdrawal(r, key));
   }
 
-  async getFundingHistory(creds: ExchangeCredentials, accountType: AccountType, window?: ExchangeDataWindow): Promise<ExchangeTransaction[]> {
+  async getIncomeHistory(creds: ExchangeCredentials, accountType: AccountType, window?: ExchangeDataWindow): Promise<ExchangeTransaction[]> {
     if (accountType !== "FUTURES") return [];
     const key = {
       exchange: this.exchangeType,
@@ -358,7 +358,7 @@ return (raw ?? []).map((r) => mapSpotOrder(r));
           const raw = await this.rest.signedGet<RawFuturesIncome[]>(
             creds,
             "/fapi/v1/income",
-            { incomeType: "FUNDING_FEE", startTime: from, endTime: to, limit: PAGE_SIZE },
+            { startTime: from, endTime: to, limit: PAGE_SIZE },
             { futures: true }
           );
           return { items: raw ?? [], hasMore: (raw ?? []).length >= PAGE_SIZE };

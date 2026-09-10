@@ -61,6 +61,7 @@ export function bucketOf(
 
 export function buildOps(detail: ImportedAccountDetailDto | null): ImportedOpRow[] {
   if (!detail) return [];
+  const isFutures = detail.account?.accountType === "FUTURES";
   const rows: ImportedOpRow[] = [
     ...detail.transactions.map((t) => {
       const pnl = t.income ?? null;
@@ -102,7 +103,11 @@ export function buildOps(detail: ImportedAccountDetailDto | null): ImportedOpRow
         status: null,
         timestamp: tr.timestamp,
         pnl,
-        category: bucketOf("TRADE", null, pnl),
+        // For futures, realized PnL is reported authoritatively by the income
+        // feed (REALIZED_PNL rows cover every closed position, without the
+        // per-symbol scoping of the trade history). Trade fills stay visible
+        // as informational rows so their PnL is not double-counted.
+        category: isFutures ? "other" : bucketOf("TRADE", null, pnl),
       };
     }),
   ];
@@ -144,6 +149,9 @@ export function computeStatement(ops: ImportedOpRow[]): OpStatement {
   };
   for (const o of ops) {
     if (o.pnl == null) continue;
+    // Informational rows (e.g. futures trade fills, whose PnL is authoritative
+    // in the REALIZED_PNL income feed) never feed the statement.
+    if (o.category === "other") continue;
     st.count += 1;
     if (o.category === "tax") {
       st.tax += o.pnl;
