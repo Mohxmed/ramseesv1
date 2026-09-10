@@ -5,36 +5,11 @@ import {
 } from "./constants";
 import type {
   MoveStatus,
-  DerivedGoalGrowth,
   GoalsMove,
   GoalsData,
   ProgressCheckInput,
   ProgressCheckResult,
 } from "./types";
-import type { StrategyNumbers, StrategyVersion } from "@/features/strategy/types/strategy";
-
-function activeVersion(s: StrategyNumbers): StrategyVersion {
-  return s.versions.find((v) => v.id === s.activeVersionId) ?? s.versions[0];
-}
-
-export function deriveFromStrategies(
-  strategies: StrategyNumbers[]
-): DerivedGoalGrowth {
-  const primary = strategies[0] ?? null;
-  if (!primary) {
-    return {
-      pct: GOALS_CONFIG.DEFAULT_PCT,
-      strategyName: null,
-      version: null,
-    };
-  }
-  const active = activeVersion(primary);
-  return {
-    pct: active.riskPerTrade * active.defaultRR,
-    strategyName: primary.name,
-    version: active.version,
-  };
-}
 
 export function calculateProgress(completedMoves: number): number {
   return (
@@ -63,21 +38,26 @@ export function getNextTarget(
   );
 }
 
-export function createInitialData(
-  derived: DerivedGoalGrowth,
-  seedStartingValue?: number
-): GoalsData {
+/**
+ * Fresh ladder: every card is exactly +10% growth over the previous balance
+ * (compound). Seeded on the wallet's current balance when available, otherwise
+ * on the hardcoded fallback constant.
+ */
+export function createInitialData(seedStartingValue?: number): GoalsData {
   const startingValue =
-    seedStartingValue != null && Number.isFinite(seedStartingValue) && seedStartingValue > 0
+    seedStartingValue != null &&
+    Number.isFinite(seedStartingValue) &&
+    seedStartingValue > 0
       ? seedStartingValue
       : GOALS_CONFIG.STARTING_VALUE;
+  const pct = GOALS_CONFIG.MOVE_GROWTH_PERCENT;
   const moves: GoalsMove[] = Array.from(
     { length: GOALS_CONFIG.TOTAL_CARDS },
     (_, i) => {
       const move = i + 1;
       return {
         move,
-        targetValue: targetForMove(move, startingValue, derived.pct),
+        targetValue: targetForMove(move, startingValue, pct),
         completed: false,
       };
     }
@@ -88,53 +68,30 @@ export function createInitialData(
     completedMoves: 0,
     currentValue: startingValue,
     startingValue,
-    perMoveGrowthPercent: derived.pct,
-    strategyRef:
-      derived.strategyName && derived.version
-        ? { name: derived.strategyName, version: derived.version }
-        : null,
+    perMoveGrowthPercent: pct,
+    strategyRef: null,
     moves,
     updatedAt: new Date(),
   };
 }
 
-export function adaptTargets(
-  data: GoalsData,
-  derived: DerivedGoalGrowth
-): GoalsData {
-  const moves = data.moves.map((m) => ({
-    ...m,
-    targetValue: targetForMove(
-      m.move,
-      data.startingValue,
-      derived.pct
-    ),
-  }));
-
+/**
+ * Migrate a legacy (strategy-derived) plan onto the fixed +10% model. Only the
+ * growth metadata changes — targets and history stay untouched (they are
+ * re-anchored to the live wallet anyway when one exists).
+ */
+export function forceFixedGrowth(data: GoalsData): GoalsData {
+  if (
+    data.perMoveGrowthPercent === GOALS_CONFIG.MOVE_GROWTH_PERCENT &&
+    data.strategyRef == null
+  ) {
+    return data;
+  }
   return {
     ...data,
-    perMoveGrowthPercent: derived.pct,
-    strategyRef:
-      derived.strategyName && derived.version
-        ? { name: derived.strategyName, version: derived.version }
-        : null,
-    moves,
-    updatedAt: new Date(),
+    perMoveGrowthPercent: GOALS_CONFIG.MOVE_GROWTH_PERCENT,
+    strategyRef: null,
   };
-}
-
-export function sourceChanged(
-  data: GoalsData,
-  derived: DerivedGoalGrowth
-): boolean {
-  const nextRef =
-    derived.strategyName && derived.version
-      ? { name: derived.strategyName, version: derived.version }
-      : null;
-  return (
-    data.perMoveGrowthPercent !== derived.pct ||
-    JSON.stringify(data.strategyRef) !== JSON.stringify(nextRef)
-  );
 }
 
 export function calculateGrowth(
@@ -192,24 +149,8 @@ export function applyCompletedMove(
   };
 }
 
-export function resetData(derived: DerivedGoalGrowth, seedStartingValue?: number): GoalsData {
-  return createInitialData(derived, seedStartingValue);
-}
-
-/**
- * Performance basis for an imported (exchange) wallet — the figure the goals
- * ladder is anchored to. Raw equity rises with deposits and falls with
- * withdrawals; neither is growth nor loss, so both are stripped away:
- *   performance = currentEquity − netDeposits + netWithdrawals
- * A deposit of $5k moves equity up $5k and the metric not at all; a withdrawal
- * behaves symmetrically. Only trading result (PnL and fees) moves the metric.
- */
-export function importedPerformanceEquity(input: {
-  currentEquity: number;
-  netDeposits: number;
-  netWithdrawals: number;
-}): number {
-  return input.currentEquity - input.netDeposits + input.netWithdrawals;
+export function resetData(seedStartingValue?: number): GoalsData {
+  return createInitialData(seedStartingValue);
 }
 
 /**

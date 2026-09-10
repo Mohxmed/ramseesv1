@@ -14,7 +14,6 @@ type ProgressCheckProps = {
   perMoveGrowthPercent: number;
   liveWalletValue: number | null;
   walletLabel?: string | null;
-  valueLabel?: string;
   onClose: () => void;
 };
 
@@ -23,7 +22,6 @@ export function ProgressCheck({
   perMoveGrowthPercent,
   liveWalletValue,
   walletLabel,
-  valueLabel,
   onClose,
 }: ProgressCheckProps) {
   const landed = move.completed;
@@ -80,7 +78,7 @@ export function ProgressCheck({
                 </p>
               </div>
               <div className="rounded-panel border border-line/70 bg-surface-2/25 p-3">
-                <p className="text-2xs text-muted">{valueLabel ?? "رصيد المحفظة الحالي"}</p>
+                <p className="text-2xs text-muted">رصيد المحفظة الحالي</p>
                 <p
                   dir="ltr"
                   className={`mt-1 font-mono tabular-nums text-lg font-bold leading-none ${

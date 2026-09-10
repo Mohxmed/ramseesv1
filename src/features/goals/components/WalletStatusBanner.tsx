@@ -5,12 +5,12 @@ import { FreshnessChip } from "@/components/ui/status-cards";
 import type { GoalsWalletContext } from "../types";
 
 /**
- * Status strip for an imported (exchange) wallet on the goals page. Three
- * states: live (anchored to the exchange performance), first-sync pending
- * (ladder will re-anchor automatically), and sync dead (temporary constant
- * anchor until the exchange comes back). Also communicates that imported goals
- * are measured on the performance basis — deposits/withdrawals excluded — so
- * the anchor number is not "your equity" but "your trading result".
+ * Status strip for the goals page wallet anchor. States:
+ *  - no wallet at all   → prompt to link one
+ *  - manual, no balance → prompt to record a balance
+ *  - imported live      → ladder is anchored to the exchange balance
+ *  - imported dead sync → temporary constant anchor until sync recovers
+ *  - imported pending   → first sync still running; ladder re-anchors on arrival
  */
 export function WalletStatusBanner({
   wallet,
@@ -18,6 +18,30 @@ export function WalletStatusBanner({
   wallet: GoalsWalletContext;
 }) {
   const [nowMs] = useState(() => Date.now());
+
+  if (wallet.source === null) {
+    return (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-card border border-line/70 bg-surface-2/25 px-4 py-3 text-xs text-zinc-300">
+        <span className="font-semibold text-muted">لا توجد محفظة مرتبطة بعد</span>
+        <span className="text-2xs text-muted">
+          سجّل رصيدك اليدوي أو اربط منصة لتبدأ أهدافك — تُرسى على الرصيد الحالي
+          وتُفتتح تلقائيًا مع نموه.
+        </span>
+      </div>
+    );
+  }
+
+  if (wallet.source === "manual" && !wallet.usable) {
+    return (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-card border border-gold/40 bg-warn/5 px-4 py-3 text-xs text-zinc-300">
+        <span className="font-semibold text-gold-fg">سجّل رصيد محفظتك اليدوية</span>
+        <span className="text-2xs text-muted">
+          تُعرض الأهداف مؤقتًا على مرساة افتراضية حتى تحدد رصيدك الحالي في صفحة
+          المحفظة — ثم تُرسى عليه وتُفتتح تلقائيًا مع نموّه.
+        </span>
+      </div>
+    );
+  }
 
   if (wallet.source !== "binance") return null;
 
@@ -28,10 +52,11 @@ export function WalletStatusBanner({
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-card border border-line/70 bg-surface-2/25 px-4 py-3 text-xs text-zinc-300">
         <span className="inline-flex items-center gap-1.5 font-semibold text-up-fg">
           <span className="h-1.5 w-1.5 rounded-full bg-up" />
-          الأهداف مرتبطة مباشرة بأداء {typeLabel}
+          الأهداف مرتبطة مباشرة برصيد {typeLabel}
         </span>
         <span className="text-2xs text-muted">
-          يُقاس النمو بعد استبعاد الإيداعات والسحوبات — تتبع أرباح التداول فقط.
+          كل كارد = 10% نمو على الرصيد السابق — يُفتَتح تلقائيًا عند نمو
+          المحفظة.
         </span>
         <div className="ms-auto">
           <FreshnessChip
@@ -46,11 +71,11 @@ export function WalletStatusBanner({
 
   if (wallet.syncStatus === "ERROR" || wallet.syncStatus === "DISCONNECTED") {
     return (
-      <div className="flex items-center gap-3 rounded-card border border-down/40 bg-down/5 px-4 py-3 text-xs text-zinc-300">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-card border border-down/40 bg-down/5 px-4 py-3 text-xs text-zinc-300">
         <span className="font-semibold text-down-fg">
           تعذر الوصول لرصيد {typeLabel}
         </span>
-        <span className="text-muted">
+        <span className="text-2xs text-muted">
           تُعرض الأهداف مؤقتًا على مرساة افتراضية حتى تعود المزامنة من المنصة.
         </span>
       </div>
@@ -58,12 +83,12 @@ export function WalletStatusBanner({
   }
 
   return (
-    <div className="flex items-center gap-3 rounded-card border border-gold/40 bg-warn/5 px-4 py-3 text-xs text-zinc-300">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-card border border-gold/40 bg-warn/5 px-4 py-3 text-xs text-zinc-300">
       <span className="font-semibold text-gold-fg">
         في انتظار أول مزامنة من {typeLabel}
       </span>
-      <span className="text-muted">
-        سيُثبَّت سلم الأهداف على رصيدك الفعلي تلقائيًا بمجرد وصول أول تحديث من
+      <span className="text-2xs text-muted">
+        سيُرسى سلم الأهداف على رصيدك الفعلي تلقائيًا فور وصول أول تحديث من
         المنصة.
       </span>
     </div>

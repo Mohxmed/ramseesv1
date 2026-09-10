@@ -1,7 +1,7 @@
 export const GOALS_CONFIG = {
   TOTAL_CARDS: 30 as const,
   STARTING_VALUE: 100 as const,
-  DEFAULT_PCT: 1 as const,
+  MOVE_GROWTH_PERCENT: 10 as const,
 } as const;
 
 export function targetForMove(

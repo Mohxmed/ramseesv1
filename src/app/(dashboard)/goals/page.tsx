@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import Link from "next/link";
 import { useGoals } from "@/features/goals/hooks/useGoals";
 import { GoalsHeader } from "@/features/goals/components/GoalsHeader";
 import { WalletStatusBanner } from "@/features/goals/components/WalletStatusBanner";
@@ -13,7 +12,7 @@ import { ProgressCheck } from "@/features/goals/components/ProgressCheck";
 import { ResetConfirmation } from "@/features/goals/components/ResetConfirmation";
 import { GOALS_CONFIG } from "@/features/goals/constants";
 import { formatNumber } from "@/features/goals/utils";
-import { Badge, Card } from "@/components/ui/index";
+import { Card } from "@/components/ui/index";
 import { PageSkeleton } from "@/components/loading/PageSkeleton";
 import { TrophyIcon } from "@/components/icons/icons";
 
@@ -24,8 +23,9 @@ export default function GoalsPage() {
     progress,
     saveState,
     loadIssue,
-    derived,
     wallet,
+    autoOpenMove,
+    clearAutoOpen,
     reset,
     clearSaveState,
   } = useGoals();
@@ -40,7 +40,14 @@ export default function GoalsPage() {
     }
   }, [saveState, clearSaveState]);
 
-  const handleCloseCheck = useCallback(() => setCheckMove(null), []);
+  // The popup opens either manually (checkMove) or automatically when the
+  // wallet crossed a +10% target live (autoOpenMove).
+  const activeMove = checkMove ?? autoOpenMove;
+
+  const handleCloseCheck = useCallback(() => {
+    setCheckMove(null);
+    clearAutoOpen();
+  }, [clearAutoOpen]);
 
   if (loading) {
     return <PageSkeleton title metrics={4} chart={false} />;
@@ -57,7 +64,6 @@ export default function GoalsPage() {
   }
 
   const isDone = data.completedMoves >= GOALS_CONFIG.TOTAL_CARDS;
-  const hasStrategySource = Boolean(derived.strategyName && derived.version);
 
   return (
     <div className="space-y-8">
@@ -65,8 +71,6 @@ export default function GoalsPage() {
         <GoalsHeader
           perMoveGrowthPercent={progress.perMoveGrowthPercent}
           monthlyGrowthPercent={progress.monthlyGrowthPercent}
-          strategyName={derived.strategyName}
-          version={derived.version}
           walletLabel={wallet.label}
           walletValue={wallet.value}
         />
@@ -83,21 +87,6 @@ export default function GoalsPage() {
 
       <WalletStatusBanner wallet={wallet} />
 
-      {!hasStrategySource && (
-        <Link href="/strategy/numbers" className="block">
-          <Card
-            bodyClassName="p-4"
-            className="border-dashed border-warn/40 bg-warn/5 transition-colors hover:border-warn/70"
-          >
-            <p className="text-xs text-warn-fg">
-              لا توجد استراتيجية بعد — تُستخدم نسبة افتراضية
-              (+{derived.pct}%) لكل كارد. أنشئ استراتيجيتك وأرقامها لاشتقاق
-              هدف شهرك تلقائيًا.
-            </p>
-          </Card>
-        </Link>
-      )}
-
       {isDone ? (
         <Card bodyClassName="p-8 text-center" className="border-up/40 bg-good/10">
           <div className="flex items-center justify-center gap-2 text-2xl font-bold text-up-fg">
@@ -109,7 +98,6 @@ export default function GoalsPage() {
             لكل كارد — محفظتك بلغت{" "}
             {formatNumber(data.moves[GOALS_CONFIG.TOTAL_CARDS - 1]?.targetValue ?? data.currentValue)}.
           </p>
-          <Badge tone="up" className="mt-4">اكتمل</Badge>
         </Card>
       ) : (
         <>
@@ -150,17 +138,12 @@ export default function GoalsPage() {
         </div>
       )}
 
-      {checkMove != null && (
+      {activeMove != null && (
         <ProgressCheck
-          move={data.moves[checkMove - 1]}
+          move={data.moves[activeMove - 1]}
           perMoveGrowthPercent={data.perMoveGrowthPercent}
           liveWalletValue={wallet.value}
           walletLabel={wallet.label}
-          valueLabel={
-            wallet.performanceBasis
-              ? "أساس النمو (أداء التداول، بعد استبعاد الإيداعات والسحوبات)"
-              : "رصيد المحفظة الحالي"
-          }
           onClose={handleCloseCheck}
         />
       )}

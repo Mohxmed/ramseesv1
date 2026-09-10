@@ -12,12 +12,6 @@ export type GoalsMove = {
   completedAt?: Date;
 };
 
-export type DerivedGoalGrowth = {
-  pct: number;
-  strategyName: string | null;
-  version: string | null;
-};
-
 export type GoalsData = {
   currentMove: number;
   completedMoves: number;
@@ -48,10 +42,10 @@ export type ProgressCheckResult = {
 };
 
 /**
- * The wallet figure the goals ladder is anchored to. For an imported (exchange)
- * wallet this is the live performance basis — current equity minus net deposits
- * plus net withdrawals — so external money flows never masquerade as growth;
- * for a manual wallet it is the ledger's current balance.
+ * The wallet figure the goals ladder is anchored to — the raw balance:
+ * manual wallets contribute the ledger's current balance, imported (exchange)
+ * wallets contribute the platform's current equity. Each goal card is simply
+ * +10% growth over the previous balance.
  */
 export type GoalsWalletContext = {
   source: "manual" | "binance" | null;
@@ -60,8 +54,6 @@ export type GoalsWalletContext = {
   value: number | null;
   /** True when `value` reflects a real current wallet figure. */
   usable: boolean;
-  /** True for imported wallets — the displayed figure is a performance basis. */
-  performanceBasis: boolean;
   exchangeType: string | null;
   syncStatus: string | null;
   lastSuccessfulSync: number | null;
