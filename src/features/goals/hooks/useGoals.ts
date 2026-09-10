@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import type { RefObject } from "react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useStrategyNumbers } from "@/features/strategy/hooks/useStrategyNumbers";
 import { usePortfolio } from "@/features/portfolio/hooks/usePortfolio";
@@ -13,14 +14,43 @@ import {
   resetData,
   advanceToWallet,
   rebaseToWallet,
+  importedPerformanceEquity,
   calculateProgress,
   getNextTarget,
   totalGrowthForMonth,
 } from "../utils";
 import { GOALS_CONFIG } from "../constants";
-import type { GoalsData, DerivedGoalGrowth } from "../types";
+import type { GoalsData, GoalsWalletContext, DerivedGoalGrowth } from "../types";
+import type { ImportedPortfolioSummary, PortfolioMeta } from "@/features/portfolio/types";
 
 type SaveState = "idle" | "saving" | "success" | "error";
+
+/** Performance basis for an imported wallet (see utils.importedPerformanceEquity):
+ *  equity minus external money flows so goals track trading performance only. */
+function performanceValue(m: ImportedPortfolioSummary): number {
+  return importedPerformanceEquity(m.financials);
+}
+
+function isUsableValue(v: number): boolean {
+  return Number.isFinite(v) && v > 0;
+}
+
+/** How long load() waits for a usable imported-wallet figure before anchoring
+ *  the ladder on the constant fallback (surface still explains why). */
+const WALLET_WAIT_MS = 20_000;
+const WALLET_WAIT_STEP_MS = 600;
+
+const NO_WALLET: GoalsWalletContext = {
+  source: null,
+  label: null,
+  value: null,
+  usable: false,
+  performanceBasis: false,
+  exchangeType: null,
+  syncStatus: null,
+  lastSuccessfulSync: null,
+  accountType: null,
+};
 
 export function useGoals() {
   const { user, loading: authLoading } = useAuth();
@@ -30,16 +60,44 @@ export function useGoals() {
   const { meta: walletMeta, loading: portfolioLoading } = usePortfolio();
 
   // The wallet is the single source of truth for goal progression. Imported
-  // (Binance) wallets use the live exchange equity; manual wallets the ledger
-  // current balance. No manual value is ever required.
-  const walletValue: number | undefined = useMemo(() => {
-    if (walletMeta == null) return undefined;
-    const v =
-      walletMeta.source === "binance"
-        ? walletMeta.financials.currentEquity
-        : walletMeta.currentBalance;
-    return Number.isFinite(v) && v > 0 ? v : undefined;
+  // (Binance) wallets contribute their live performance basis (equity minus
+  // deposits plus withdrawals — deposits must never look like growth); manual
+  // wallets contribute the ledger's current balance. No manual value is ever
+  // required.
+  const wallet: GoalsWalletContext = useMemo(() => {
+    if (walletMeta == null) return NO_WALLET;
+    if (walletMeta.source === "binance") {
+      const value = performanceValue(walletMeta);
+      const usable = isUsableValue(value);
+      return {
+        source: "binance",
+        label: `${walletMeta.accountName}${
+          walletMeta.accountType ? ` (${walletMeta.accountType})` : ""
+        }`,
+        value: usable ? value : null,
+        usable,
+        performanceBasis: true,
+        exchangeType: walletMeta.exchangeType,
+        syncStatus: walletMeta.syncStatus,
+        lastSuccessfulSync: walletMeta.lastSuccessfulSync,
+        accountType: walletMeta.accountType,
+      };
+    }
+    const value = walletMeta.currentBalance;
+    const usable = isUsableValue(value);
+    return {
+      source: "manual",
+      label: "المحفظة اليدوية",
+      value: usable ? value : null,
+      usable,
+      performanceBasis: false,
+      exchangeType: null,
+      syncStatus: null,
+      lastSuccessfulSync: null,
+      accountType: null,
+    };
   }, [walletMeta]);
+  const walletValue = wallet.value;
 
   const derived: DerivedGoalGrowth = useMemo(
     () => deriveFromStrategies(strategies),
@@ -50,16 +108,13 @@ export function useGoals() {
   const [loading, setLoading] = useState(true);
   const [saveState, setSaveState] = useState<SaveState>("idle");
 
-  // The load effect must seed/re-base the ladder from the wallet exactly once
-  // per page open — re-running it whenever the live wallet changes mid-session
-  // would re-anchor the targets and reintroduce the "chasing" bug. We read the
-  // current wallet through a ref (updated in an effect below, before load) so a
-  // live sync never restarts the load, while the portfolio's own loading state
-  // gates load until the wallet is known.
-  const walletValueRef = useRef(walletValue);
+  // Realtime wallet meta re-renders the hook; the load effect reads the freshest
+  // snapshot through this ref (updated in an effect, never during render) and
+  // polls it until the imported wallet contributes a usable figure.
+  const walletMetaRef = useRef(walletMeta);
   useEffect(() => {
-    walletValueRef.current = walletValue;
-  }, [walletValue]);
+    walletMetaRef.current = walletMeta;
+  }, [walletMeta]);
 
   // Auto-advance during render: whenever the live wallet has crossed a card's
   // frozen target, that card completes (and as many as the wallet skipped).
@@ -74,12 +129,41 @@ export function useGoals() {
     [loading, rawData, walletValue]
   );
 
+  /** Block until the wallet contributes a usable figure (imported wallets show
+ *  0 equity while the first sync is still running). No wallet at all, a dead
+ *  sync (ERROR/DISCONNECTED) and a timed-out wait all fall back to NaN →
+ *  load() anchors on the constant — the page explains that with a banner. */
+async function awaitUsableWallet(
+  metaRef: RefObject<PortfolioMeta | null>
+): Promise<number> {
+  for (
+    let waited = 0;
+    waited < WALLET_WAIT_MS;
+    waited += WALLET_WAIT_STEP_MS
+  ) {
+    const m = metaRef.current;
+    if (m == null) return Number.NaN;
+    if (m.source === "manual") {
+      return isUsableValue(m.currentBalance) ? m.currentBalance : Number.NaN;
+    }
+    const v = performanceValue(m);
+    if (isUsableValue(v)) return v;
+    if (m.syncStatus === "ERROR" || m.syncStatus === "DISCONNECTED") {
+      return Number.NaN;
+    }
+    await new Promise((r) => setTimeout(r, WALLET_WAIT_STEP_MS));
+  }
+  return Number.NaN;
+}
+
   useEffect(() => {
     async function load() {
       if (!userId) return;
       setLoading(true);
       try {
         const doc = await goalsService.getProgress(userId);
+        const anchor = await awaitUsableWallet(walletMetaRef);
+        const walletAnchor = Number.isFinite(anchor) ? anchor : undefined;
         if (doc) {
           const dataOnly: GoalsData = {
             currentMove: doc.currentMove,
@@ -92,9 +176,8 @@ export function useGoals() {
             updatedAt: doc.updatedAt,
           };
           const adapted = adaptTargets(dataOnly, derived);
-          const wallet = walletValueRef.current;
           const applied =
-            wallet != null ? rebaseToWallet(adapted, wallet) : adapted;
+            walletAnchor != null ? rebaseToWallet(adapted, walletAnchor) : adapted;
           setRawData(applied);
           // Persistence is best-effort here: a rejected write (e.g. rules not
           // deployed yet) must NEVER blank the page — the rebased ladder is
@@ -107,7 +190,7 @@ export function useGoals() {
             persist(adapted);
           }
         } else {
-          const initial = createInitialData(derived, walletValueRef.current);
+          const initial = createInitialData(derived, walletAnchor);
           setRawData(initial);
           goalsService.saveProgress(userId, initial).catch(() => {});
         }
@@ -134,7 +217,7 @@ export function useGoals() {
     if (!userId) return;
     setSaveState("saving");
     try {
-      const initial = resetData(derived, walletValue);
+      const initial = resetData(derived, walletValue ?? undefined);
       setRawData(initial);
       await goalsService.saveProgress(userId, initial);
       setSaveState("success");
@@ -172,6 +255,7 @@ export function useGoals() {
     progress,
     saveState,
     derived,
+    wallet,
     reset,
     clearSaveState,
   };

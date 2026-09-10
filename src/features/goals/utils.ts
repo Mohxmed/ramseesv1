@@ -197,6 +197,22 @@ export function resetData(derived: DerivedGoalGrowth, seedStartingValue?: number
 }
 
 /**
+ * Performance basis for an imported (exchange) wallet — the figure the goals
+ * ladder is anchored to. Raw equity rises with deposits and falls with
+ * withdrawals; neither is growth nor loss, so both are stripped away:
+ *   performance = currentEquity − netDeposits + netWithdrawals
+ * A deposit of $5k moves equity up $5k and the metric not at all; a withdrawal
+ * behaves symmetrically. Only trading result (PnL and fees) moves the metric.
+ */
+export function importedPerformanceEquity(input: {
+  currentEquity: number;
+  netDeposits: number;
+  netWithdrawals: number;
+}): number {
+  return input.currentEquity - input.netDeposits + input.netWithdrawals;
+}
+
+/**
  * Re-base the remaining ladder onto the wallet's current value (called once at
  * load, so the plan always "starts from now"). Completed cards keep their
  * history untouched; every not-yet-completed card gets a fresh target anchored

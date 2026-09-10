@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { useGoals } from "@/features/goals/hooks/useGoals";
 import { GoalsHeader } from "@/features/goals/components/GoalsHeader";
+import { WalletStatusBanner } from "@/features/goals/components/WalletStatusBanner";
 import { ProgressOverview } from "@/features/goals/components/ProgressOverview";
 import { ProgressBar } from "@/features/goals/components/ProgressBar";
 import { GoalBoard } from "@/features/goals/components/GoalBoard";
@@ -11,26 +12,21 @@ import { ProgressCheck } from "@/features/goals/components/ProgressCheck";
 import { ResetConfirmation } from "@/features/goals/components/ResetConfirmation";
 import { GOALS_CONFIG } from "@/features/goals/constants";
 import { formatNumber } from "@/features/goals/utils";
-import { usePortfolio } from "@/features/portfolio/hooks/usePortfolio";
 import { Badge, Card } from "@/components/ui/index";
 import { PageSkeleton } from "@/components/loading/PageSkeleton";
 import { TrophyIcon } from "@/components/icons/icons";
 
 export default function GoalsPage() {
-  const { data, loading, progress, saveState, derived, reset, clearSaveState } =
-    useGoals();
-  const { meta: walletMeta } = usePortfolio();
-
-  const liveWallet = walletMeta
-    ? walletMeta.source === "binance"
-      ? walletMeta.financials.currentEquity
-      : walletMeta.currentBalance
-    : null;
-  const walletLabel = walletMeta
-    ? walletMeta.source === "binance"
-      ? `${walletMeta.accountName}${walletMeta.accountType ? ` (${walletMeta.accountType})` : ""}`
-      : "المحفظة اليدوية"
-    : null;
+  const {
+    data,
+    loading,
+    progress,
+    saveState,
+    derived,
+    wallet,
+    reset,
+    clearSaveState,
+  } = useGoals();
 
   const [checkMove, setCheckMove] = useState<number | null>(null);
   const [resetOpen, setResetOpen] = useState(false);
@@ -69,8 +65,8 @@ export default function GoalsPage() {
           monthlyGrowthPercent={progress.monthlyGrowthPercent}
           strategyName={derived.strategyName}
           version={derived.version}
-          walletLabel={walletLabel}
-          walletValue={liveWallet}
+          walletLabel={wallet.label}
+          walletValue={wallet.value}
         />
         <button
           type="button"
@@ -80,6 +76,8 @@ export default function GoalsPage() {
           إعادة تعيين الأهداف
         </button>
       </div>
+
+      <WalletStatusBanner wallet={wallet} />
 
       {!hasStrategySource && (
         <Link href="/strategy/numbers" className="block">
@@ -152,8 +150,13 @@ export default function GoalsPage() {
         <ProgressCheck
           move={data.moves[checkMove - 1]}
           perMoveGrowthPercent={data.perMoveGrowthPercent}
-          liveWalletValue={liveWallet}
-          walletLabel={walletLabel}
+          liveWalletValue={wallet.value}
+          walletLabel={wallet.label}
+          valueLabel={
+            wallet.performanceBasis
+              ? "أساس النمو (أداء التداول، بعد استبعاد الإيداعات والسحوبات)"
+              : "رصيد المحفظة الحالي"
+          }
           onClose={handleCloseCheck}
         />
       )}

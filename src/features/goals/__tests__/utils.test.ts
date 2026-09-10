@@ -5,6 +5,7 @@ import {
   calculateGrowth,
   advanceToWallet,
   rebaseToWallet,
+  importedPerformanceEquity,
 } from "../utils";
 import { GOALS_CONFIG, targetForMove } from "../constants";
 import type { DerivedGoalGrowth } from "../types";
@@ -117,6 +118,59 @@ describe("advanceToWallet", () => {
     for (const bad of [0, -5, NaN, Infinity]) {
       expect(advanceToWallet(data, bad)).toBe(data);
     }
+  });
+});
+
+describe("importedPerformanceEquity", () => {
+  it("equals current equity when no external flows happened", () => {
+    expect(
+      importedPerformanceEquity({
+        currentEquity: 12_000,
+        netDeposits: 0,
+        netWithdrawals: 0,
+      })
+    ).toBeCloseTo(12_000, 6);
+  });
+
+  it("ignores a deposit: equity rose but the goal metric does not move", () => {
+    expect(
+      importedPerformanceEquity({
+        currentEquity: 12_000,
+        netDeposits: 5_000,
+        netWithdrawals: 0,
+      })
+    ).toBeCloseTo(7_000, 6);
+  });
+
+  it("ignores a withdrawal symmetrically", () => {
+    expect(
+      importedPerformanceEquity({
+        currentEquity: 6_500,
+        netDeposits: 0,
+        netWithdrawals: 500,
+      })
+    ).toBeCloseTo(7_000, 6);
+  });
+
+  it("moves only with trading result (PnL vs last baseline)", () => {
+    // $10k baseline, +$1k PnL, $0 flows → metric shows the $1k growth.
+    expect(
+      importedPerformanceEquity({
+        currentEquity: 11_000,
+        netDeposits: 0,
+        netWithdrawals: 0,
+      })
+    ).toBeCloseTo(11_000, 6);
+  });
+
+  it("can go negative when trading lost more than the deposited capital", () => {
+    expect(
+      importedPerformanceEquity({
+        currentEquity: 8_000,
+        netDeposits: 10_000,
+        netWithdrawals: 0,
+      })
+    ).toBeCloseTo(-2_000, 6);
   });
 });
 
