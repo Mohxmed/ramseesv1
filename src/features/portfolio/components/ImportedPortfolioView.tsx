@@ -52,8 +52,8 @@ export function ImportedPortfolioView({ meta }: { meta: ImportedPortfolioSummary
 
   const bins = [
     { label: "إجمالي قيمة المحفظة", value: <span dir="ltr">{fmtMoney(f.currentEquity)}</span>, hint: f.lastValuedAt ? `قُيّمت ${timeAgo(f.lastValuedAt, now)}` : "لم تُقيّم بعد", tone: "text-foreground" },
-    { label: "إجمالي الأرباح", value: <span dir="ltr" className="text-good">{profit}</span>, hint: "صفقات رابحة + تمويل مستلم + استردادات", tone: "text-good" },
-    { label: "إجمالي الخسائر", value: <span dir="ltr" className="text-down-fg">{loss}</span>, hint: "صفقات خاسرة + رسوم + ضرائب + تمويل مدفوع", tone: "text-down-fg" },
+    { label: "أرباح المراكز", value: <span dir="ltr" className="text-good">{profit}</span>, hint: "أرباح المراكز المحققة (REALIZED_PNL)", tone: "text-good" },
+    { label: "خسائر المراكز", value: <span dir="ltr" className="text-down-fg">{loss}</span>, hint: "خسائر المراكز المحققة — الرسوم والضرائب والتمويل في أقسام مستقلة", tone: "text-down-fg" },
     { label: "صافي الإيداعات", value: <span dir="ltr">{fmtMoney(f.netDeposits - f.netWithdrawals)}</span>, hint: `إيداعات ${fmtMoney(f.netDeposits)} · سحوبات ${fmtMoney(f.netWithdrawals)}`, tone: "text-foreground" },
   ];
 
@@ -63,7 +63,7 @@ export function ImportedPortfolioView({ meta }: { meta: ImportedPortfolioSummary
         eyebrow="Portfolio"
         icon={<WalletIcon />}
         title="المحفظة"
-        description={`مستوردة من ${meta.exchangeType} · ${meta.accountType} — تُسجَّل كل العمليات تلقائيًا (أرباح، خسائر، ضرائب، تمويل).`}
+        description={`مستوردة من ${meta.exchangeType} · ${meta.accountType} — تُسجَّل كل العمليات تلقائيًا (أرباح وخسائر المراكز، رسوم الصفقات، الضرائب، التمويل، الودائع والسحب).`}
         right={
           <>
             <Status label={st.label} tone={st.tone} pulse={st.pulse} />
@@ -173,7 +173,8 @@ export function ImportedPortfolioView({ meta }: { meta: ImportedPortfolioSummary
           <div>
             <h2 className="text-sm font-bold text-foreground">آخر العمليات المسجّلة تلقائيًا</h2>
             <p className="mt-0.5 text-2xs text-muted">
-              آخر 10 عمليات فقط — فلترة مباشرة بين الأرباح والخسائر والضرائب والتمويل.
+              آخر 10 عمليات فقط — فلترة مباشرة بين أرباح وخسائر المراكز، رسوم الصفقات، الضرائب،
+              التمويل، والودائع والسحب.
             </p>
           </div>
           <span className="rounded-chip border border-line px-2 py-0.5 text-2xs font-bold text-muted">

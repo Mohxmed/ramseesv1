@@ -99,10 +99,16 @@ export interface ImportedPortfolioSummary {
 export type PortfolioMeta = PortfolioSummary | ImportedPortfolioSummary;
 
 /**
- * Operations feed classification — the four buckets the user filters by,
- * derived live from each row's type / incomeType / realized PnL sign.
+ * Operations feed classification — the sections the user filters by, derived
+ * live from each row's type / incomeType / realized PnL sign:
+ *  - profit  → أرباح المراكز (REALIZED_PNL > 0)
+ *  - loss    → خسائر المراكز (REALIZED_PNL < 0)
+ *  - fee     → رسوم الصفقات (commissions/rebates)
+ *  - tax     → الضرائب (TAX*)
+ *  - funding → التمويل (FUNDING_FEE)
+ *  - flow    → الودائع والسحب (deposits / withdrawals / transfers)
  */
-export type OpCategory = "profit" | "loss" | "tax" | "funding" | "other";
+export type OpCategory = "profit" | "loss" | "fee" | "tax" | "funding" | "flow" | "other";
 export type OpFilter = OpCategory | "all";
 
 /** A single auto-recorded operation shown in the imported wallet's table. */

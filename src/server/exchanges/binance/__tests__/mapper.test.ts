@@ -139,4 +139,18 @@ describe("deposit/withdrawal/funding mappers", () => {
     expect(f.metadata?.income).toBeCloseTo(income, 6);
     expect(f.amount).toBeCloseTo(Math.abs(income), 6);
   });
+
+  it.each([
+    "TRANSFER",
+    "INTERNAL_TRANSFER",
+    "EXTERNAL_TRANSFER",
+    "CROSS_COLLATERAL_TRANSFER",
+    "COIN_SWAP_DEPOSIT",
+    "COIN_SWAP_WITHDRAW",
+  ])("maps %s income as a wallet TRANSFER row", (incomeType) => {
+    const f = mapFuturesIncome({ tranId: 200, incomeType, income: "-500", asset: "USDT", time: 1_700_000_000_000 } as RawFuturesIncome, FUT_KEY);
+    expect(f.type).toBe("TRANSFER");
+    expect(f.metadata?.incomeType).toBe(incomeType);
+    expect(f.metadata?.income).toBeCloseTo(-500, 6);
+  });
 });

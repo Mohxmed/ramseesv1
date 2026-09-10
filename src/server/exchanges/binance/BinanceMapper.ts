@@ -402,15 +402,30 @@ export function mapWithdrawal(
   };
 }
 
+const FUTURES_TRANSFER_TYPES = new Set([
+  "TRANSFER",
+  "INTERNAL_TRANSFER",
+  "EXTERNAL_TRANSFER",
+  "CROSS_COLLATERAL_TRANSFER",
+  "COIN_SWAP_DEPOSIT",
+  "COIN_SWAP_WITHDRAW",
+]);
+
 export function mapFuturesIncome(
   raw: RawFuturesIncome,
   accountKey: { exchange: ExchangeType; accountId: string; accountType: AccountType }
 ): ExchangeTransaction {
   // REALIZED_PNL rows are realized PnL events (one per closed position / fill);
-  // the rest (funding, commissions, taxes, insurance, bonuses) are fees or
-  // income and stay marked as fees/funding. The signed `income` and the raw
-  // `incomeType` are preserved in metadata for the operations feed.
-  const type = raw.incomeType === "FUNDING_FEE" ? "FUNDING" : "FEE";
+  // transfer-family rows are wallet movements; the rest (funding, commissions,
+  // taxes, insurance, bonuses) are fees or income and stay marked as
+  // fees/funding. The signed `income` and the raw `incomeType` are preserved in
+  // metadata for the operations feed.
+  const type: ExchangeTransaction["type"] =
+    raw.incomeType === "FUNDING_FEE"
+      ? "FUNDING"
+      : FUTURES_TRANSFER_TYPES.has(raw.incomeType)
+        ? "TRANSFER"
+        : "FEE";
   const income = toAmount(raw.income, "income");
   return {
     externalId: String(raw.tranId ?? `${raw.time}-${raw.incomeType}`),

@@ -12,7 +12,7 @@ import { buildOps, computeStatement } from "@/features/portfolio/operations";
 import { OperationsTable } from "@/features/portfolio/components/OperationsTable";
 import type { OpFilter } from "@/features/portfolio/types";
 
-const VALID_FILTERS: OpFilter[] = ["all", "profit", "loss", "tax", "funding"];
+const VALID_FILTERS: OpFilter[] = ["all", "profit", "loss", "fee", "tax", "funding", "flow", "other"];
 
 function toFilter(v: string | null): OpFilter {
   return VALID_FILTERS.includes((v ?? "") as OpFilter) ? (v as OpFilter) : "all";
@@ -70,34 +70,44 @@ function OperationsPageInner() {
 
   const stats = [
     {
-      label: "إجمالي الأرباح",
+      label: "أرباح المراكز",
       value: (
         <span dir="ltr" className="text-good">
           {fmtMoney(statement.profit)}
         </span>
       ),
-      hint: `${statement.profitCount} عملية رابحة`,
+      hint: `${statement.profitCount} رصيد ربحي`,
       tone: "text-good",
     },
     {
-      label: "إجمالي الخسائر",
+      label: "خسائر المراكز",
       value: (
         <span dir="ltr" className="text-down-fg">
           {fmtMoney(-statement.loss)}
         </span>
       ),
-      hint: `${statement.lossCount} عملية خاسرة`,
+      hint: `${statement.lossCount} رصيد خاسر`,
       tone: "text-down-fg",
+    },
+    {
+      label: "رسوم الصفقات",
+      value: (
+        <span dir="ltr" className={statement.fees > 0 ? "text-good" : "text-gold-fg"}>
+          {fmtMoney(statement.fees, { signed: true })}
+        </span>
+      ),
+      hint: `${statement.feeCount} عملية رسوم`,
+      tone: statement.fees > 0 ? "text-good" : "text-gold-fg",
     },
     {
       label: "الضرائب",
       value: (
-        <span dir="ltr" className="text-gold-fg">
+        <span dir="ltr" className="text-warn-fg">
           {fmtMoney(statement.tax, { signed: true })}
         </span>
       ),
       hint: `${statement.taxCount} رصيد ضريبي`,
-      tone: "text-gold-fg",
+      tone: "text-warn-fg",
     },
     {
       label: "التمويل (صافي)",
@@ -108,6 +118,16 @@ function OperationsPageInner() {
       ),
       hint: `${statement.fundingCount} رصيد تمويل`,
       tone: statement.fundingNet > 0 ? "text-good" : statement.fundingNet < 0 ? "text-down-fg" : "text-muted",
+    },
+    {
+      label: "ودائع وسحب (صافي)",
+      value: (
+        <span dir="ltr" className={statement.flow > 0 ? "text-up-fg" : statement.flow < 0 ? "text-zinc-200" : "text-muted"}>
+          {fmtMoney(statement.flow, { signed: true })}
+        </span>
+      ),
+      hint: `${statement.flowCount} عملية`,
+      tone: statement.flow > 0 ? "text-up-fg" : statement.flow < 0 ? "text-zinc-200" : "text-muted",
     },
   ];
 
@@ -201,7 +221,7 @@ function OperationsPageInner() {
         eyebrow="Portfolio"
         icon={<HistoryIcon />}
         title="العمليات"
-        description="كامل سجل العمليات المسجّلة تلقائيًا — فلترة مباشرة بين الأرباح والخسائر والضرائب والتمويل."
+        description="كامل سجل العمليات المسجّلة تلقائيًا — أرباح وخسائر المراكز، رسوم الصفقات، الضرائب، التمويل، والودائع والسحب."
         right={
           <>
             {detailError ? <Status label="تعذر التحديث" tone="down" /> : null}
@@ -228,7 +248,7 @@ function OperationsPageInner() {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
         {stats.map((s) => (
           <div key={s.label} className="rounded-panel border border-line/60 bg-surface-2/30 px-3 py-2.5">
             <div className="text-2xs font-semibold text-muted">{s.label}</div>

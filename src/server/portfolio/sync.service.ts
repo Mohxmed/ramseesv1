@@ -234,10 +234,12 @@ function accumulateFinancials(
         break;
       }
       case "FUNDING":
-        // Funding income is signed (positive = received, negative = paid).
-        // Rows persisted before the sign-preserving mapper lack metadata.income
-        // and fall back to the absolute amount; a full re-sync restores it.
-        target.realizedPnl += typeof tx.metadata?.income === "number" ? tx.metadata.income : tx.amount;
+        // Funding is a signed cost/income of the margin wallet (positive =
+        // received). Treated here as a fee offset so `realizedPnl` stays equal
+        // to position P&L (REALIZED_PNL only) — matching the wallet, operations
+        // page and dashboard card. Rows persisted before the sign-preserving
+        // mapper lack metadata.income and fall back to "paid" (a cost).
+        target.totalFees += -(typeof tx.metadata?.income === "number" ? tx.metadata.income : -tx.amount);
         break;
       default:
         break;
