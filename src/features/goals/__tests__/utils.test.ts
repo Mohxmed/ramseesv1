@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { createInitialData, resetData, calculateGrowth, advanceToWallet } from "../utils";
+import {
+  createInitialData,
+  resetData,
+  calculateGrowth,
+  advanceToWallet,
+  rebaseToWallet,
+} from "../utils";
 import { GOALS_CONFIG, targetForMove } from "../constants";
 import type { DerivedGoalGrowth } from "../types";
 
@@ -111,5 +117,58 @@ describe("advanceToWallet", () => {
     for (const bad of [0, -5, NaN, Infinity]) {
       expect(advanceToWallet(data, bad)).toBe(data);
     }
+  });
+});
+
+describe("rebaseToWallet", () => {
+  it("re-anchors remaining targets just above the live wallet, keeping history", () => {
+    let data = createInitialData(derived, 1000);
+    data = advanceToWallet(data, targetForMove(3, 1000, 1)); // 3 completed
+    const wallet = 9000;
+    const next = rebaseToWallet(data, wallet);
+
+    expect(next).not.toBe(data);
+    expect(next.startingValue).toBe(wallet);
+    expect(next.currentValue).toBe(wallet);
+    expect(next.completedMoves).toBe(3);
+    expect(next.currentMove).toBe(4);
+
+    // completed history untouched
+    expect(next.moves[0].targetValue).toBeCloseTo(targetForMove(1, 1000, 1), 6);
+    expect(next.moves[0].completed).toBe(true);
+    expect(next.moves[2].targetValue).toBeCloseTo(targetForMove(3, 1000, 1), 6);
+
+    // remaining targets are one step above the wallet
+    expect(next.moves[3].targetValue).toBeCloseTo(targetForMove(1, wallet, 1), 6);
+    expect(next.moves[4].targetValue).toBeCloseTo(targetForMove(2, wallet, 1), 6);
+    expect(next.moves[29].targetValue).toBeCloseTo(targetForMove(27, wallet, 1), 6);
+  });
+
+  it("returns the same reference when the anchor already matches the wallet", () => {
+    const data = createInitialData(derived, 5000);
+    expect(rebaseToWallet(data, 5000)).toBe(data);
+  });
+
+  it("never mass-completes a big wallet: after rebase the same wallet value advances nothing", () => {
+    const data = createInitialData(derived, 1000); // stale ladder, wallet now much larger
+    const wallet = 9000;
+    const rebased = rebaseToWallet(data, wallet);
+    expect(rebased.completedMoves).toBe(0);
+    // opening the page with the same wallet must not complete any card
+    expect(advanceToWallet(rebased, wallet)).toBe(rebased);
+    expect(rebased.moves[0].targetValue).toBeCloseTo(targetForMove(1, wallet, 1), 6);
+  });
+
+  it("returns the same reference for invalid wallet values", () => {
+    const data = createInitialData(derived, 1000);
+    for (const bad of [0, -5, NaN, Infinity]) {
+      expect(rebaseToWallet(data, bad)).toBe(data);
+    }
+  });
+
+  it("leaves a fully completed ladder untouched", () => {
+    const data = createInitialData(derived, 1000);
+    const done = advanceToWallet(data, targetForMove(30, 1000, 1));
+    expect(rebaseToWallet(done, 9999999)).toBe(done);
   });
 });

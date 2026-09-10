@@ -197,6 +197,47 @@ export function resetData(derived: DerivedGoalGrowth, seedStartingValue?: number
 }
 
 /**
+ * Re-base the remaining ladder onto the wallet's current value (called once at
+ * load, so the plan always "starts from now"). Completed cards keep their
+ * history untouched; every not-yet-completed card gets a fresh target anchored
+ * at the live wallet: remaining position k → wallet (1+pct)^k. This keeps the
+ * first open target just above the balance (no chasing, no mass completion).
+ * Returns the same reference when nothing changed or the value is invalid.
+ */
+export function rebaseToWallet(
+  data: GoalsData,
+  walletValue: number
+): GoalsData {
+  if (
+    walletValue == null ||
+    !Number.isFinite(walletValue) ||
+    walletValue <= 0
+  ) {
+    return data;
+  }
+  if (data.completedMoves >= GOALS_CONFIG.TOTAL_CARDS) return data;
+
+  let changed = Math.abs(data.startingValue - walletValue) >= 0.005;
+  const moves: GoalsMove[] = data.moves.map((m, i) => {
+    if (m.completed) return m;
+    const k = i - data.completedMoves + 1;
+    const target = targetForMove(k, walletValue, data.perMoveGrowthPercent);
+    if (Math.abs(m.targetValue - target) >= 0.005) changed = true;
+    return { ...m, targetValue: target };
+  });
+
+  if (!changed) return data;
+
+  return {
+    ...data,
+    startingValue: walletValue,
+    currentValue: walletValue,
+    moves,
+    updatedAt: new Date(),
+  };
+}
+
+/**
  * Auto-advance the ladder from the wallet:
  *
  * The live wallet value is the single source of truth — no manual input. While

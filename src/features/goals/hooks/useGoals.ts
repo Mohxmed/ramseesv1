@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { useStrategyNumbers } from "@/features/strategy/hooks/useStrategyNumbers";
 import { usePortfolio } from "@/features/portfolio/hooks/usePortfolio";
@@ -12,6 +12,7 @@ import {
   deriveFromStrategies,
   resetData,
   advanceToWallet,
+  rebaseToWallet,
   calculateProgress,
   getNextTarget,
   totalGrowthForMonth,
@@ -26,7 +27,7 @@ export function useGoals() {
   const userId = user?.uid ?? null;
 
   const { strategies } = useStrategyNumbers();
-  const { meta: walletMeta } = usePortfolio();
+  const { meta: walletMeta, loading: portfolioLoading } = usePortfolio();
 
   // The wallet is the single source of truth for goal progression. Imported
   // (Binance) wallets use the live exchange equity; manual wallets the ledger
@@ -49,15 +50,28 @@ export function useGoals() {
   const [loading, setLoading] = useState(true);
   const [saveState, setSaveState] = useState<SaveState>("idle");
 
+  // The load effect must seed/re-base the ladder from the wallet exactly once
+  // per page open — re-running it whenever the live wallet changes mid-session
+  // would re-anchor the targets and reintroduce the "chasing" bug. We read the
+  // current wallet through a ref (updated in an effect below, before load) so a
+  // live sync never restarts the load, while the portfolio's own loading state
+  // gates load until the wallet is known.
+  const walletValueRef = useRef(walletValue);
+  useEffect(() => {
+    walletValueRef.current = walletValue;
+  }, [walletValue]);
+
   // Auto-advance during render: whenever the live wallet has crossed a card's
   // frozen target, that card completes (and as many as the wallet skipped).
-  // advanceToWallet returns the same reference when nothing advanced.
+  // advanceToWallet returns the same reference when nothing advanced. It only
+  // runs after the load has settled (and re-based the ladder), so a stale
+  // anchor can never mass-complete the plan in the first render tick.
   const data = useMemo(
     () =>
-      rawData && walletValue != null
+      !loading && rawData && walletValue != null
         ? advanceToWallet(rawData, walletValue)
         : rawData,
-    [rawData, walletValue]
+    [loading, rawData, walletValue]
   );
 
   useEffect(() => {
@@ -78,12 +92,17 @@ export function useGoals() {
             updatedAt: doc.updatedAt,
           };
           const adapted = adaptTargets(dataOnly, derived);
-          setRawData(adapted);
-          if (sourceChanged(dataOnly, derived)) {
+          const wallet = walletValueRef.current;
+          const applied =
+            wallet != null ? rebaseToWallet(adapted, wallet) : adapted;
+          setRawData(applied);
+          if (applied !== adapted) {
+            await goalsService.saveProgress(userId, applied);
+          } else if (sourceChanged(dataOnly, derived)) {
             await goalsService.saveProgress(userId, adapted);
           }
         } else {
-          const initial = createInitialData(derived, walletValue);
+          const initial = createInitialData(derived, walletValueRef.current);
           setRawData(initial);
           await goalsService.saveProgress(userId, initial);
         }
@@ -94,10 +113,10 @@ export function useGoals() {
       }
     }
 
-    if (!authLoading && userId) {
+    if (!authLoading && !portfolioLoading && userId) {
       load();
     }
-  }, [userId, authLoading, derived, walletValue]);
+  }, [userId, authLoading, portfolioLoading, derived]);
 
   // Persist the auto-advanced ladder whenever the render-time data diverges
   // from the raw state (a card just completed itself from the wallet).
