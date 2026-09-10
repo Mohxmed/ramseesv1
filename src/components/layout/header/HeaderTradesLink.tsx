@@ -1,22 +1,32 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Tooltip } from "@/components/ui";
 import { TradesIcon } from "@/components/icons/icons";
 
 /**
- * Trades entry — reserved slot in the header tool cluster. Ships disabled
- * until the trades feature lands; keeps the header layout stable.
+ * Operations entry (العمليات) — the full auto-recorded operations feed. Lives
+ * in the header tool cluster next to the wallet; highlights while open.
  */
 export function HeaderTradesLink() {
+  const pathname = usePathname();
+  const active = pathname.startsWith("/operations");
+
   return (
-    <button
-      type="button"
-      aria-disabled="true"
-      title="الصفقات — قريبًا"
-      className="relative flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-panel text-zinc-500 opacity-70"
-    >
-      <TradesIcon className="h-[18px] w-[18px]" />
-      <span
-        aria-hidden
-        className="absolute -top-px -right-px h-2 w-2 rounded-full bg-warn ring-2 ring-surface-1"
-      />
-    </button>
+    <Tooltip title="العمليات">
+      <Link
+        href="/operations"
+        aria-label="العمليات"
+        aria-current={active ? "page" : undefined}
+        className={`relative flex h-9 w-9 items-center justify-center rounded-panel transition-colors ${
+          active
+            ? "bg-surface-2 text-gold-fg"
+            : "text-zinc-300 hover:bg-surface-2 hover:text-zinc-100"
+        }`}
+      >
+        <TradesIcon className="h-[18px] w-[18px]" />
+      </Link>
+    </Tooltip>
   );
 }

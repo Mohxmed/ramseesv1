@@ -90,9 +90,10 @@ export const exchangesApi = {
     );
   },
 
-  async detail(accountId: string): Promise<ImportedAccountDetailDto> {
+  async detail(accountId: string, opts: { limit?: number } = {}): Promise<ImportedAccountDetailDto> {
+    const q = opts.limit != null ? `?limit=${opts.limit}` : "";
     return readJson(
-      await authFetch(`/api/portfolio/exchanges/${encodeURIComponent(accountId)}`)
+      await authFetch(`/api/portfolio/exchanges/${encodeURIComponent(accountId)}${q}`)
     );
   },
 

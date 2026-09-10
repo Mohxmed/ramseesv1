@@ -1,33 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { PageHeader, Status, Tooltip, num } from "@/components/ui";
+import { PageHeader, Status, num } from "@/components/ui";
 import {
   WalletIcon,
   EyeIcon,
   EyeOffIcon,
   RefreshIcon,
-  ArrowUpRightIcon,
-  ArrowDownRightIcon,
 } from "@/components/icons/icons";
 import { timeAgo } from "@/features/notifications/format";
 import { fmtMoney, fmtPct } from "../utils";
-import type {
-  ImportedAccountDetailDto,
-  ImportedOpRow,
-  ImportedPortfolioSummary,
-} from "../types";
+import type { ImportedPortfolioSummary, OpFilter } from "../types";
+import { buildOps, computeStatement } from "../operations";
 import { useImportedPortfolio } from "../hooks/useImportedPortfolio";
-
-const TX_LABELS: Record<string, string> = {
-  DEPOSIT: "إيداع",
-  WITHDRAWAL: "سحب",
-  FEE: "رسوم",
-  FUNDING: "تمويل",
-  TRADE: "صفقة",
-  TRANSFER: "تحويل",
-  ADJUSTMENT: "تعديل",
-};
+import { OperationsTable } from "./OperationsTable";
 
 function statusOf(syncStatus: ImportedPortfolioSummary["syncStatus"]) {
   switch (syncStatus) {
@@ -44,44 +30,10 @@ function statusOf(syncStatus: ImportedPortfolioSummary["syncStatus"]) {
   }
 }
 
-function buildOps(detail: ImportedAccountDetailDto | null): ImportedOpRow[] {
-  if (!detail) return [];
-  const rows: ImportedOpRow[] = [
-    ...detail.transactions.map((t) => ({
-      id: `tx:${t.id}`,
-      kind: "transaction" as const,
-      typeLabel: TX_LABELS[t.type] ?? t.type,
-      symbol: null,
-      side: null,
-      amount: t.amount,
-      asset: t.asset || null,
-      usdValue: t.usdValue || null,
-      fee: t.fee,
-      realizedPnlUsd: null,
-      status: t.status ?? null,
-      timestamp: t.timestamp,
-    })),
-    ...detail.trades.map((tr) => ({
-      id: `tr:${tr.id}`,
-      kind: "trade" as const,
-      typeLabel: tr.side === "SELL" ? "صفقة بيع" : "صفقة شراء",
-      symbol: tr.symbol || null,
-      side: tr.side,
-      amount: tr.quantity,
-      asset: null,
-      usdValue: tr.quoteAmount || null,
-      fee: tr.fee,
-      realizedPnlUsd: tr.realizedPnlUsd,
-      status: null,
-      timestamp: tr.timestamp,
-    })),
-  ];
-  return rows.sort((a, b) => b.timestamp - a.timestamp);
-}
-
 export function ImportedPortfolioView({ meta }: { meta: ImportedPortfolioSummary }) {
   const { detail, error, isSyncing, syncingNow, syncNow } = useImportedPortfolio(meta.accountId);
   const [hidden, setHidden] = useState(false);
+  const [filter, setFilter] = useState<OpFilter>("all");
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -92,17 +44,17 @@ export function ImportedPortfolioView({ meta }: { meta: ImportedPortfolioSummary
   const ops = useMemo(() => buildOps(detail), [detail]);
   const st = statusOf(meta.syncStatus);
   const f = meta.financials;
-  const totalPnl = f.realizedPnl + f.unrealizedPnl;
-  const pnlTone = totalPnl > 0 ? "text-good" : totalPnl < 0 ? "text-down-fg" : "text-muted";
+  const rowStatement = useMemo(() => computeStatement(ops), [ops]);
 
   const big = hidden ? "••••••••" : fmtMoney(f.currentEquity);
-  const pnl = hidden ? "••••" : fmtMoney(totalPnl, { signed: true });
+  const profit = hidden ? "••••" : fmtMoney(rowStatement.profit);
+  const loss = hidden ? "••••" : fmtMoney(-rowStatement.loss);
 
   const bins = [
-    { label: "إجمالي قيمة المحفظة", value: fmtMoney(f.currentEquity), hint: f.lastValuedAt ? `قُيّمت ${timeAgo(f.lastValuedAt, now)}` : "لم تُقيّم بعد", tone: "text-foreground" },
-    { label: "الربح / الخسارة المحققة", value: fmtMoney(f.realizedPnl, { signed: true }), hint: "من الصفقات والتمويل", tone: f.realizedPnl > 0 ? "text-good" : f.realizedPnl < 0 ? "text-down-fg" : "text-muted" },
-    { label: "الربح / الخسارة غير المحقق", value: fmtMoney(f.unrealizedPnl, { signed: true }), hint: "المراكز المفتوحة", tone: f.unrealizedPnl > 0 ? "text-good" : f.unrealizedPnl < 0 ? "text-down-fg" : "text-muted" },
-    { label: "صافي الإيداعات", value: fmtMoney(f.netDeposits - f.netWithdrawals), hint: `إيداعات ${fmtMoney(f.netDeposits)} · سحوبات ${fmtMoney(f.netWithdrawals)}`, tone: "text-foreground" },
+    { label: "إجمالي قيمة المحفظة", value: <span dir="ltr">{fmtMoney(f.currentEquity)}</span>, hint: f.lastValuedAt ? `قُيّمت ${timeAgo(f.lastValuedAt, now)}` : "لم تُقيّم بعد", tone: "text-foreground" },
+    { label: "إجمالي الأرباح", value: <span dir="ltr" className="text-good">{profit}</span>, hint: "صفقات رابحة + تمويل مستلم + استردادات", tone: "text-good" },
+    { label: "إجمالي الخسائر", value: <span dir="ltr" className="text-down-fg">{loss}</span>, hint: "صفقات خاسرة + رسوم + ضرائب + تمويل مدفوع", tone: "text-down-fg" },
+    { label: "صافي الإيداعات", value: <span dir="ltr">{fmtMoney(f.netDeposits - f.netWithdrawals)}</span>, hint: `إيداعات ${fmtMoney(f.netDeposits)} · سحوبات ${fmtMoney(f.netWithdrawals)}`, tone: "text-foreground" },
   ];
 
   return (
@@ -111,7 +63,7 @@ export function ImportedPortfolioView({ meta }: { meta: ImportedPortfolioSummary
         eyebrow="Portfolio"
         icon={<WalletIcon />}
         title="المحفظة"
-        description={`مستوردة من ${meta.exchangeType} · ${meta.accountType} — تُسجَّل كل العمليات تلقائيًا.`}
+        description={`مستوردة من ${meta.exchangeType} · ${meta.accountType} — تُسجَّل كل العمليات تلقائيًا (أرباح، خسائر، ضرائب، تمويل).`}
         right={
           <>
             <Status label={st.label} tone={st.tone} pulse={st.pulse} />
@@ -159,11 +111,26 @@ export function ImportedPortfolioView({ meta }: { meta: ImportedPortfolioSummary
               {big}
             </div>
             <div className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-              <span className={`${num} font-bold ${pnlTone}`} dir="ltr">{pnl}</span>
-              <span className={`${num} font-semibold ${pnlTone}`} dir="ltr">
-                ({hidden ? "••" : fmtPct(f.baselineEquity > 0 ? (totalPnl / f.baselineEquity) * 100 : 0)})
+              <span className="text-muted">الأرباح:</span>
+              <span className={`${num} font-bold text-good`} dir="ltr">{profit}</span>
+              <span className="text-muted">· الخسائر:</span>
+              <span className={`${num} font-bold text-down-fg`} dir="ltr">{loss}</span>
+              <span className="text-muted">· صافي:</span>
+              <span className={`${num} font-bold ${
+                rowStatement.profit - rowStatement.loss > 0
+                  ? "text-good"
+                  : rowStatement.profit - rowStatement.loss < 0
+                    ? "text-down-fg"
+                    : "text-muted"
+              }`} dir="ltr">
+                {hidden ? "••••" : fmtMoney(rowStatement.profit - rowStatement.loss, { signed: true })}
               </span>
-              <span className="text-muted">منذ بداية المزامنة · مبنيّ من كامل سجل العمليات</span>
+              <span className={`${num} font-semibold ${
+                f.baselineEquity > 0 ? (rowStatement.profit - rowStatement.loss > 0 ? "text-good" : rowStatement.profit - rowStatement.loss < 0 ? "text-down-fg" : "text-muted") : "text-muted"
+              }`} dir="ltr">
+                ({hidden ? "••" : fmtPct(f.baselineEquity > 0 ? ((rowStatement.profit - rowStatement.loss) / f.baselineEquity) * 100 : 0)})
+              </span>
+              <span className="text-muted">منذ بداية المزامنة · من سجل العمليات المحمّل</span>
             </div>
           </div>
 
@@ -191,11 +158,11 @@ export function ImportedPortfolioView({ meta }: { meta: ImportedPortfolioSummary
       </div>
 
       <section className="rounded-card border border-line bg-surface-1/40 p-3">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h2 className="text-sm font-bold text-foreground">العمليات المسجّلة تلقائيًا</h2>
+            <h2 className="text-sm font-bold text-foreground">آخر العمليات المسجّلة تلقائيًا</h2>
             <p className="mt-0.5 text-2xs text-muted">
-              قائمة مباشرة من آخر المزامنة — إيداعات وسحوبات وصفقات ورسوم.
+              آخر 10 عمليات فقط — فلترة مباشرة بين الأرباح والخسائر والضرائب والتمويل.
             </p>
           </div>
           <span className="rounded-chip border border-line px-2 py-0.5 text-2xs font-bold text-muted">
@@ -203,76 +170,16 @@ export function ImportedPortfolioView({ meta }: { meta: ImportedPortfolioSummary
           </span>
         </div>
 
-        <div className="mt-3 overflow-x-auto">
-          <table className="w-full min-w-[560px] text-start text-xs">
-            <thead>
-              <tr className="border-b border-line/70 text-2xs font-semibold text-muted">
-                <th className="px-2 py-1.5 text-start font-semibold">العملية</th>
-                <th className="px-2 py-1.5 text-start font-semibold">الأصل / الزوج</th>
-                <th className="px-2 py-1.5 text-end font-semibold">المبلغ</th>
-                <th className="px-2 py-1.5 text-end font-semibold">القيمة ($)</th>
-                <th className="px-2 py-1.5 text-end font-semibold">الربح المحقق ($)</th>
-                <th className="px-2 py-1.5 text-end font-semibold">الوقت</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ops.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-2 py-8 text-center text-2xs text-muted">
-                    لا توجد عمليات بعد — تنتظر أول مزامنة كاملة مع المنصة.
-                  </td>
-                </tr>
-              ) : (
-                ops.slice(0, 50).map((o) => (
-                  <tr key={o.id} className="border-b border-line/40 last:border-0">
-                    <td className="px-2 py-2">
-                      <span className="inline-flex items-center gap-1 font-bold text-zinc-100">
-                        {o.side === "BUY" ? (
-                          <ArrowUpRightIcon className="h-3 w-3 text-good" />
-                        ) : o.side === "SELL" ? (
-                          <ArrowDownRightIcon className="h-3 w-3 text-down-fg" />
-                        ) : (
-                          <WalletIcon className="h-3 w-3 text-muted" />
-                        )}
-                        {o.typeLabel}
-                      </span>
-                    </td>
-                    <td className="px-2 py-2 font-semibold text-foreground">
-                      {o.symbol ?? o.asset ?? "—"}
-                      {o.asset != null && o.kind === "transaction" ? (
-                        <span className="ml-1 text-2xs text-muted">{o.symbol ? "" : o.asset}</span>
-                      ) : null}
-                    </td>
-                    <td className="px-2 py-2 text-end tabular-nums text-muted">
-                      {fmtAmount(o.amount)}
-                      {o.asset != null && o.kind === "transaction" ? ` ${o.asset}` : ""}
-                    </td>
-                    <td className="px-2 py-2 text-end tabular-nums text-muted" dir="ltr">
-                      {o.usdValue != null ? fmtMoney(o.usdValue) : "—"}
-                    </td>
-                    <td
-                      className={`px-2 py-2 text-end tabular-nums ${o.realizedPnlUsd != null && o.realizedPnlUsd !== 0 ? (o.realizedPnlUsd > 0 ? "text-good" : "text-down-fg") : "text-muted"}`}
-                      dir="ltr"
-                    >
-                      {o.realizedPnlUsd != null ? fmtMoney(o.realizedPnlUsd, { signed: true }) : "—"}
-                    </td>
-                    <td className="px-2 py-2 text-end tabular-nums text-muted">
-                      <Tooltip title={new Date(o.timestamp).toLocaleString("ar-EG")}>
-                        <span dir="ltr">{timeAgo(o.timestamp, now)}</span>
-                      </Tooltip>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <OperationsTable
+          className="mt-3"
+          ops={ops}
+          filter={filter}
+          onFilterChange={setFilter}
+          nowMs={now}
+          limit={10}
+          viewAllHref={`/operations?filter=${filter}`}
+        />
       </section>
     </div>
   );
-}
-
-function fmtAmount(v: number): string {
-  if (!Number.isFinite(v)) return "—";
-  return v.toLocaleString("en-US", { maximumFractionDigits: 8 });
 }

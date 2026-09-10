@@ -43,12 +43,18 @@ export async function GET(
     const { id } = await params;
     const account = await requireOwnedAccount(uid, id);
 
+    // Operations feed — the wallet page shows the last 10, the operations page
+    // pulls a wider window. Capped so a request can never explode memory.
+    const url = new URL(req.url);
+    const rawLimit = Number(url.searchParams.get("limit"));
+    const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.floor(rawLimit), 1), 500) : 50;
+
     const [balances, positions, openOrders, transactions, trades, running, snapshot, recon] = await Promise.all([
       getBalances(uid, id),
       getPositions(uid, id),
       getOpenOrders(uid, id),
-      getTransactions(uid, id, { limit: 50 }),
-      getTrades(uid, id, { limit: 50 }),
+      getTransactions(uid, id, { limit }),
+      getTrades(uid, id, { limit }),
       getRunningSync(uid, id),
       getSnapshots(uid, id, { limit: 1 }),
       listReconciliationEvents(uid, id, 10),
@@ -60,7 +66,25 @@ export async function GET(
       balances,
       positions,
       openOrders,
-      transactions,
+      transactions: transactions.map((t) => ({
+        id: t.id,
+        type: t.type,
+        asset: t.asset,
+        amount: t.amount,
+        usdValue: t.usdValue,
+        fee: t.fee,
+        feeAsset: t.feeAsset ?? null,
+        income:
+          t.metadata != null && typeof t.metadata["income"] === "number"
+            ? (t.metadata["income"] as number)
+            : null,
+        incomeType:
+          t.metadata != null && typeof t.metadata["incomeType"] === "string"
+            ? (t.metadata["incomeType"] as string)
+            : null,
+        status: t.status ?? null,
+        timestamp: t.timestamp,
+      })),
       trades,
       latestSnapshot: latest,
       reconciliationEvents: recon,

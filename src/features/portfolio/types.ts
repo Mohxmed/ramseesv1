@@ -98,6 +98,13 @@ export interface ImportedPortfolioSummary {
 
 export type PortfolioMeta = PortfolioSummary | ImportedPortfolioSummary;
 
+/**
+ * Operations feed classification — the four buckets the user filters by,
+ * derived live from each row's type / incomeType / realized PnL sign.
+ */
+export type OpCategory = "profit" | "loss" | "tax" | "funding" | "other";
+export type OpFilter = OpCategory | "all";
+
 /** A single auto-recorded operation shown in the imported wallet's table. */
 export interface ImportedOpRow {
   id: string;
@@ -109,9 +116,14 @@ export interface ImportedOpRow {
   asset: string | null;
   usdValue: number | null;
   fee: number;
+  /** Signed exchange income (funding paid/received, tax, commissions…). */
+  income: number | null;
   realizedPnlUsd: number | null;
   status: string | null;
   timestamp: number;
+  /** Signed money effect shown in the table (realized PnL for trades, income otherwise). */
+  pnl: number | null;
+  category: OpCategory;
 }
 
 /** `GET /api/portfolio/exchanges/[id]` — what the imported wallet view reads. */
@@ -135,6 +147,10 @@ export interface ImportedAccountDetailDto {
     amount: number;
     usdValue: number;
     fee: number;
+    feeAsset: string | null;
+    /** Signed income preserved by the mapper (funding, tax, commissions…). */
+    income: number | null;
+    incomeType: string | null;
     status: string | null;
     timestamp: number;
   }>;

@@ -14,7 +14,7 @@ import type { ImportedAccountDetailDto } from "../types";
 const LIST_INTERVAL_MS = 15_000;
 const SYNC_INTERVAL_MS = 3_000;
 
-export function useImportedPortfolio(accountId: string) {
+export function useImportedPortfolio(accountId: string, limit = 50) {
   const [detail, setDetail] = useState<ImportedAccountDetailDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,7 +30,7 @@ export function useImportedPortfolio(accountId: string) {
     if (!accountId || running.current) return;
     running.current = true;
     try {
-      const d = await exchangesApi.detail(accountId);
+      const d = await exchangesApi.detail(accountId, { limit });
       setDetail(d);
       setError(null);
     } catch (e) {
@@ -39,7 +39,7 @@ export function useImportedPortfolio(accountId: string) {
       running.current = false;
       setLoading(false);
     }
-  }, [accountId]);
+  }, [accountId, limit]);
 
   useEffect(() => {
     if (!accountId) return;

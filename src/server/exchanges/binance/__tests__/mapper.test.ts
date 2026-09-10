@@ -116,10 +116,11 @@ describe("deposit/withdrawal/funding mappers", () => {
     expect(w.type).toBe("WITHDRAWAL");
   });
 
-  it("keeps funding income signed in amount and marks the type", () => {
+  it("keeps funding income signed in metadata and marks the type", () => {
     const f = mapFuturesIncome({ tranId: 7, incomeType: "FUNDING_FEE", income: "-25.5", asset: "USDT", time: 1_700_000_000_000, symbol: "BTCUSDT" } as RawFuturesIncome, FUT_KEY);
     expect(f.type).toBe("FUNDING");
     expect(f.amount).toBeCloseTo(25.5, 6);
     expect(f.metadata?.incomeType).toBe("FUNDING_FEE");
+    expect(f.metadata?.income).toBeCloseTo(-25.5, 6);
   });
 });

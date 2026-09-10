@@ -414,7 +414,9 @@ export function mapFuturesIncome(
     accountType: accountKey.accountType,
     type,
     asset: normalizeAsset(raw.asset),
-    // funding income is signed: positive = received, negative = paid
+    // funding/income is signed: positive = received, negative = paid. The
+    // absolute value lands in `amount`, the SIGN is preserved in metadata for
+    // the operations feed (funding paid/received, taxes & fees are costs).
     amount: Math.abs(income),
     usdValue: 0,
     fee: type === "FEE" ? Math.abs(income) : 0,
@@ -422,7 +424,11 @@ export function mapFuturesIncome(
     timestamp: toEpochMs(raw.time, "time"),
     externalTransactionId: raw.tradeId != null ? String(raw.tradeId) : null,
     status: "CONFIRMED",
-    metadata: { incomeType: raw.incomeType, symbol: toOptionalString(raw.symbol) },
+    metadata: {
+      income: income,
+      incomeType: raw.incomeType,
+      symbol: toOptionalString(raw.symbol),
+    },
   };
 }
 

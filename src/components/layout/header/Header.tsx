@@ -17,10 +17,8 @@ import { HeaderTradesLink } from "./HeaderTradesLink";
  * in the sidebar, the header carries tools + live BTC quote).
  *
  * Physical layout, right → left:
- *   [☰ mobile] [Wallet] [Strategy ▾] [Goals] [Trades*]
+ *   [☰ mobile] [Wallet] [Strategy ▾] [Goals] [Operations]
  *   [ BTC live ticker ] [page context] [Notifications] [System (wifi)] [User]
- *
- * *Trades is a reserved placeholder until the trades feature ships.
  */
 export function Header({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
   return (
