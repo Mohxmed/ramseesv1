@@ -96,15 +96,20 @@ export function useGoals() {
           const applied =
             wallet != null ? rebaseToWallet(adapted, wallet) : adapted;
           setRawData(applied);
+          // Persistence is best-effort here: a rejected write (e.g. rules not
+          // deployed yet) must NEVER blank the page — the rebased ladder is
+          // still correct in-memory and renders fine read-only.
+          const persist = (value: GoalsData) =>
+            goalsService.saveProgress(userId, value).catch(() => {});
           if (applied !== adapted) {
-            await goalsService.saveProgress(userId, applied);
+            persist(applied);
           } else if (sourceChanged(dataOnly, derived)) {
-            await goalsService.saveProgress(userId, adapted);
+            persist(adapted);
           }
         } else {
           const initial = createInitialData(derived, walletValueRef.current);
           setRawData(initial);
-          await goalsService.saveProgress(userId, initial);
+          goalsService.saveProgress(userId, initial).catch(() => {});
         }
       } catch {
         setRawData(null);
