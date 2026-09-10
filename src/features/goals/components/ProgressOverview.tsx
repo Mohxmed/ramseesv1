@@ -27,7 +27,7 @@ export function ProgressOverview({
   return (
     <div className="animate-fade-in-up grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <MetricCard
-        label="الكارد الحالي"
+        label="الدورة الحالية"
         value={`${currentMove} / ${totalCards}`}
         tone="up"
       />
@@ -35,10 +35,10 @@ export function ProgressOverview({
         label="نسبة التقدم"
         value={`${progressPercent.toFixed(0)}%`}
         tone={progressPercent > 50 ? "good" : "neutral"}
-        hint={`${completedMoves} كارد مكتمل`}
+        hint={`${completedMoves} دورة مكتملة`}
       />
       <MetricCard
-        label="هدف الكارد"
+        label="هدف الدورة"
         value={formatGrowth(perMoveGrowthPercent)}
         hint={`القيمة الحالية: ${formatNumber(currentValue)} · الهدف التالي: ${formatNumber(nextTarget)}`}
       />

@@ -11,7 +11,7 @@ export function GoalBoard({ data, onCurrentCardClick }: GoalBoardProps) {
   return (
     <div className="animate-fade-in-up">
       <h2 className="mb-4 text-lg font-semibold text-zinc-100">
-        لوحة الكروت — الشهر
+        لوحة الدورات — الشهر
       </h2>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-6">
         {data.moves.map((move) => (

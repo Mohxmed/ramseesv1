@@ -20,11 +20,11 @@ export function GoalsHeader({
       eyebrow="Goals"
       icon={<TrophyIcon className="h-5 w-5 text-muted" />}
       title="الأهداف"
-      description="شبكة 30 كارد لشهر كامل — كل كارد هو 10% نمو على الرصيد السابق (تراكمي حتى هدف الشهر). السلم يُرسى تلقائيًا على رصيد محفظتك الحالي، وكل كارد يُفتتح تلقائيًا بمجرد نمو المحفظة إليه."
+      description="شبكة 30 دورة لشهر كامل — كل دورة هي 10% نمو على الرصيد السابق (تراكمي حتى هدف الشهر). السلم يُرسى تلقائيًا على رصيد محفظتك الحالي، وكل دورة تُفتتح تلقائيًا بمجرد نمو المحفظة إليها."
       actions={
         <>
-          <Badge tone="up">30 كارد</Badge>
-          <Badge tone="good">{formatGrowth(perMoveGrowthPercent)} للكارد</Badge>
+          <Badge tone="up">30 دورة</Badge>
+          <Badge tone="good">{formatGrowth(perMoveGrowthPercent)} للدورة</Badge>
           <Badge tone="good">{formatGrowth(monthlyGrowthPercent)} للشهر</Badge>
           {walletLabel && walletValue != null && walletValue > 0 && (
             <Badge tone="neutral" className="hidden md:inline-flex">

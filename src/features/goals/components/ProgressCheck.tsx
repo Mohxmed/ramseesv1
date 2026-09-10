@@ -43,7 +43,7 @@ export function ProgressCheck({
         <div className="mb-4 flex items-start justify-between">
           <div>
             <h2 className="text-xl font-bold text-zinc-50">
-              الكارد {String(move.move).padStart(2, "0")}
+              الدورة {String(move.move).padStart(2, "0")}
             </h2>
             <p className="mt-1 text-sm text-muted">
               يكتمل تلقائيًا من رصيد{" "}
@@ -62,10 +62,10 @@ export function ProgressCheck({
 
         {landed ? (
           <div className="animate-pop-in rounded-panel border border-up/40 bg-up/10 p-4 text-sm text-up-fg">
-            <p className="font-semibold">✓ الكارد مكتمل</p>
+            <p className="font-semibold">✓ الدورة مكتملة</p>
             <p className="mt-1 text-2xs text-zinc-300">
               من {formatNumber(move.startingValue ?? 0)} إلى{" "}
-              {formatNumber(move.endingValue ?? 0)} جرت تجاوز هدف الكارد بنجاح.
+              {formatNumber(move.endingValue ?? 0)} جرت تجاوز هدف الدورة بنجاح.
             </p>
           </div>
         ) : (
@@ -108,7 +108,7 @@ export function ProgressCheck({
             </div>
 
             <div className="rounded-panel border border-line/70 bg-surface-2/25 p-3 text-center">
-              <p className="text-2xs text-muted">النمو المطلوب لإتمام الكارد</p>
+              <p className="text-2xs text-muted">النمو المطلوب لإتمام الدورة</p>
               <p className="mt-1 text-2xl font-bold text-gold-fg">
                 {formatGrowth(perMoveGrowthPercent)}
               </p>
@@ -118,14 +118,14 @@ export function ProgressCheck({
               <div className="animate-pop-in rounded-panel border border-up/40 bg-up/10 p-4 text-sm text-up-fg">
                 <p>
                   <span className="font-semibold">✓ الهدف محقق</span> — تجاوز
-                  رصيد المحفظة هدف هذا الكارد وسيُحتسب مكتملًا تلقائيًا.
+                  رصيد المحفظة هدف هذه الدورة وسيُحتسب مكتملًا تلقائيًا.
                 </p>
               </div>
             ) : (
               <div className="animate-pop-in rounded-panel border border-line/70 bg-surface-2/25 p-4 text-sm text-zinc-300">
                 <p>
-                  <span className="font-semibold">لم يصل بعد</span> — تقدم هذا
-                  الكارد يعتمد على رصيد محفظتك الحالي.{" "}
+                  <span className="font-semibold">لم يصل بعد</span> — تقدم هذه
+                  الدورة يعتمد على رصيد محفظتك الحالي.{" "}
                   {walletOk
                     ? `سينتقل تلقائيًا عند بلوغ ${formatNumber(move.targetValue)} $`
                     : "اربط محفظتك أو سجّل رصيدك لتفعيل التقدم التلقائي."}

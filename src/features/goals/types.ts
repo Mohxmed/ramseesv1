@@ -52,6 +52,8 @@ export type GoalsWalletContext = {
   label: string | null;
   /** Live figure used by the ladder (null when no usable value exists yet). */
   value: number | null;
+  /** The wallet's founding/inital balance the ladder seeds on (imported only). */
+  initialValue: number | null;
   /** True when `value` reflects a real current wallet figure. */
   usable: boolean;
   exchangeType: string | null;

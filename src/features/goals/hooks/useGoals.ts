@@ -5,6 +5,7 @@ import { useAuth } from "@/features/auth/hooks/useAuth";
 import { usePortfolio } from "@/features/portfolio/hooks/usePortfolio";
 import { goalsService } from "../services/goals.service";
 import {
+  createImportedPlan,
   createInitialData,
   forceFixedGrowth,
   resetData,
@@ -35,6 +36,7 @@ const NO_WALLET: GoalsWalletContext = {
   source: null,
   label: null,
   value: null,
+  initialValue: null,
   usable: false,
   exchangeType: null,
   syncStatus: null,
@@ -49,12 +51,13 @@ export function useGoals() {
   const { meta: walletMeta, loading: portfolioLoading } = usePortfolio();
 
   // The wallet balance is the single source of truth: the ladder anchors on it
-  // (manual: ledger balance; imported: exchange equity) and a card completes
+  // (manual: ledger balance; imported: exchange equity) and a cycle completes
   // itself the moment the balance crosses the +10% target.
   const wallet: GoalsWalletContext = useMemo(() => {
     if (walletMeta == null) return NO_WALLET;
     if (walletMeta.source === "binance") {
       const value = walletMeta.financials.currentEquity;
+      const baseline = walletMeta.financials.baselineEquity;
       const usable = isUsableValue(value);
       return {
         source: "binance",
@@ -62,6 +65,7 @@ export function useGoals() {
           walletMeta.accountType ? ` (${walletMeta.accountType})` : ""
         }`,
         value: usable ? value : null,
+        initialValue: isUsableValue(baseline) ? baseline : (usable ? value : null),
         usable,
         exchangeType: walletMeta.exchangeType,
         syncStatus: walletMeta.syncStatus,
@@ -75,6 +79,7 @@ export function useGoals() {
       source: "manual",
       label: "المحفظة اليدوية",
       value: usable ? value : null,
+      initialValue: null,
       usable,
       exchangeType: null,
       syncStatus: null,
@@ -83,6 +88,28 @@ export function useGoals() {
     };
   }, [walletMeta]);
   const walletValue = wallet.value;
+
+  const isImported = walletMeta?.source === "binance";
+
+  // Imported wallets are fully computed from the platform balance/trades —
+  // seeds on the wallet's INITIAL balance, completed cycles derive from the
+  // current equity, and the plan is rebuilt on every wallet update (nothing is
+  // read from or saved to Firestore).
+  const importedPlan = useMemo(() => {
+    if (!isImported || !walletMeta || walletMeta.source !== "binance") {
+      return null;
+    }
+    const fin = walletMeta.financials;
+    const seed = isUsableValue(fin.baselineEquity)
+      ? fin.baselineEquity
+      : isUsableValue(fin.currentEquity)
+        ? fin.currentEquity
+        : GOALS_CONFIG.STARTING_VALUE;
+    const live = isUsableValue(fin.currentEquity)
+      ? fin.currentEquity
+      : seed;
+    return createImportedPlan(seed, live);
+  }, [walletMeta, isImported]);
 
   const [rawData, setRawData] = useState<GoalsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -103,15 +130,19 @@ export function useGoals() {
   // balance and cards would never complete).
   const anchoredRef = useRef(false);
 
-  // Auto-advance during render: the moment the live balance crosses a card's
-  // frozen +10% target the card completes (and as many as the balance skipped).
-  const data = useMemo(
-    () =>
-      !loading && rawData && walletValue != null
-        ? advanceToWallet(rawData, walletValue)
-        : rawData,
-    [loading, rawData, walletValue]
-  );
+  // Auto-advance during render: the moment the live balance crosses a cycle's
+  // frozen +10% target the cycle completes (and as many as the balance skipped).
+  const data = useMemo(() => {
+    if (loading) return importedPlan ?? rawData;
+    if (importedPlan) {
+      return walletValue != null
+        ? advanceToWallet(importedPlan, walletValue)
+        : importedPlan;
+    }
+    return rawData && walletValue != null
+      ? advanceToWallet(rawData, walletValue)
+      : rawData;
+  }, [loading, importedPlan, rawData, walletValue]);
 
   useEffect(() => {
     async function load() {
@@ -188,6 +219,13 @@ export function useGoals() {
     }
 
     if (!authLoading && !portfolioLoading && userId) {
+      if (walletMetaRef.current?.source === "binance") {
+        // Imported wallets are computed fully from the platform: no saved plan
+        // to read, no fallback, nothing to persist.
+        setLoading(false);
+        setLoadIssue(null);
+        return;
+      }
       load();
     }
   }, [userId, authLoading, portfolioLoading]);
@@ -196,7 +234,7 @@ export function useGoals() {
   // the imported wallet's first sync lands after the plan was seeded on the
   // constant). Afterwards targets stay frozen and growth auto-advances.
   useEffect(() => {
-    if (!userId || !rawData || anchoredRef.current) return;
+    if (!userId || isImported || !rawData || anchoredRef.current) return;
     if (walletValue == null) return;
     const current = walletMetaRef.current;
     if (current == null) return;
@@ -209,14 +247,14 @@ export function useGoals() {
       goalsService.saveProgress(userId, rebased).catch(() => {});
     }
     anchoredRef.current = true;
-  }, [userId, rawData, walletValue]);
+  }, [userId, isImported, rawData, walletValue]);
 
   // Persist the auto-advanced ladder whenever the render-time data diverges
   // from the raw state (a card just completed itself from the balance).
   useEffect(() => {
-    if (!userId || !data || data === rawData) return;
+    if (!userId || isImported || !data || data === rawData) return;
     goalsService.saveProgress(userId, data).catch(() => {});
-  }, [userId, data, rawData]);
+  }, [userId, isImported, data, rawData]);
 
   // Auto-open: the freshly completed card pops open when the balance crosses a
   // target live. The initial load never pops (it only records the baseline).
@@ -238,7 +276,7 @@ export function useGoals() {
   const clearAutoOpen = useCallback(() => setAutoOpenMove(null), []);
 
   const reset = useCallback(async () => {
-    if (!userId) return;
+    if (!userId || isImported) return; // imported plans are auto-computed — no reset
     setSaveState("saving");
     try {
       const initial = resetData(walletValue ?? undefined);
@@ -249,7 +287,7 @@ export function useGoals() {
     } catch {
       setSaveState("error");
     }
-  }, [userId, walletValue]);
+  }, [userId, walletValue, isImported]);
 
   const clearSaveState = useCallback(() => setSaveState("idle"), []);
 
@@ -281,6 +319,7 @@ export function useGoals() {
     saveState,
     loadIssue,
     wallet,
+    isImported,
     autoOpenMove,
     clearAutoOpen,
     reset,

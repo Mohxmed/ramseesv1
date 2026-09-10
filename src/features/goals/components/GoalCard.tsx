@@ -50,7 +50,7 @@ export function GoalCard({
     >
       <div className="flex items-center justify-between">
         <span className="text-sm font-semibold text-zinc-300">
-          الكارد {String(move.move).padStart(2, "0")}
+          الدورة {String(move.move).padStart(2, "0")}
         </span>
         {status === "completed" && (
           <span className="text-up-fg" aria-label="مكتمل">
@@ -60,7 +60,7 @@ export function GoalCard({
       </div>
 
       <div className="flex flex-col gap-1">
-        <span className="text-xs text-muted">نمو الكارد</span>
+        <span className="text-xs text-muted">نمو الدورة</span>
         <span dir="ltr" className="text-lg font-bold tabular-nums text-zinc-50">
           {formatGrowth(perMoveGrowthPercent)}
         </span>

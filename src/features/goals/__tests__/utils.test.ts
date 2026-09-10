@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   createInitialData,
+  createImportedPlan,
   resetData,
   calculateGrowth,
   advanceToWallet,
@@ -135,6 +136,53 @@ describe("advanceToWallet", () => {
     for (const bad of [0, -5, NaN, Infinity]) {
       expect(advanceToWallet(data, bad)).toBe(data);
     }
+  });
+});
+
+describe("createImportedPlan", () => {
+  it("seeds the first cycle at the wallet's INITIAL balance", () => {
+    const plan = createImportedPlan(10_000, 12_100);
+    expect(plan.startingValue).toBe(10_000);
+    expect(plan.currentValue).toBe(10_000);
+    // first cycle is +10% over the founding balance
+    expect(plan.moves[0].targetValue).toBeCloseTo(11_000, 6);
+  });
+
+  it("derives completed cycles purely from the current equity crossing targets", () => {
+    // 10k → 11k (1) → 12.1k (2) → 13.31k (3)
+    const plan = createImportedPlan(10_000, 12_500);
+    expect(plan.completedMoves).toBe(2);
+    expect(plan.currentMove).toBe(3);
+    const done = plan.moves.filter((m) => m.completed);
+    expect(done.map((m) => m.move)).toEqual([1, 2]);
+    const first = plan.moves[0];
+    const second = plan.moves[1];
+    expect(first).toMatchObject({ move: 1, completed: true });
+    expect(first.startingValue).toBeCloseTo(10_000, 6);
+    expect(first.endingValue).toBeCloseTo((first.startingValue ?? 0) * 1.1, 6);
+    expect(first.growthPercentage).toBe(PCT);
+    expect(second).toMatchObject({ move: 2, completed: true });
+    expect(second.startingValue).toBeCloseTo(first.endingValue ?? 0, 6);
+    expect(second.endingValue).toBeCloseTo((second.startingValue ?? 0) * 1.1, 6);
+    expect(plan.moves[2]).toMatchObject({ move: 3, completed: false });
+  });
+
+  it("completes nothing when equity is below the first cycle target", () => {
+    const plan = createImportedPlan(10_000, 9_000);
+    expect(plan.completedMoves).toBe(0);
+    expect(plan.currentMove).toBe(1);
+  });
+
+  it("completes all cycles when equity crossed the last target", () => {
+    const plan = createImportedPlan(1000, 1000 * Math.pow(1.1, 30));
+    expect(plan.completedMoves).toBe(GOALS_CONFIG.TOTAL_CARDS);
+    expect(plan.moves.every((m) => m.completed)).toBe(true);
+  });
+
+  it("falls back to the constant seed when no balances exist yet", () => {
+    const plan = createImportedPlan(0, 0);
+    expect(plan.startingValue).toBe(GOALS_CONFIG.STARTING_VALUE);
+    expect(plan.completedMoves).toBe(0);
   });
 });
 

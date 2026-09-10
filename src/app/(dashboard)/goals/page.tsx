@@ -24,6 +24,7 @@ export default function GoalsPage() {
     saveState,
     loadIssue,
     wallet,
+    isImported,
     autoOpenMove,
     clearAutoOpen,
     reset,
@@ -74,13 +75,15 @@ export default function GoalsPage() {
           walletLabel={wallet.label}
           walletValue={wallet.value}
         />
-        <button
-          type="button"
-          onClick={() => setResetOpen(true)}
-          className="rounded-md border border-line px-4 py-2 text-sm font-medium text-muted transition-colors hover:border-down/40 hover:text-down-fg"
-        >
-          إعادة تعيين الأهداف
-        </button>
+        {!isImported && (
+          <button
+            type="button"
+            onClick={() => setResetOpen(true)}
+            className="rounded-md border border-line px-4 py-2 text-sm font-medium text-muted transition-colors hover:border-down/40 hover:text-down-fg"
+          >
+            إعادة تعيين الأهداف
+          </button>
+        )}
       </div>
 
       <LoadIssueBanner issue={loadIssue} />
@@ -94,8 +97,8 @@ export default function GoalsPage() {
             تهانينا! أكملت أهداف الشهر
           </div>
           <p className="mt-3 text-sm text-zinc-300">
-            أتممت {GOALS_CONFIG.TOTAL_CARDS} كارد بنمو {progress.perMoveGrowthPercent}%
-            لكل كارد — محفظتك بلغت{" "}
+            أتممت {GOALS_CONFIG.TOTAL_CARDS} دورة بنمو {progress.perMoveGrowthPercent}%
+            لكل دورة — محفظتك بلغت{" "}
             {formatNumber(data.moves[GOALS_CONFIG.TOTAL_CARDS - 1]?.targetValue ?? data.currentValue)}.
           </p>
         </Card>

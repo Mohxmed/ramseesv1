@@ -39,7 +39,70 @@ export function getNextTarget(
 }
 
 /**
- * Fresh ladder: every card is exactly +10% growth over the previous balance
+ * Imported (exchange) wallet plan — fully computed, never persisted. The first
+ * cycle is valued at the wallet's INITIAL balance (the founding/`baseline`
+ * equity from the platform), every next cycle is +10% over the previous, and
+ * completed cycles are derived purely from the CURRENT equity crossing those
+ * targets (equity already reflects trades and increases). Rebuilt fresh on
+ * every wallet update — there is no saved state to reset.
+ */
+export function createImportedPlan(
+  seedStartingValue: number,
+  currentValue: number
+): GoalsData {
+  const seed =
+    Number.isFinite(seedStartingValue) && seedStartingValue > 0
+      ? seedStartingValue
+      : GOALS_CONFIG.STARTING_VALUE;
+  const live =
+    Number.isFinite(currentValue) && currentValue > 0
+      ? currentValue
+      : seed;
+  const pct = GOALS_CONFIG.MOVE_GROWTH_PERCENT;
+  const moves: GoalsMove[] = Array.from(
+    { length: GOALS_CONFIG.TOTAL_CARDS },
+    (_, i) => {
+      const move = i + 1;
+      return {
+        move,
+        targetValue: targetForMove(move, seed, pct),
+        completed: false,
+      };
+    }
+  );
+
+  let completed = 0;
+  while (
+    completed < GOALS_CONFIG.TOTAL_CARDS &&
+    moves[completed].targetValue <= live
+  ) {
+    completed += 1;
+  }
+  for (let i = 0; i < completed; i += 1) {
+    const prev = i === 0 ? seed : moves[i - 1].targetValue;
+    moves[i] = {
+      ...moves[i],
+      startingValue: prev,
+      endingValue: moves[i].targetValue,
+      growthPercentage: pct,
+      completed: true,
+    };
+  }
+
+  return {
+    currentMove: Math.min(completed + 1, GOALS_CONFIG.TOTAL_CARDS),
+    completedMoves: completed,
+    currentValue: seed,
+    startingValue: seed,
+    perMoveGrowthPercent: pct,
+    strategyRef: null,
+    moves,
+    updatedAt: new Date(),
+  };
+}
+
+/**
+ * Fresh ladder: every cycle is exactly +10% growth over the previous balance
  * (compound). Seeded on the wallet's current balance when available, otherwise
  * on the hardcoded fallback constant.
  */

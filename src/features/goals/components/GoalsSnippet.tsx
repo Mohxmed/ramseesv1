@@ -28,11 +28,11 @@ export function GoalsSnippet() {
         <HomeCardHeader
           icon={<TrophyIcon className="h-[18px] w-[18px]" />}
           title="الأهداف"
-          subtitle="خطة ربح شهرية · 30 كارد"
+          subtitle="خطة ربح شهرية · 30 دورة"
           pill={
             progress ? (
               <Pill tone="gold" small>
-                {progress.completedMoves}/{progress.totalCards} كارد
+                {progress.completedMoves}/{progress.totalCards} دورة
               </Pill>
             ) : (
               <Pill tone="quiet" small>
@@ -47,7 +47,7 @@ export function GoalsSnippet() {
             <div className="mt-6 flex items-end justify-between">
               <div>
                 <p className="text-3xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
-                  الكارد الحالي
+                  الدورة الحالية
                 </p>
                 <p className="mt-1 flex items-baseline gap-1.5">
                   <span className={`${num} text-4xl font-extrabold leading-none tracking-tight text-zinc-50`}>
@@ -76,7 +76,7 @@ export function GoalsSnippet() {
                 />
               </div>
               <div className="mt-1.5 flex items-center justify-between text-3xs font-medium text-zinc-500">
-                <span>{progress.completedMoves} كارد مكتمل</span>
+                <span>{progress.completedMoves} دورة مكتملة</span>
                 <span className={`${num} font-bold text-zinc-400`} dir="ltr">
                   {progress.progressPercent.toFixed(1)}%
                 </span>
@@ -85,7 +85,7 @@ export function GoalsSnippet() {
 
             <div className="mt-5 grid grid-cols-2 gap-2">
               <StatCell
-                label="نمو الكارد"
+                label="نمو الدورة"
                 value={formatGrowth(progress.perMoveGrowthPercent)}
                 tone="up"
               />
@@ -99,7 +99,7 @@ export function GoalsSnippet() {
         ) : (
           <div className="mt-6 flex flex-1 flex-col justify-center">
             <p className="text-2xs font-medium text-zinc-500">اربح بنمو محفظتك تدريجيًا</p>
-            <p className="mt-1 text-xl font-extrabold text-zinc-50">30 كارد على مدار الشهر</p>
+            <p className="mt-1 text-xl font-extrabold text-zinc-50">30 دورة على مدار الشهر</p>
           </div>
         )}
 

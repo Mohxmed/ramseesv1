@@ -15,7 +15,7 @@ export function ProgressBar({
     <div className="animate-fade-in-up">
       <div className="mb-2 flex items-center justify-between text-sm">
         <span className="font-medium text-zinc-300">
-          {completedMoves} / {totalCards} كارد
+          {completedMoves} / {totalCards} دورة
         </span>
         <span className="text-zinc-400">{progressPercent.toFixed(0)}%</span>
       </div>

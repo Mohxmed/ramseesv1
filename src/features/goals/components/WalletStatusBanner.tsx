@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { FreshnessChip } from "@/components/ui/status-cards";
 import type { GoalsWalletContext } from "../types";
+import { formatNumber } from "../utils";
 
 /**
  * Status strip for the goals page wallet anchor. States:
@@ -52,11 +53,15 @@ export function WalletStatusBanner({
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-card border border-line/70 bg-surface-2/25 px-4 py-3 text-xs text-zinc-300">
         <span className="inline-flex items-center gap-1.5 font-semibold text-up-fg">
           <span className="h-1.5 w-1.5 rounded-full bg-up" />
-          الأهداف مرتبطة مباشرة برصيد {typeLabel}
+          الأهداف تُحسب تلقائيًا من رصيد {typeLabel}
         </span>
         <span className="text-2xs text-muted">
-          كل كارد = 10% نمو على الرصيد السابق — يُفتَتح تلقائيًا عند نمو
-          المحفظة.
+          كل دورة = 10% نمو على الرصيد السابق؛ أول دورة تُقيَّم من رصيد
+          المنصة الأول{" "}
+          {wallet.initialValue != null && wallet.initialValue > 0
+            ? `($${formatNumber(wallet.initialValue)})`
+            : ""}{" "}
+          — بلا حفظ أو إعادة تعيين.
         </span>
         <div className="ms-auto">
           <FreshnessChip
