@@ -8,7 +8,7 @@ import type { ImportedPortfolioSummary } from "../types";
 import { useImportedPortfolio } from "../hooks/useImportedPortfolio";
 import { ImportedOverview } from "./ImportedOverview";
 import { ImportedMetricGrid } from "./ImportedMetricGrid";
-import { ImportedBreakdown } from "./ImportedBreakdown";
+import { ImportedOpenPositions } from "./ImportedOpenPositions";
 import { ImportedCashFlow } from "./ImportedCashFlow";
 import { ImportedPerformance } from "./ImportedPerformance";
 import { ImportedHistory } from "./ImportedHistory";
@@ -108,10 +108,9 @@ export function ImportedPortfolioView({ meta }: { meta: ImportedPortfolioSummary
 
       <ImportedMetricGrid meta={meta} detail={detail} loading={loadingDetail} nowMs={now} />
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        <ImportedBreakdown detail={detail} loading={loadingDetail} />
-        <ImportedCashFlow meta={meta} detail={detail} loading={loadingDetail} nowMs={now} />
-      </div>
+      <ImportedOpenPositions accountId={meta.accountId} />
+
+      <ImportedCashFlow meta={meta} detail={detail} loading={loadingDetail} nowMs={now} />
 
       <ImportedPerformance meta={meta} detail={detail} loading={loadingDetail} />
 

@@ -178,6 +178,29 @@ export interface ExchangeSnapshotDto {
   fees: number;
 }
 
+/** Open position refreshed with a fresh futures mark price (no sync needed). */
+export interface LivePositionDto extends ExchangePositionDto {
+  /** Unrealized PnL relative to the position margin (%; null when margin = 0). */
+  unrealizedPnlPct: number | null;
+  /** True when markPrice comes from the live public futures ticker. */
+  pricedLive: boolean;
+  /** UTC ms of this poll. */
+  valuedAt: number;
+}
+
+/** `GET /api/portfolio/exchanges/[id]/positions-live`. */
+export interface LivePositionsDto {
+  positions: LivePositionDto[];
+  aggregate: {
+    unrealizedPnl: number;
+    margin: number;
+    notional: number;
+    count: number;
+  };
+  live: boolean;
+  at: number;
+}
+
 /** `GET /api/portfolio/exchanges/[id]` — what the imported wallet view reads. */
 export interface ImportedAccountDetailDto {
   account: {

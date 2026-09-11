@@ -4,6 +4,7 @@ import type {
   ExchangeDescriptorDto,
   ExchangeSyncStatusDto,
   ImportedAccountDetailDto,
+  LivePositionsDto,
 } from "../types";
 
 /**
@@ -94,6 +95,15 @@ export const exchangesApi = {
     const q = opts.limit != null ? `?limit=${opts.limit}` : "";
     return readJson(
       await authFetch(`/api/portfolio/exchanges/${encodeURIComponent(accountId)}${q}`)
+    );
+  },
+
+  /** Live open-positions overlay — futures mark prices re-priced every poll. */
+  async livePositions(accountId: string): Promise<LivePositionsDto> {
+    return readJson(
+      await authFetch(
+        `/api/portfolio/exchanges/${encodeURIComponent(accountId)}/positions-live`
+      )
     );
   },
 
