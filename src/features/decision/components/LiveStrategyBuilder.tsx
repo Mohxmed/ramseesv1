@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { ConditionNode, Signal, Strategy, StrategyEvaluation, StrategyType } from "../types";
 import { STRATEGY_TYPES } from "../constants";
 import { useMarketData } from "../../bitcoin/store/market-context";
@@ -25,8 +25,9 @@ export function LiveStrategyBuilder({
 }) {
   const cmd = useMarketData();
 
-  const updatedAt =
-    cmd.marketState?.timestamp ?? cmd.overview?.updatedAt ?? Date.now();
+  // Stable fallback timestamp (mount time) — no impure Date.now() in render.
+  const [mountTs] = useState(() => Date.now());
+  const updatedAt = cmd.marketState?.timestamp ?? cmd.overview?.updatedAt ?? mountTs;
 
   const signals: Signal[] = useMemo(
     () =>
@@ -46,7 +47,6 @@ export function LiveStrategyBuilder({
         waves: cmd.waves,
         updatedAt,
       }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       cmd.overview,
       cmd.marketState,
@@ -78,11 +78,11 @@ export function LiveStrategyBuilder({
 
   const evaluation: StrategyEvaluation | null = useMemo(() => {
     if (!strategy.enabled) {
-      const flows = STRATEGY_TYPES.map((t, i) => {
+      const flows = STRATEGY_TYPES.map((t) => {
         const flow = strategy.flows.find((f) => f.type === t);
         return evaluateFlow(t, flow?.root ?? createEmptyRoot(), false, signalById);
       });
-      return { strategyId: strategy.id, flows, anyValid: false, decision: "UNKNOWN", completion: 0, updatedAt: Date.now() };
+      return { strategyId: strategy.id, flows, anyValid: false, decision: "UNKNOWN", completion: 0, updatedAt };
     }
     const flows = strategy.flows.map((f) =>
       evaluateFlow(f.type, f.root, f.enabled, signalById)
@@ -100,8 +100,8 @@ export function LiveStrategyBuilder({
       completions.length > 0
         ? completions.reduce((a, b) => a + b, 0) / completions.length
         : 0;
-    return { strategyId: strategy.id, flows, anyValid, decision, completion, updatedAt: Date.now() };
-  }, [strategy, signalById]);
+    return { strategyId: strategy.id, flows, anyValid, decision, completion, updatedAt };
+  }, [strategy, signalById, updatedAt]);
 
   return (
     <StrategyBuilder

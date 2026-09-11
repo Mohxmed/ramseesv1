@@ -50,7 +50,7 @@ export const calibrateEngine = onSchedule(
     timeoutSeconds: 540,
     memory: "256MiB",
   } satisfies ScheduleOptions,
-  async (event) => {
+  async () => {
     const db = getFirestore();
     const nowMs = Date.now();
     const { fromMs } = windowRange(nowMs);
@@ -80,7 +80,7 @@ export const calibrateEngine = onSchedule(
     const decisions = decisionsSnap.docs.map((d) => d.data() as DecisionRecord);
     logger.info("calibrateEngine.consumed", { count: decisions.length });
 
-    const run = computeCalibration(decisions, nowMs);
+    const run = computeCalibration(decisions);
     logger.info("calibrateEngine.run", {
       features: run.features.length,
       aggregateBrier: run.aggregateBrier,
@@ -108,8 +108,7 @@ export const calibrateEngine = onSchedule(
  * without a Firestore emulator.
  */
 export function computeCalibration(
-  decisions: ReadonlyArray<DecisionRecord>,
-  _nowMs: number
+  decisions: ReadonlyArray<DecisionRecord>
 ): CalibrationRun {
   const byFeature = new Map<string, DecisionRecord[]>();
   for (const d of decisions) {

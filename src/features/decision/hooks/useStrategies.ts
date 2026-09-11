@@ -91,7 +91,7 @@ export function useStrategies() {
     const s = loadLocal();
     return s.length ? s[0].id : null;
   });
-  const [status, setStatus] = useState<PersistStatus>("loading");
+  const [persistStatus, setPersistStatus] = useState<PersistStatus>("loading");
 
   // Keep a monotonic seed so a new strategy gets a fresh unique id each time.
   const seedRef = useRef(0);
@@ -102,15 +102,12 @@ export function useStrategies() {
 
   // --- Firestore hydration (once, when userId resolves) ---
   useEffect(() => {
-    if (!userId) {
-      setStatus("local");
-      return;
-    }
+    if (!userId) return;
     let cancelled = false;
-    setStatus("loading");
-    strategiesService
-      .list(userId)
-      .then((remote) => {
+    const fetchRemote = async () => {
+      setPersistStatus("loading");
+      try {
+        const remote = await strategiesService.list(userId);
         if (cancelled) return;
         if (remote.length > 0) {
           const merged = remote
@@ -124,11 +121,12 @@ export function useStrategies() {
             });
           }
         }
-        setStatus("saved");
-      })
-      .catch(() => {
-        if (!cancelled) setStatus("local");
-      });
+        setPersistStatus("saved");
+      } catch {
+        if (!cancelled) setPersistStatus("local");
+      }
+    };
+    void fetchRemote();
     return () => {
       cancelled = true;
     };
@@ -151,7 +149,6 @@ export function useStrategies() {
     const prevIds = prevIdsRef.current;
     prevIdsRef.current = currentIds;
 
-    setStatus("saving");
     let cancelled = false;
 
     const writes = strategies.map((s) =>
@@ -165,13 +162,17 @@ export function useStrategies() {
       }
     }
 
-    Promise.all(writes)
-      .then(() => {
-        if (!cancelled) setStatus("saved");
-      })
-      .catch(() => {
-        if (!cancelled) setStatus("error");
-      });
+    const push = async () => {
+      setPersistStatus("saving");
+      try {
+        await Promise.all(writes);
+        if (!cancelled) setPersistStatus("saved");
+      } catch {
+        if (!cancelled) setPersistStatus("error");
+      }
+    };
+    void push();
+
     return () => {
       cancelled = true;
     };
@@ -190,7 +191,7 @@ export function useStrategies() {
   const createStrategy = useCallback(
     (opts: { name?: string; templateId?: string; enabled?: boolean } = {}) => {
       const base = STRATEGY_TEMPLATES.find((t) => t.id === opts.templateId);
-      const fallback = defaultStrategy(true)[0];
+      const fallback = defaultStrategy()[0];
       const s: Strategy = base
         ? {
             id: newId("s"),
@@ -280,7 +281,9 @@ export function useStrategies() {
     strategies,
     activeId,
     activeStrategy,
-    status,
+    // Without a signed-in user persistence is always local; otherwise surface
+    // the real persistence state (loading/saving/saved/error).
+    status: !userId ? "local" : persistStatus,
     setActive,
     saveStrategy,
     createStrategy,

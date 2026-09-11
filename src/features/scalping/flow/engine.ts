@@ -877,7 +877,6 @@ function computeComposite(): CompositePrice {
   const absDev = sorted.map((p) => Math.abs(p - median)).sort((a, b) => a - b);
   const mad = absDev[Math.floor(absDev.length / 2)] || 0;
   const scale = (1.4826 * mad + 1e-9); // robust sigma (avoid div-by-0 on ties)
-  const threshold = scale * 2;
 
   let rejected = 0;
   const kept = ingredients.filter((i) => {

@@ -18,7 +18,7 @@ import type {
   PredictionResult,
   Forecast,
 } from "../../bitcoin/types";
-import type { SupportResistanceResult, Zone } from "../../bitcoin/analysis/types";
+import type { SupportResistanceResult } from "../../bitcoin/analysis/types";
 import type { LiquidityAnalysis } from "../../bitcoin/analysis/liquidity";
 import type { MarketStructureAnalysis } from "../../bitcoin/analysis/market-structure";
 import type { Wave } from "../../bitcoin/analysis/waves";
@@ -43,8 +43,6 @@ export interface DecisionMarketInput {
   waves: Wave[];
   updatedAt: number;
 }
-
-interface BuildCtx extends DecisionMarketInput {}
 
 function stat(
   id: string,

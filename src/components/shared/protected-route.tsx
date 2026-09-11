@@ -57,8 +57,11 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     }
   }, [status, isAuthenticated, router]);
 
+  useEffect(() => {
+    if (phase === "ready" && isAuthenticated) markBooted();
+  }, [phase, isAuthenticated]);
+
   if (phase === "ready" && isAuthenticated) {
-    markBooted();
     return <>{children}</>;
   }
 

@@ -131,6 +131,10 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
     const el = containerRef.current;
     if (!el) return;
 
+    // Capture the stable refs so cleanup never reads a reference that may have
+    // been replaced between effect runs.
+    const overlays = overlayRef.current;
+
     const chart = createChart(el, {
       autoSize: true,
       layout: {
@@ -268,7 +272,7 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
       volumeSeriesRef.current = null;
       futureSeriesRef.current = null;
       markersRef.current = null;
-      overlayRef.current.clear();
+      overlays.clear();
       zoneSeriesRef.current = [];
       lastFittedTfRef.current = null;
       el.removeEventListener("wheel", onWheel, { capture: true } as EventListenerOptions);
@@ -401,7 +405,7 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
       }
       series.setData(lineData);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [candles, overlays]);
 
   // -------------------------------------------------------------------- S/R
@@ -562,7 +566,7 @@ export function BtcChart({ candles, timeframe, onTimeframeChange, analysis, liqu
     addLine(decision.entry, COLOR.decisionEntry, "DEC:ENTRY", LineStyle.Dashed);
     addLine(decision.stopLoss, COLOR.decisionStop, "DEC:SL", LineStyle.Dotted);
     addLine(decision.takeProfit, COLOR.decisionTarget, "DEC:TP", LineStyle.Solid);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [analysis, candles, liquidity, structure, decision]);
 
   // ------------------------------------------------------------ navigation

@@ -121,7 +121,9 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
   const lastEventAtRef = useRef<number>(0);
   const latencyRef = useRef<number | null>(null);
   const log = useRef(onDebug);
-  log.current = onDebug;
+  useEffect(() => {
+    log.current = onDebug;
+  });
 
   // --- Futures raw ingestion (mark price + liquidation events) ----------
   // Kept in refs: forceOrder/markPrice arrive many times/sec; re-rendering on

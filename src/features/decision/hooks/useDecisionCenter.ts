@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useMarketData } from "../../bitcoin/store/market-context";
 import { buildSignals } from "../signals/signalEngine";
 import { evaluateStrategy, setSignalNames } from "../evaluation/evaluate";
@@ -20,10 +20,9 @@ import type { Signal } from "../types";
 export function useDecisionCenter() {
   const cmd = useMarketData();
 
-  const firstSignalTime = useMemo(
-    () => Date.now(),
-    []
-  );
+  // Stable fallback timestamp (mount time) — avoids calling Date.now() during
+  // render, which is impure and breaks hydration guarantees.
+  const [firstSignalTime] = useState(() => Date.now());
 
   // Use the Command Center timestamps to mark signal freshness.
   const updatedAt = cmd.marketState?.timestamp ?? cmd.overview?.updatedAt ?? firstSignalTime;
@@ -46,7 +45,6 @@ export function useDecisionCenter() {
         waves: cmd.waves,
         updatedAt,
       }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       cmd.overview,
       cmd.marketState,

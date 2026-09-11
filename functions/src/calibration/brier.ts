@@ -97,12 +97,10 @@ export function recomputeWeights(
   let aggNumerator = 0;
   let aggDenominator = 0;
   let totalRaw = 0;
-  let totalSample = 0;
 
   for (const c of calibrations) {
     aggNumerator += c.brier * c.consumed;
     aggDenominator += c.consumed;
-    totalSample += c.consumed;
     if (c.consumed < MIN_SAMPLES) {
       insufficient.push(c.featureKey);
       continue;
@@ -130,7 +128,7 @@ export function applyCalibration(
   calibrations: ReadonlyArray<FeatureCalibration>,
   nowMs: number
 ): { config: EngineConfigDocument; updated: boolean } {
-  const { weights, aggregate, insufficient } = recomputeWeights(calibrations);
+  const { weights, aggregate } = recomputeWeights(calibrations);
 
   const brierScores: Record<string, number> = {};
   for (const c of calibrations) {

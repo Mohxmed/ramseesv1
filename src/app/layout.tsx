@@ -13,6 +13,13 @@ const cairo = Cairo({
 export const metadata: Metadata = {
   title: "RAMSEES - نظام تداول البيتكوين",
   description: "نظام شخصي لتداول وتحليل البيتكوين",
+  metadataBase: new URL("https://ramseesv1.vercel.app"),
+  icons: { icon: "/favicon.png", apple: "/favicon.png" },
+  openGraph: {
+    title: "RAMSEES",
+    description: "نظام شخصي لتداول وتحليل البيتكوين",
+    images: [{ url: "/favicon.png", width: 512, height: 512 }],
+  },
 };
 
 export default function RootLayout({

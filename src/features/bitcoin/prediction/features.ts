@@ -261,11 +261,6 @@ export function extractFeatures(candles: BtcCandle[]): PredictionFeatureSet {
   const recent = candles.slice(-16).map((c) => c.close);
   let slope = 0;
   if (recent.length > 1 && recent[0] > 0) {
-    const denom = (recent.length - 1) * (recent.length - 1) + recent.length - 1;
-    let num = 0;
-    for (let i = 0; i < recent.length; i++) {
-      num += i * recent[i];
-    }
     const meanX = (recent.length - 1) / 2;
     const meanY = recent.reduce((a, b) => a + b, 0) / recent.length;
     let cov = 0;
@@ -293,14 +288,12 @@ export function extractFeatures(candles: BtcCandle[]): PredictionFeatureSet {
   let upVol = 0;
   let downVol = 0;
   let upCount = 0;
-  let downCount = 0;
   for (let i = Math.max(1, n - 30); i < n; i++) {
     if (candles[i].close >= candles[i - 1].close) {
       upVol += candles[i].volume;
       upCount++;
     } else {
       downVol += candles[i].volume;
-      downCount++;
     }
   }
   const shortRatio =

@@ -38,7 +38,13 @@ export function useGoldenTarget() {
         const doc: GoldenTargetDocument | null =
           await goldenTargetService.getProgress(userId);
         if (doc) {
-          const { id: _id, userId: _uid, ...dataOnly } = doc;
+          const dataOnly: GoldenTargetData = {
+            currentMove: doc.currentMove,
+            completedMoves: doc.completedMoves,
+            currentValue: doc.currentValue,
+            moves: doc.moves,
+            updatedAt: doc.updatedAt,
+          };
           setData(dataOnly);
         } else {
           const initial = createInitialData();

@@ -141,9 +141,6 @@ export function computeMarketState(input: {
   const trend: MarketState["trend"] =
     trendScore > 0.15 ? "bullish" : trendScore < -0.15 ? "bearish" : "neutral";
 
-  const maxMom = Math.max(...sigs.map((s) => s.momentum).concat([0]));
-  const minMom = Math.min(...sigs.map((s) => s.momentum).concat([0]));
-  const spreadMom = maxMom - minMom;
   const momentum: MarketState["momentum"] =
     momentumScore > 0.35
       ? "strong"

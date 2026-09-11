@@ -12,8 +12,7 @@ export type StrengthMetrics = {
 export function aggregateMetrics(
   tests: LevelTest[],
   candles: BtcCandle[],
-  nowTime: number,
-  currentPrice: number
+  nowTime: number
 ): StrengthMetrics {
   if (tests.length === 0) {
     return { testCount: 0, avgImpact: 0, volumeRatio: 0, avgRecencyDays: Infinity };
@@ -59,7 +58,7 @@ export function computeStrength(
   nowTime: number,
   currentPrice: number
 ): number {
-  const m = aggregateMetrics(tests, candles, nowTime, currentPrice);
+  const m = aggregateMetrics(tests, candles, nowTime);
 
   if (m.testCount === 0 || currentPrice <= 0) return 5;
 

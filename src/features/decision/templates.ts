@@ -64,12 +64,12 @@ export function defaultFlowNode(flowType: StrategyType): ConditionNode {
 }
 
 export function createDefaults(): Strategy[] {
-  const base = defaultStrategy(true);
+  const base = defaultStrategy();
   return base;
 }
 
 /** Build one new default strategy (fresh ids) with the four flow types. */
-export function defaultStrategy(named = true): Strategy[] {
+export function defaultStrategy(): Strategy[] {
   const now = Date.now();
   const flowTypes: StrategyType[] = ["BUY", "SELL", "EXIT", "WAIT"];
   const flows: StrategyFlow[] = flowTypes.map((type, i) => ({

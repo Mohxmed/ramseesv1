@@ -70,7 +70,7 @@ function macd(
   const macdLine: (number | null)[] = values.map((_, i) =>
     emaFast[i] != null && emaSlow[i] != null ? emaFast[i]! - emaSlow[i]! : null
   );
-  const validMacd = macdLine.map((v, i) => (v != null ? v : 0));
+  const validMacd = macdLine.map((v) => (v != null ? v : 0));
   const signalLine = ema(validMacd.map((v) => (v as number)), signal);
   const hist: (number | null)[] = macdLine.map((v, i) =>
     v != null && signalLine[i] != null ? (v as number) - (signalLine[i] as number) : null
@@ -134,7 +134,7 @@ function vwap(candles: BtcCandle[]): (number | null)[] {
   return out;
 }
 
-function stdDev(values: number[], period: number): number {
+function stdDev(values: number[]): number {
   if (values.length === 0) return 0;
   const mean = values.reduce((a, b) => a + b, 0) / values.length;
   const variance =
@@ -211,7 +211,7 @@ export function computeIndicators(candles: BtcCandle[]): TechnicalIndicators {
     closes.length >= 20 ? (lastClose / closes[closes.length - 21] - 1) * 100 : null;
 
   const recent = closes.slice(-20);
-  const vol = stdDev(recent, recent.length);
+  const vol = stdDev(recent);
   const volatilityVal = lastClose > 0 ? (vol / lastClose) * 100 : null;
 
   const macdCross =

@@ -31,7 +31,6 @@ function forwardReturn(
   endIndex: number,
   horizonBars: number
 ): number | null {
-  const start = endIndex + 1;
   const end = endIndex + horizonBars;
   if (end >= candles.length) return null;
   const from = candles[endIndex].close;

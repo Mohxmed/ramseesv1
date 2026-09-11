@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { spotApi, marketApi, futuresApi } from "../services";
 import type {
   FundingRateRaw,
@@ -97,12 +97,7 @@ export function useBitcoinPipeline() {
   const [structure, setStructure] = useState<MarketStructureAnalysis | null>(null);
   const [waves, setWaves] = useState<Wave[]>([]);
   const [forecast, setForecast] = useState<Forecast | null>(null);
-  const [liveConnected, setLiveConnected] = useState<boolean | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  // Near-live spot price + last-update timestamp driven by the WebSocket feed
-  // (throttled to ~1s), surfaced onto the whole shared store.
-  const [livePrice, setLivePrice] = useState<number | null>(null);
-  const [liveUpdatedAt, setLiveUpdatedAt] = useState<number | null>(null);
   // Unified futures state (OI + positioning + liquidations + price/OI + health).
   const [futuresState, setFuturesState] = useState<FuturesState | null>(null);
   // Deribit options state (OI per strike, IV, PCR, skew, max pain).
@@ -122,60 +117,52 @@ export function useBitcoinPipeline() {
   } | null>(null);
 
   const liveFeed = useLiveFeed();
-  // Mirror the live payload into a ref so the REST fetch doesn't re-create its
-  // effect (and interval) whenever the WebSocket emits a tick.
+  // Mirror the live payload into refs so the REST fetch does not re-create its
+  // effect (and interval) whenever the WebSocket emits a tick. Synced after
+  // every render so the values always reflect the latest committed frame.
   const liveFlowRef = useRef<OrderFlowData | null>(null);
-  liveFlowRef.current = liveFeed.orderFlow;
   const liveBookRef = useRef<{ bestBid: number; bestAsk: number } | null>(null);
-  liveBookRef.current = liveFeed.bookTicker;
   useEffect(() => {
-    setLiveConnected(liveFeed.connected);
-  }, [liveFeed.connected]);
-
-  // Mirror throttled WebSocket price + last-update onto the shared store. Reading
-  // from refs keeps this cheap and independent of the REST polling cadence.
-  useEffect(() => {
-    setLivePrice(liveFeed.livePrice);
-    setLiveUpdatedAt(liveFeed.liveUpdatedAt);
-  }, [liveFeed.livePrice, liveFeed.liveUpdatedAt]);
+    liveFlowRef.current = liveFeed.orderFlow;
+    liveBookRef.current = liveFeed.bookTicker;
+  });
 
   // Overlay the WebSocket spot price onto the canonical overview so the instant
   // price bar / market overview update in near-real-time (not just every REST
-  // poll), and keep the chart's forming 1m candle live.
-  useEffect(() => {
+  // poll), and keep the chart's forming 1m candle live. Derived during render
+  // (both inputs are already React state) instead of synced via an effect.
+  const liveOverview = useMemo(() => {
     const price = liveFeed.livePrice;
     const ts = liveFeed.liveUpdatedAt;
-    if (price != null) {
-      setOverview((prev) => {
-        if (!prev) return prev;
-        if (prev.price === price && prev.updatedAt === (ts ?? prev.updatedAt)) return prev;
-        return { ...prev, price, updatedAt: ts ?? prev.updatedAt };
-      });
+    if (price != null && overview) {
+      if (overview.price === price && overview.updatedAt === (ts ?? overview.updatedAt)) {
+        return overview;
+      }
+      return { ...overview, price, updatedAt: ts ?? overview.updatedAt };
     }
+    return overview;
+  }, [overview, liveFeed.livePrice, liveFeed.liveUpdatedAt]);
 
+  const liveChartCandles = useMemo(() => {
     const kline = liveFeed.liveKline;
-    if (kline) {
-      setChartCandles((prev) => {
-        if (!prev.length) return prev;
-        const last = prev[prev.length - 1];
-        if (last.time !== kline.time) return prev; // only merge into the forming candle
-        const next = prev.slice();
-        next[next.length - 1] = {
-          ...last,
-          high: Math.max(last.high, kline.high),
-          low: Math.min(last.low, kline.low),
-          close: kline.close,
-          volume: kline.volume,
-          takerBuyVolume: kline.takerBuyVolume ?? last.takerBuyVolume,
-        };
-        const merged = next[next.length - 1];
-        if (merged.close === last.close && merged.high === last.high && merged.low === last.low) {
-          return prev;
-        }
-        return next;
-      });
+    if (!kline || !chartCandles.length) return chartCandles;
+    const last = chartCandles[chartCandles.length - 1];
+    if (last.time !== kline.time) return chartCandles; // only merge into the forming candle
+    const next = chartCandles.slice();
+    next[next.length - 1] = {
+      ...last,
+      high: Math.max(last.high, kline.high),
+      low: Math.min(last.low, kline.low),
+      close: kline.close,
+      volume: kline.volume,
+      takerBuyVolume: kline.takerBuyVolume ?? last.takerBuyVolume,
+    };
+    const merged = next[next.length - 1];
+    if (merged.close === last.close && merged.high === last.high && merged.low === last.low) {
+      return chartCandles;
     }
-  }, [liveFeed.livePrice, liveFeed.liveUpdatedAt, liveFeed.liveKline]);
+    return next;
+  }, [chartCandles, liveFeed.liveKline]);
 
   const busyRef = useRef(false);
   // prevPriceRef tracks the last fast-tier price for a signed move. (Positioning
@@ -532,11 +519,13 @@ export function useBitcoinPipeline() {
   }, [timeframe, loadIndicators, loadPrediction, loadAnalysis30m]);
 
   useEffect(() => {
-    // Initial load: pull the full snapshot, then start the live feed going.
-    fetchSlow();
-    fetchFast();
-    const slow = setInterval(() => fetchSlow(), SLOW_REFRESH_MS);
-    const fast = setInterval(() => fetchFast(), FAST_REFRESH_MS);
+    // Initial load: pull the full snapshot, then keep the live tiers going.
+    const bootstrap = async () => {
+      await Promise.all([fetchSlow(), fetchFast()]);
+    };
+    void bootstrap();
+    const slow = setInterval(() => void fetchSlow(), SLOW_REFRESH_MS);
+    const fast = setInterval(() => void fetchFast(), FAST_REFRESH_MS);
     return () => {
       clearInterval(slow);
       clearInterval(fast);
@@ -561,19 +550,19 @@ export function useBitcoinPipeline() {
     data,
     timeframe,
     setTimeframe,
-    overview,
+    overview: liveOverview,
     candles,
-    chartCandles,
+    chartCandles: liveChartCandles,
     indicators,
     prediction,
     analysis30m,
     multiTF,
     orderBook,
     orderFlow: restFlow,
-    liveConnected,
-    livePrice,
-    liveUpdatedAt,
-    livePriceTs: liveUpdatedAt,
+    liveConnected: liveFeed.connected,
+    livePrice: liveFeed.livePrice,
+    liveUpdatedAt: liveFeed.liveUpdatedAt,
+    livePriceTs: liveFeed.liveUpdatedAt,
     wsHealth: liveFeed.wsHealth,
     futures,
     futuresState,

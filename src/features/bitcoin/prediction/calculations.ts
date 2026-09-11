@@ -18,7 +18,7 @@ export function computeForwardWindow(
   features: PredictionFeatureSet
 ): PredictionWindow {
   const lastPrice = features.lastPrice;
-  let rets: number[] = [];
+  const rets: number[] = [];
   for (let i = 1; i < candles.length; i++) {
     const prev = candles[i - 1].close;
     if (prev > 0) rets.push((candles[i].close / prev - 1) * 100);
@@ -59,7 +59,6 @@ export function computeForwardWindow(
     forwardRets.length;
   const vol = Math.sqrt(variance);
 
-  const sorted = [...forwardRets].sort((a, b) => a - b);
   const pUp = forwardRets.filter((r) => r > 0).length / forwardRets.length;
 
   const expectedReturn =

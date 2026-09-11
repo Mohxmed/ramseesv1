@@ -1,6 +1,5 @@
 import type { BtcCandle } from "../types";
 import { detectSwings } from "./swing-points";
-import type { SwingPoint } from "./types";
 
 export type StructurePoint = {
   time: number;

@@ -184,7 +184,7 @@ export function normalizeMarketOverview(input: {
   const dominance =
     input.global?.data?.market_cap_percentage?.btc ?? null;
 
-  let openInterestChange: number | null = null;
+  const openInterestChange: number | null = null;
   let futuresVolume: number | null = null;
   if (input.openInterest && input.futuresTicker) {
     const v = parsed(input.futuresTicker.quoteVolume, 0);
