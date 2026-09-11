@@ -50,7 +50,7 @@ export async function keepAliveFuturesListenKey(
   );
 }
 
-/** Raw /fapi/v1/account — the single-call source for equity numbers. */
+/** Raw /fapi/v2/account — the single-call source for equity numbers. */
 interface RawFuturesAccount {
   totalWalletBalance?: string;
   totalUnrealizedProfit?: string;
@@ -106,7 +106,7 @@ export function emptyFuturesLiveState(at = Date.now()): FuturesLiveState {
 /** Signed REST snapshot — equity, balances and open positions in one shot. */
 export async function fetchFuturesLiveState(creds: ExchangeCredentials): Promise<FuturesLiveState> {
   const [acct, rawPositions] = await Promise.all([
-    rest.signedGet<RawFuturesAccount>(creds, "/fapi/v1/account", {}, { futures: true }),
+    rest.signedGet<RawFuturesAccount>(creds, "/fapi/v2/account", {}, { futures: true }),
     rest.signedGet<RawPositionRisk[]>(creds, "/fapi/v2/positionRisk", {}, { futures: true }),
   ]);
   const at = Date.now();
