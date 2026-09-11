@@ -164,7 +164,6 @@ export function ImportedOverview({
             data={chartData}
             xKey="t"
             height={240}
-            yAxisOrientation="right"
             fillGradient
             yDomain={["dataMin", "auto"]}
             minTickGap={32}

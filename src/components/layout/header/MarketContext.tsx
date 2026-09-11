@@ -33,6 +33,11 @@ export function MarketContext() {
     setTick((t) => t + 1);
   }, [price]);
 
+  // Direction of the price colour: driven by the last live tick once one has
+  // happened, otherwise by the 24h change. The colour is kept (stays green
+  // while rising, red while falling) until the next tick flips it.
+  const dir: "up" | "down" = tick > 0 ? flash : up ? "up" : "down";
+
   return (
     <div
       dir="ltr"
@@ -55,8 +60,14 @@ export function MarketContext() {
 
       <span
         key={tick}
-        className={`text-sm font-bold leading-none text-zinc-50 ${
-          tick > 0 ? (flash === "up" ? "animate-price-up" : "animate-price-down") : ""
+        className={`text-sm font-bold leading-none ${
+          price == null
+            ? "text-zinc-50"
+            : dir === "up"
+              ? "text-up-fg"
+              : "text-down-fg"
+        } ${
+          tick > 0 ? (dir === "up" ? "animate-price-up" : "animate-price-down") : ""
         }`}
       >
         {price != null ? formatPrice(price) : "—"}

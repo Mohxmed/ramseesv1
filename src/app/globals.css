@@ -104,25 +104,23 @@ body {
   }
 }
 
-/* Live price tick: green glow when the last tick went up, red when down. */
+/* Live price tick: a quick scale pulse keeps the direction colour — the price
+   itself stays green while rising and red while falling (the span keeps its
+   text-* token), so the pulse just emphasises the moment a new tick lands. */
 @keyframes price-up {
   0% {
-    color: var(--color-up-fg);
-    transform: scale(1.07);
+    transform: scale(1.08);
   }
   100% {
-    color: var(--color-foreground);
     transform: scale(1);
   }
 }
 
 @keyframes price-down {
   0% {
-    color: var(--color-down-fg);
-    transform: scale(1.07);
+    transform: scale(1.08);
   }
   100% {
-    color: var(--color-foreground);
     transform: scale(1);
   }
 }

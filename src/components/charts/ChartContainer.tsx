@@ -61,7 +61,7 @@ export interface ChartContainerProps {
   showGrid?: boolean;
   showXAxis?: boolean;
   showYAxis?: boolean;
-  /** RTL-safe y-axis orientation (defaults to right side). */
+  /** RTL-safe y-axis orientation (defaults to left side). */
   yAxisOrientation?: "left" | "right";
   /** Force the y-domain (e.g. ['dataMin', 'auto'] for a non-zero baseline). */
   yDomain?: [number | string, number | string];
@@ -103,7 +103,7 @@ export function ChartContainer({
   showGrid = true,
   showXAxis = true,
   showYAxis = true,
-  yAxisOrientation = "right",
+  yAxisOrientation = "left",
   yDomain,
   fillGradient = false,
   referenceLines,
