@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { num, SkeletonCard, type Tone } from "@/components/ui";
 import { fmtMoney } from "../utils";
 import { buildOps, computeStatement } from "../operations";
+import { PortfolioCard } from "./PortfolioCard";
 import type { ImportedAccountDetailDto, ImportedPortfolioSummary } from "../types";
 
 function toneOf(v: number): Tone {
@@ -65,29 +66,54 @@ export function ImportedPerformance({
     </>
   );
 
+  const snippet = detail != null && !loading ? (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-2xs">
+      <span className="text-muted">
+        محقق صافٍ{" "}
+        <b className={`${num} font-bold ${realizedNetTone === "up" ? "text-up-fg" : realizedNetTone === "down" ? "text-down-fg" : "text-foreground"}`} dir="ltr">
+          {fmtMoney(realizedNet, { signed: true })}
+        </b>
+      </span>
+      <span className="text-muted">
+        غير محقق{" "}
+        <b className={`${num} font-bold ${toneOf(f.unrealizedPnl) === "up" ? "text-up-fg" : toneOf(f.unrealizedPnl) === "down" ? "text-down-fg" : "text-foreground"}`} dir="ltr">
+          {fmtMoney(f.unrealizedPnl, { signed: true })}
+        </b>
+      </span>
+      <span className="text-muted">
+        إجمالي{" "}
+        <b className={`${num} font-bold ${pnlTone === "up" ? "text-up-fg" : pnlTone === "down" ? "text-down-fg" : "text-foreground"}`} dir="ltr">
+          {fmtMoney(f.realizedPnl + f.unrealizedPnl, { signed: true })}
+        </b>
+      </span>
+    </div>
+  ) : null;
+
   return (
-    <section className="rounded-card border border-line bg-surface-1/40">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-line/70 px-4 py-2.5">
+    <PortfolioCard
+      title={
         <div>
           <h2 className="text-sm font-bold text-foreground">أداء المحفظة</h2>
           <p className="mt-0.5 text-2xs text-muted">صافي الأداء العام (محقق + غير محقق).</p>
         </div>
+      }
+      actions={
         <div
           className={`${num} text-2xl font-extrabold ${pnlTone === "up" ? "text-up-fg" : pnlTone === "down" ? "text-down-fg" : "text-foreground"}`}
           dir="ltr"
         >
           {fmtMoney(f.realizedPnl + f.unrealizedPnl, { signed: true })}
         </div>
-      </div>
-
+      }
+      snippet={snippet}
+      bodyClassName="p-4"
+    >
       {rows == null ? (
-        <div className="p-4">
-          <SkeletonCard rows={4} className="border-0 p-0" />
-        </div>
+        <SkeletonCard rows={4} className="border-0 p-0" />
       ) : (
-        <div className="p-4">{rows}</div>
+        rows
       )}
-    </section>
+    </PortfolioCard>
   );
 }
 

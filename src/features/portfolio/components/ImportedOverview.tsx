@@ -9,6 +9,7 @@ import {
 import { WalletIcon, EyeIcon, EyeOffIcon } from "@/components/icons/icons";
 import { timeAgo } from "@/features/notifications/format";
 import { AreaChart } from "@/components/charts";
+import { PortfolioCard } from "./PortfolioCard";
 import { fmtMoney, fmtPct, fmtTime, fmtShortDate, fmtDateTime } from "../utils";
 import type {
   ExchangeSnapshotDto,
@@ -90,9 +91,12 @@ export function ImportedOverview({
   };
 
   return (
-    <section className="overflow-hidden rounded-card border border-line bg-surface-1/40">
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4 p-5">
-        <div className="min-w-0 flex-1">
+    <PortfolioCard
+      className="overflow-hidden"
+      headerClassName="items-start gap-x-6 gap-y-4 p-5"
+      bodyClassName=""
+      title={
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
             <WalletIcon className="h-4 w-4 text-gold-fg" />
             <span className="text-2xs font-bold uppercase tracking-[0.18em] text-muted">
@@ -133,7 +137,8 @@ export function ImportedOverview({
             ) : null}
           </div>
         </div>
-
+      }
+      actions={
         <div
           className="flex shrink-0 flex-wrap items-center gap-1 rounded-panel border border-line/70 bg-surface-2/30 p-1"
           role="group"
@@ -154,8 +159,8 @@ export function ImportedOverview({
             </button>
           ))}
         </div>
-      </div>
-
+      }
+    >
       {detail == null ? (
         <SkeletonChart className="mx-5 mb-4 h-64 border-0" />
       ) : haveChart ? (
@@ -209,6 +214,6 @@ export function ImportedOverview({
           </div>
         ))}
       </div>
-    </section>
+    </PortfolioCard>
   );
 }

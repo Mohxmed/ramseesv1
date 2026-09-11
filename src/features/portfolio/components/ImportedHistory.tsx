@@ -15,6 +15,7 @@ import {
 } from "@/components/icons/icons";
 import { fmtMoney, fmtDateTime } from "../utils";
 import { buildOps, OP_FILTERS } from "../operations";
+import { PortfolioCard } from "./PortfolioCard";
 import type {
   ImportedAccountDetailDto,
   ImportedOpRow,
@@ -129,70 +130,86 @@ export function ImportedHistory({
 
   if (loading || detail == null) {
     return (
-      <section className="rounded-card border border-line bg-surface-1/40">
-        <div className="border-b border-line/70 px-4 py-2.5">
+      <PortfolioCard
+        title={
           <div className="h-4 w-40 rounded-panel bg-surface-2/50 animate-pulse" />
-        </div>
-        <div className="p-4">
-          <SkeletonTable rows={6} columns={5} className="border-0 p-0" />
-        </div>
-      </section>
+        }
+        bodyClassName="p-4"
+      >
+        <SkeletonTable rows={6} columns={5} className="border-0 p-0" />
+      </PortfolioCard>
     );
   }
 
+  const netSum = ops.reduce((acc, o) => acc + (o.pnl ?? 0), 0);
+
   return (
-    <section className="rounded-card border border-line bg-surface-1/40">
-      <div className="border-b border-line/70 px-4 pt-2.5 pb-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="text-sm font-bold text-foreground">سجل العمليات</h2>
-            <p className="mt-0.5 text-2xs text-muted">
-              تتم مزامنة العمليات تلقائيًا من المنصة — اضغط أي صف لعرض التفاصيل.
-            </p>
-          </div>
-          <span className="rounded-chip border border-line px-2 py-0.5 text-2xs font-bold text-muted">
-            {ops.length}
+    <PortfolioCard
+      title={
+        <div>
+          <h2 className="text-sm font-bold text-foreground">سجل العمليات</h2>
+          <p className="mt-0.5 text-2xs text-muted">
+            تتم مزامنة العمليات تلقائيًا من المنصة — اضغط أي صف لعرض التفاصيل.
+          </p>
+        </div>
+      }
+      actions={
+        <span className="rounded-chip border border-line px-2 py-0.5 text-2xs font-bold text-muted">
+          {ops.length}
+        </span>
+      }
+      snippet={
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-2xs">
+          <span className="text-muted">
+            عدد العمليات <b className={`${num} font-bold text-foreground`}>{ops.length}</b>
+          </span>
+          <span className="text-muted">
+            صافي{" "}
+            <b className={`${num} font-bold ${netSum > 0 ? "text-up-fg" : netSum < 0 ? "text-down-fg" : "text-foreground"}`} dir="ltr">
+              {fmtMoney(netSum, { signed: true })}
+            </b>
           </span>
         </div>
+      }
+      bodyClassName="p-0"
+    >
+      <div className="flex flex-wrap items-center gap-2 border-b border-line/60 px-4 pb-2.5 pt-1">
+        <Tabs
+          slim
+          value={tab}
+          onChange={(v) => setTab(v as TabKey)}
+          items={TABS.map((t) => ({ value: t.key, label: t.label, icon: t.icon ?? undefined }))}
+        />
 
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <Tabs
-            slim
-            value={tab}
-            onChange={(v) => setTab(v as TabKey)}
-            items={TABS.map((t) => ({ value: t.key, label: t.label, icon: t.icon ?? undefined }))}
+        <div className="ms-auto flex flex-wrap items-center gap-2">
+          <input
+            type="search"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="بحث…"
+            className="h-8 w-36 rounded-panel border border-line bg-surface-2/40 px-2.5 text-xs text-foreground placeholder:text-muted focus:border-gold/50 focus:outline-none"
           />
-
-          <div className="ms-auto flex flex-wrap items-center gap-2">
-            <input
-              type="search"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="بحث…"
-              className="h-8 w-36 rounded-panel border border-line bg-surface-2/40 px-2.5 text-xs text-foreground placeholder:text-muted focus:border-gold/50 focus:outline-none"
+          <div style={{ width: 130 }}>
+            <Select
+              value={typeFilter}
+              onChange={setTypeFilter}
+              options={OP_FILTERS.map((f) => ({ value: f.key, label: f.label }))}
+              placeholder="النوع"
             />
-            <div style={{ width: 130 }}>
-              <Select
-                value={typeFilter}
-                onChange={setTypeFilter}
-                options={OP_FILTERS.map((f) => ({ value: f.key, label: f.label }))}
-                placeholder="النوع"
-              />
-            </div>
-            <div style={{ width: 120 }}>
-              <Select
-                value={asset}
-                onChange={setAsset}
-                options={[{ value: "all", label: "كل العملات" }, ...assets.map((a) => ({ value: a, label: a }))]}
-              />
-            </div>
-            <div style={{ width: 130 }}>
-              <Select
-                value={range}
-                onChange={setRange}
-                options={RANGE_OPTIONS}
-              />
-            </div>
+          </div>
+          <div style={{ width: 120 }}>
+            <Select
+              value={asset}
+              onChange={setAsset}
+              options={[{ value: "all", label: "كل العملات" }, ...assets.map((a) => ({ value: a, label: a }))]}
+            />
+          </div>
+          <div style={{ width: 130 }}>
+            <Select
+              value={range}
+              onChange={setRange}
+              options={RANGE_OPTIONS}
+            />
           </div>
         </div>
       </div>
@@ -292,7 +309,7 @@ export function ImportedHistory({
       )}
 
       <DetailsDrawer row={selected} onClose={() => setSelected(null)} nowMs={nowMs} />
-    </section>
+    </PortfolioCard>
   );
 }
 

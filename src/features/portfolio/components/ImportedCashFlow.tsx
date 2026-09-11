@@ -5,6 +5,7 @@ import { num, SkeletonCard, type Tone } from "@/components/ui";
 import { DepositIcon, WithdrawIcon } from "@/components/icons/icons";
 import { fmtMoney } from "../utils";
 import { buildOps } from "../operations";
+import { PortfolioCard } from "./PortfolioCard";
 import type { ImportedAccountDetailDto, ImportedPortfolioSummary } from "../types";
 
 const RANGES = [
@@ -63,41 +64,75 @@ export function ImportedCashFlow({
   const maxBar = win ? Math.max(win.deposits, win.withdrawals, 1) : 1;
   const netTone = win ? toneOf(win.net) : "neutral";
 
-  return (
-    <section className="rounded-card border border-line bg-surface-1/40">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line/70 px-4 py-2.5">
-        <div>
-          <h2 className="text-sm font-bold text-foreground">حركة الفلوس</h2>
-          <p className="mt-0.5 text-2xs text-muted">
-            {win?.fromMeta
-              ? "الإجمالي التراكمي منذ الربط"
-              : "من سجل العمليات المحمّل في الفترة"}
-          </p>
-        </div>
-        <div className="flex items-center gap-1 rounded-panel border border-line/70 bg-surface-2/30 p-1">
-          {RANGES.map((r) => (
-            <button
-              key={r.key}
-              type="button"
-              onClick={() => setRange(r.key)}
-              className={`rounded-panel px-2 py-0.5 text-2xs font-bold transition-colors ${
-                range === r.key
-                  ? "bg-gold/15 text-gold-fg ring-1 ring-gold/40"
-                  : "text-muted hover:bg-surface-2 hover:text-foreground"
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
-      </div>
+  const titleBlock = (
+    <div>
+      <h2 className="text-sm font-bold text-foreground">حركة الفلوس</h2>
+      <p className="mt-0.5 text-2xs text-muted">
+        {win?.fromMeta
+          ? "الإجمالي التراكمي منذ الربط"
+          : "من سجل العمليات المحمّل في الفترة"}
+      </p>
+    </div>
+  );
 
+  const rangePills = (
+    <div className="flex items-center gap-1 rounded-panel border border-line/70 bg-surface-2/30 p-1">
+      {RANGES.map((r) => (
+        <button
+          key={r.key}
+          type="button"
+          onClick={() => setRange(r.key)}
+          className={`rounded-panel px-2 py-0.5 text-2xs font-bold transition-colors ${
+            range === r.key
+              ? "bg-gold/15 text-gold-fg ring-1 ring-gold/40"
+              : "text-muted hover:bg-surface-2 hover:text-foreground"
+          }`}
+        >
+          {r.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  const snippet = win ? (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-2xs">
+      <span className="text-muted">
+        الإيداعات والتحويلات الداخلة{" "}
+        <b className={`${num} font-bold text-up-fg`} dir="ltr">
+          {fmtMoney(win.deposits)}
+        </b>
+      </span>
+      <span className="text-muted">
+        السحوبات والتحويلات الخارجة{" "}
+        <b className={`${num} font-bold text-down-fg`} dir="ltr">
+          {fmtMoney(win.withdrawals)}
+        </b>
+      </span>
+      <span className="text-muted">
+        الصافي{" "}
+        <b
+          className={`${num} font-bold ${
+            netTone === "up" ? "text-up-fg" : netTone === "down" ? "text-down-fg" : "text-foreground"
+          }`}
+          dir="ltr"
+        >
+          {fmtMoney(win.net, { signed: true })}
+        </b>
+      </span>
+    </div>
+  ) : null;
+
+  return (
+    <PortfolioCard
+      title={titleBlock}
+      actions={rangePills}
+      snippet={snippet}
+      bodyClassName="p-4"
+    >
       {loading || detail == null || win == null ? (
-        <div className="p-4">
-          <SkeletonCard rows={2} className="border-0 p-0" />
-        </div>
+        <SkeletonCard rows={2} className="border-0 p-0" />
       ) : (
-        <div className="space-y-4 p-4">
+        <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-panel border border-line/60 bg-surface-2/30 px-3 py-2.5">
               <div className="flex items-center gap-1.5 text-2xs font-semibold text-muted">
@@ -142,6 +177,6 @@ export function ImportedCashFlow({
           </div>
         </div>
       )}
-    </section>
+    </PortfolioCard>
   );
 }

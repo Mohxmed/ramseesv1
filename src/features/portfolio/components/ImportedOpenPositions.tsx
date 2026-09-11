@@ -10,6 +10,7 @@ import {
 import { fmtMoney, fmtPct } from "../utils";
 import { useLivePositions } from "../hooks/useLivePositions";
 import type { LivePositionDto } from "../types";
+import { PortfolioCard } from "./PortfolioCard";
 
 function toneOf(v: number): Tone {
   if (v > 0) return "up";
@@ -51,93 +52,96 @@ export function ImportedOpenPositions({ accountId }: { accountId: string }) {
 
   const aggregate = data?.aggregate;
 
-  const header = (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line/70 px-4 py-2.5">
-      <div>
-        <h2 className="flex items-center gap-2 text-sm font-bold text-foreground">
-          المراكز المفتوحة — الأرباح/الخسائر غير المحقّقة
-          {data ? (
-            <span className="flex items-center gap-1.5 rounded-full bg-up/10 px-2 py-0.5 text-2xs font-bold text-up-fg ring-1 ring-up/30">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-up-fg" />
-              مباشر
+  const titleBlock = (
+    <div>
+      <h2 className="flex items-center gap-2 text-sm font-bold text-foreground">
+        المراكز المفتوحة — الأرباح/الخسائر غير المحقّقة
+        {data ? (
+          <span className="flex items-center gap-1.5 rounded-full bg-up/10 px-2 py-0.5 text-2xs font-bold text-up-fg ring-1 ring-up/30">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-up-fg" />
+            مباشر
+          </span>
+        ) : null}
+      </h2>
+      <p className="mt-0.5 text-2xs text-muted">
+        تتحدّث الأسعار لحظيًا من سوق العقود الآجلة كل ٣ ثوانٍ تقريبًا.
+        {lastUpdated != null ? (
+          <>
+            {" "}· آخر تحديث{" "}
+            <span className="text-foreground" dir="ltr">
+              {new Date(lastUpdated).toLocaleTimeString("en-US", { hour12: false })}
             </span>
-          ) : null}
-        </h2>
-        <p className="mt-0.5 text-2xs text-muted">
-          تتحدّث الأسعار لحظيًا من سوق العقود الآجلة كل ٣ ثوانٍ تقريبًا.
-          {lastUpdated != null ? (
-            <>
-              {" "}· آخر تحديث{" "}
-              <span className="text-foreground" dir="ltr">
-                {new Date(lastUpdated).toLocaleTimeString("en-US", { hour12: false })}
-              </span>
-            </>
-          ) : null}
-        </p>
-      </div>
+          </>
+        ) : null}
+      </p>
     </div>
   );
 
   if (loading || data == null) {
     return (
-      <section className="rounded-card border border-line bg-surface-1/40">
-        {header}
+      <PortfolioCard title={titleBlock} bodyClassName="p-4">
         <SkeletonCard className="min-h-52" />
-      </section>
+      </PortfolioCard>
     );
   }
 
   const pnlTone = toneOf(aggregate?.unrealizedPnl ?? 0);
 
-  return (
-    <section className="rounded-card border border-line bg-surface-1/40">
-      {header}
+  const statStrip = (
+    <div className="grid grid-cols-2 gap-px bg-line/60 sm:grid-cols-4">
+      <StatCell
+        label="عدد المراكز"
+        value={<span className={num}>{aggregate?.count ?? 0}</span>}
+      />
+      <StatCell
+        label="الربح/الخسارة غير المحقّق"
+        tone={pnlTone}
+        value={
+          <span className={num} dir="ltr">
+            {fmtMoney(aggregate?.unrealizedPnl, { signed: true })}
+          </span>
+        }
+      />
+      <StatCell
+        label="الهامش المستخدم"
+        value={
+          <span className={num} dir="ltr">
+            {fmtMoney(aggregate?.margin)}
+          </span>
+        }
+      />
+      <StatCell
+        label="العائد المكتسب على الهامش"
+        tone={pnlTone}
+        value={
+          <span className={num} dir="ltr">
+            {aggregate != null && aggregate.margin > 0
+              ? fmtPct((aggregate.unrealizedPnl / aggregate.margin) * 100)
+              : "—"}
+          </span>
+        }
+      />
+    </div>
+  );
 
+  return (
+    <PortfolioCard
+      title={titleBlock}
+      snippet={data.positions.length > 0 ? statStrip : undefined}
+      bodyClassName=""
+    >
       {error ? (
         <p className="px-4 py-3 text-2xs text-down-fg">{error}</p>
       ) : null}
 
-      {data?.positions.length === 0 ? (
+      {data.positions.length === 0 ? (
         <div className="space-y-1 px-4 py-8 text-center text-2xs leading-5 text-muted">
           <p className="text-sm font-bold text-foreground">لا توجد مراكز مفتوحة</p>
           <p>كل الصفقات مغلقة — لا أرباح ولا خسائر غير محقّقة الآن.</p>
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-px bg-line/60 sm:grid-cols-4">
-            <StatCell
-              label="عدد المراكز"
-              value={<span className={num}>{aggregate?.count ?? 0}</span>}
-            />
-            <StatCell
-              label="الربح/الخسارة غير المحقّق"
-              tone={pnlTone}
-              value={
-                <span className={num} dir="ltr">
-                  {fmtMoney(aggregate?.unrealizedPnl, { signed: true })}
-                </span>
-              }
-            />
-            <StatCell
-              label="الهامش المستخدم"
-              value={
-                <span className={num} dir="ltr">
-                  {fmtMoney(aggregate?.margin)}
-                </span>
-              }
-            />
-            <StatCell
-              label="العائد المكتسب على الهامش"
-              tone={pnlTone}
-              value={
-                <span className={num} dir="ltr">
-                  {aggregate != null && aggregate.margin > 0
-                    ? fmtPct((aggregate.unrealizedPnl / aggregate.margin) * 100)
-                    : "—"}
-                </span>
-              }
-            />
-          </div>
+          {statStrip}
 
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-sm">
@@ -167,7 +171,7 @@ export function ImportedOpenPositions({ accountId }: { accountId: string }) {
           </p>
         </>
       )}
-    </section>
+    </PortfolioCard>
   );
 }
 
