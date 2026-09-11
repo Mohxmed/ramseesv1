@@ -107,6 +107,9 @@ const RANGE_OPTIONS = [
 const fmtAmount = (v: number) =>
   v.toLocaleString("en-US", { maximumFractionDigits: 6 });
 
+/** Dust threshold: operations with a coin amount below this are hidden from the list. */
+const MIN_AMOUNT = 0.01;
+
 export function ImportedHistory({
   detail,
   loading,
@@ -127,7 +130,13 @@ export function ImportedHistory({
   const [page, setPage] = useState(0);
   const [perPage, setPerPage] = useState(10);
 
-  const ops = useMemo(() => (detail ? buildOps(detail) : []), [detail]);
+  const ops = useMemo(
+    () =>
+      detail
+        ? buildOps(detail).filter((o) => Math.abs(o.amount) >= MIN_AMOUNT)
+        : [],
+    [detail]
+  );
 
   const assets = useMemo(() => {
     const set = new Set<string>();
