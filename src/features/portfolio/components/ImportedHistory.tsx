@@ -4,8 +4,20 @@ import { useMemo, useState } from "react";
 import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
 import Box from "@mui/material/Box";
+import Chip from "@mui/material/Chip";
 import { TablePagination } from "@mui/material";
-import { ThemeGate, Tabs, Select, SkeletonTable, num, Badge } from "@/components/ui";
+import {
+  LayoutGrid,
+  ArrowRightLeft,
+  ShieldCheck,
+  TriangleAlert,
+  Percent,
+  Gift,
+  CircleHelp,
+  Repeat,
+  Shuffle,
+} from "lucide-react";
+import { ThemeGate, Tabs, Select, SkeletonTable, num, Badge, type Tone } from "@/components/ui";
 import {
   TradesIcon,
   DepositIcon,
@@ -13,23 +25,47 @@ import {
   ScaleIcon,
   CloseIcon,
   ArrowLeftIcon,
+  RefreshIcon,
 } from "@/components/icons/icons";
 import { fmtMoney, fmtDateTime } from "../utils";
-import { buildOps, OP_FILTERS } from "../operations";
+import { buildOps, classifyOp, OP_KIND_OPTIONS, OPKIND_LABELS } from "../operations";
 import { PortfolioCard } from "./PortfolioCard";
 import type {
   ImportedAccountDetailDto,
   ImportedOpRow,
-  OpCategory,
-  OpFilter,
+  OpImpact,
+  OpKind,
 } from "../types";
 
-const CATEGORY_LABELS: Record<OpCategory, string> = {
-  profit: "أرباح المراكز",
-  loss: "خسائر المراكز",
-  fee: "رسوم الصفقات",
-  flow: "ودائع وسحب",
-  other: "أخرى",
+const KIND_ICONS: Record<OpKind | "all", React.ReactNode> = {
+  all: <LayoutGrid className="h-3.5 w-3.5" />,
+  deposit: <DepositIcon className="h-3.5 w-3.5" />,
+  withdrawal: <WithdrawIcon className="h-3.5 w-3.5" />,
+  transfer: <ArrowRightLeft className="h-3.5 w-3.5" />,
+  trade: <TradesIcon className="h-3.5 w-3.5" />,
+  fee: <ScaleIcon className="h-3.5 w-3.5" />,
+  funding: <Repeat className="h-3.5 w-3.5" />,
+  settlement: <ShieldCheck className="h-3.5 w-3.5" />,
+  liquidation: <TriangleAlert className="h-3.5 w-3.5" />,
+  pnl: <Percent className="h-3.5 w-3.5" />,
+  reward: <Gift className="h-3.5 w-3.5" />,
+  convert: <Shuffle className="h-3.5 w-3.5" />,
+  other: <CircleHelp className="h-3.5 w-3.5" />,
+};
+
+const KIND_DOTS: Record<OpKind, string> = {
+  deposit: "bg-up-fg",
+  withdrawal: "bg-down-fg",
+  transfer: "bg-muted",
+  trade: "bg-muted",
+  fee: "bg-warn-fg",
+  funding: "bg-muted",
+  settlement: "bg-muted",
+  liquidation: "bg-down-fg",
+  pnl: "bg-good",
+  reward: "bg-good",
+  convert: "bg-muted",
+  other: "bg-muted/70",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -39,15 +75,19 @@ const STATUS_LABELS: Record<string, string> = {
   CANCELLED: "ملغاة",
 };
 
-type TabKey = "all" | "trades" | "deposit" | "withdrawal" | "fee";
+const STATUS_TONES: Record<string, Tone> = {
+  PENDING: "warn",
+  CONFIRMED: "good",
+  FAILED: "down",
+  CANCELLED: "quiet",
+};
 
-const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
-  { key: "all", label: "الكل", icon: null },
-  { key: "trades", label: "الصفقات", icon: <TradesIcon className="h-3.5 w-3.5" /> },
-  { key: "deposit", label: "إيداع", icon: <DepositIcon className="h-3.5 w-3.5" /> },
-  { key: "withdrawal", label: "سحب", icon: <WithdrawIcon className="h-3.5 w-3.5" /> },
-  { key: "fee", label: "رسوم", icon: <ScaleIcon className="h-3.5 w-3.5" /> },
-];
+const IMPACT_OPTIONS = [
+  { value: "all", label: "كل الاتجاهات" },
+  { value: "in", label: "دخل (+)" },
+  { value: "out", label: "خصم (−)" },
+  { value: "neutral", label: "محايد" },
+] as const;
 
 const RANGE_MS: Record<string, number> = {
   "1D": 24 * 60 * 60 * 1000,
@@ -67,21 +107,6 @@ const RANGE_OPTIONS = [
 const fmtAmount = (v: number) =>
   v.toLocaleString("en-US", { maximumFractionDigits: 6 });
 
-function matchTab(o: ImportedOpRow, tab: TabKey): boolean {
-  switch (tab) {
-    case "trades":
-      return o.kind === "trade";
-    case "deposit":
-      return o.category === "flow" && (o.pnl ?? 0) > 0;
-    case "withdrawal":
-      return o.category === "flow" && (o.pnl ?? 0) < 0;
-    case "fee":
-      return o.category === "fee";
-    default:
-      return true;
-  }
-}
-
 export function ImportedHistory({
   detail,
   loading,
@@ -91,11 +116,13 @@ export function ImportedHistory({
   loading: boolean;
   nowMs: number;
 }) {
-  const [tab, setTab] = useState<TabKey>("all");
-  const [typeFilter, setTypeFilter] = useState<OpFilter>("all");
-  const [asset, setAsset] = useState("all");
-  const [range, setRange] = useState("all");
+  const [opKind, setOpKind] = useState<OpKind | "all">("all");
+  const [subType, setSubType] = useState<string>("all");
   const [q, setQ] = useState("");
+  const [asset, setAsset] = useState("all");
+  const [direction, setDirection] = useState<OpImpact | "all">("all");
+  const [status, setStatus] = useState("all");
+  const [range, setRange] = useState("all");
   const [selected, setSelected] = useState<ImportedOpRow | null>(null);
   const [page, setPage] = useState(0);
   const [perPage, setPerPage] = useState(10);
@@ -111,11 +138,45 @@ export function ImportedHistory({
     return Array.from(set).sort();
   }, [ops]);
 
+  const statuses = useMemo(() => {
+    const set = new Set<string>();
+    for (const o of ops) if (o.status) set.add(o.status);
+    return Array.from(set).sort();
+  }, [ops]);
+
+  const kindCounts = useMemo(() => {
+    const m = new Map<OpKind | "all", number>([["all", ops.length]]);
+    for (const o of ops) m.set(o.opType, (m.get(o.opType) ?? 0) + 1);
+    return m;
+  }, [ops]);
+
+  /* Detailed sub-types present under the selected classification (only shown
+     when it helps, so the bar never gets crowded). */
+  const subOptions = useMemo(() => {
+    if (opKind === "all") return [];
+    const seen = new Map<string, string>();
+    for (const o of ops) {
+      if (o.opType !== opKind) continue;
+      const key = o.subType ?? o.typeLabel;
+      if (seen.has(key)) continue;
+      seen.set(
+        key,
+        o.subType && (o.rawType ?? "") !== ""
+          ? classifyOp(o.rawType ?? "", o.rawSubType).label
+          : o.typeLabel
+      );
+    }
+    return Array.from(seen, ([key, label]) => ({ key, label }));
+  }, [ops, opKind]);
+
   const filtered = useMemo(() => {
     let rows = ops;
-    if (tab !== "all") rows = rows.filter((o) => matchTab(o, tab));
-    if (typeFilter !== "all") rows = rows.filter((o) => o.category === typeFilter);
+    if (opKind !== "all") rows = rows.filter((o) => o.opType === opKind);
+    if (opKind !== "all" && subType !== "all")
+      rows = rows.filter((o) => (o.subType ?? o.typeLabel) === subType);
     if (asset !== "all") rows = rows.filter((o) => (o.asset ?? o.symbol) === asset);
+    if (direction !== "all") rows = rows.filter((o) => o.impact === direction);
+    if (status !== "all") rows = rows.filter((o) => (o.status ?? null) === status);
     if (range !== "all") {
       const since = nowMs - RANGE_MS[range];
       rows = rows.filter((o) => o.timestamp >= since);
@@ -123,13 +184,37 @@ export function ImportedHistory({
     const needle = q.trim().toLowerCase();
     if (needle) {
       rows = rows.filter((o) =>
-        [o.typeLabel, o.symbol, o.asset, o.orderId, o.status, CATEGORY_LABELS[o.category]].some(
-          (v) => v != null && v.toLowerCase().includes(needle)
-        )
+        [
+          o.typeLabel,
+          OPKIND_LABELS[o.opType],
+          o.symbol,
+          o.asset,
+          o.orderId,
+          o.status,
+          o.rawType,
+          o.rawSubType,
+        ].some((v) => v != null && v.toLowerCase().includes(needle))
       );
     }
     return rows;
-  }, [ops, tab, typeFilter, asset, range, q, nowMs]);
+  }, [ops, opKind, subType, asset, direction, status, range, q, nowMs]);
+
+  const resetFilters = () => {
+    setOpKind("all");
+    setSubType("all");
+    setQ("");
+    setAsset("all");
+    setDirection("all");
+    setStatus("all");
+    setRange("all");
+    setPage(0);
+  };
+
+  const changeKind = (k: OpKind | "all") => {
+    setOpKind(k);
+    setSubType("all");
+    setPage(0);
+  };
 
   if (loading || detail == null) {
     return (
@@ -179,18 +264,54 @@ export function ImportedHistory({
       }
       bodyClassName="p-0"
     >
-      <div className="flex flex-wrap items-center gap-2 border-b border-line/60 px-4 pb-2.5 pt-1">
-        <Tabs
-          slim
-          value={tab}
-          onChange={(v) => {
-            setTab(v as TabKey);
-            setPage(0);
-          }}
-          items={TABS.map((t) => ({ value: t.key, label: t.label, icon: t.icon ?? undefined }))}
-        />
+      <div className="border-b border-line/60">
+        {/* Main classification bar */}
+        <div className="px-4 pt-1.5">
+          <Tabs
+            slim
+            value={opKind}
+            onChange={(v) => changeKind(v as OpKind | "all")}
+            items={OP_KIND_OPTIONS.map((k) => ({
+              value: k,
+              label: (
+                <span className="flex items-center gap-1">
+                  {KIND_ICONS[k]}
+                  {k === "all" ? "الكل" : OPKIND_LABELS[k]}
+                  <span className={`${num} text-2xs ${k === opKind ? "text-gold-fg" : "text-muted"}`}>
+                    {kindCounts.get(k) ?? 0}
+                  </span>
+                </span>
+              ),
+            }))}
+          />
+        </div>
 
-        <div className="ms-auto flex flex-wrap items-center gap-2">
+        {/* Detailed sub-type chips — only when a classification is selected */}
+        {subOptions.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-1.5 px-4 py-1.5">
+            <ThemeGate>
+              {[{ key: "all", label: "كل الأنواع" }, ...subOptions].map((s) => {
+                const active = subType === s.key;
+                return (
+                  <Chip
+                    key={s.key}
+                    size="small"
+                    label={s.label}
+                    variant={active ? "filled" : "outlined"}
+                    color={active ? "primary" : "default"}
+                    onClick={() => {
+                      setSubType(s.key);
+                      setPage(0);
+                    }}
+                  />
+                );
+              })}
+            </ThemeGate>
+          </div>
+        ) : null}
+
+        {/* Secondary filters */}
+        <div className="flex flex-wrap items-center gap-2 px-4 py-2">
           <input
             type="search"
             value={q}
@@ -201,17 +322,6 @@ export function ImportedHistory({
             placeholder="بحث…"
             className="h-8 w-36 rounded-panel border border-line bg-surface-2/40 px-2.5 text-xs text-foreground placeholder:text-muted focus:border-gold/50 focus:outline-none"
           />
-          <div style={{ width: 130 }}>
-            <Select
-              value={typeFilter}
-              onChange={(v) => {
-                setTypeFilter(v);
-                setPage(0);
-              }}
-              options={OP_FILTERS.map((f) => ({ value: f.key, label: f.label }))}
-              placeholder="النوع"
-            />
-          </div>
           <div style={{ width: 120 }}>
             <Select
               value={asset}
@@ -224,6 +334,29 @@ export function ImportedHistory({
           </div>
           <div style={{ width: 130 }}>
             <Select
+              value={direction}
+              onChange={(v) => {
+                setDirection(v as OpImpact | "all");
+                setPage(0);
+              }}
+              options={IMPACT_OPTIONS as unknown as { value: string; label: string }[]}
+            />
+          </div>
+          <div style={{ width: 120 }}>
+            <Select
+              value={status}
+              onChange={(v) => {
+                setStatus(v);
+                setPage(0);
+              }}
+              options={[
+                { value: "all", label: "كل الحالات" },
+                ...statuses.map((s) => ({ value: s, label: STATUS_LABELS[s] ?? s })),
+              ]}
+            />
+          </div>
+          <div style={{ width: 130 }}>
+            <Select
               value={range}
               onChange={(v) => {
                 setRange(v);
@@ -232,6 +365,16 @@ export function ImportedHistory({
               options={RANGE_OPTIONS}
             />
           </div>
+          <button
+            type="button"
+            onClick={resetFilters}
+            disabled={opKind === "all" && subType === "all" && !q && asset === "all" && direction === "all" && status === "all" && range === "all"}
+            className="flex h-8 items-center gap-1.5 rounded-panel border border-line/70 px-2.5 text-2xs font-semibold text-muted transition-colors hover:bg-surface-2 hover:text-foreground disabled:opacity-40"
+            title="إعادة تعيين كل الفلاتر"
+          >
+            <RefreshIcon className="h-3.5 w-3.5" />
+            إعادة التعيين
+          </button>
         </div>
       </div>
 
@@ -245,14 +388,7 @@ export function ImportedHistory({
           {ops.length > 0 ? (
             <button
               type="button"
-              onClick={() => {
-                setTab("all");
-                setTypeFilter("all");
-                setAsset("all");
-                setRange("all");
-                setQ("");
-                setPage(0);
-              }}
+              onClick={resetFilters}
               className="mt-3 rounded-panel border border-line px-3 py-1.5 text-xs font-semibold text-muted transition-colors hover:text-zinc-200"
             >
               مسح الفلاتر
@@ -271,6 +407,7 @@ export function ImportedHistory({
                   <th className="px-3 py-2 text-right font-semibold">المبلغ</th>
                   <th className="px-3 py-2 text-right font-semibold">الربح / الخسارة</th>
                   <th className="px-3 py-2 text-right font-semibold">الرسوم</th>
+                  <th className="px-3 py-2 font-semibold">الحالة</th>
                   <th className="px-3 py-2 text-right font-semibold">الوقت</th>
                   <th className="px-2 py-2" />
                 </tr>
@@ -299,8 +436,10 @@ export function ImportedHistory({
                       <Badge tone={o.side === "BUY" ? "up" : "down"}>{o.side === "BUY" ? "شراء" : "بيع"}</Badge>
                     ) : null}
                   </div>
-                  <div className="mt-0.5 text-2xs text-muted" dir="ltr">
-                    {o.asset ?? o.symbol ?? "—"} · {fmtDateTime(o.timestamp)}
+                  <div className="mt-0.5 flex items-center gap-1.5 text-2xs text-muted">
+                    <span className={`inline-block h-1 w-1 rounded-full ${KIND_DOTS[o.opType]}`} />
+                    <span>{OPKIND_LABELS[o.opType]}</span>
+                    <span dir="ltr">· {o.asset ?? o.symbol ?? "—"} · {fmtDateTime(o.timestamp)}</span>
                   </div>
                 </div>
                 <div className="text-right">
@@ -341,7 +480,7 @@ export function ImportedHistory({
               </ThemeGate>
             ) : null}
             <a
-              href={`/operations?filter=${typeFilter !== "all" ? typeFilter : "all"}`}
+              href="/operations"
               className="flex items-center gap-1 text-2xs font-bold text-gold-fg transition-colors hover:text-gold"
             >
               السجل الكامل في صفحة العمليات
@@ -385,9 +524,11 @@ function Row({
           <span className="text-xs font-bold text-foreground">{o.typeLabel}</span>
           {o.side ? (
             <Badge tone={o.side === "BUY" ? "up" : "down"}>{o.side === "BUY" ? "شراء" : "بيع"}</Badge>
-          ) : (
-            <Badge tone="quiet">{CATEGORY_LABELS[o.category]}</Badge>
-          )}
+          ) : null}
+        </div>
+        <div className="mt-0.5 flex items-center gap-1.5 text-2xs text-muted">
+          <span className={`inline-block h-1 w-1 rounded-full ${KIND_DOTS[o.opType]}`} />
+          <span>{OPKIND_LABELS[o.opType]}</span>
         </div>
       </td>
       <td className="px-3 py-2.5 font-semibold text-foreground" dir="ltr">
@@ -402,6 +543,15 @@ function Row({
       </td>
       <td className={`${num} px-3 py-2.5 text-right`} dir="ltr">
         {o.fee !== 0 ? fmtMoney(o.fee) : "—"}
+      </td>
+      <td className="px-3 py-2.5">
+        {o.status ? (
+          <Badge tone={STATUS_TONES[o.status] ?? "quiet"}>
+            {STATUS_LABELS[o.status] ?? o.status}
+          </Badge>
+        ) : (
+          <span className="text-muted">—</span>
+        )}
       </td>
       <td className="px-3 py-2.5 text-right text-muted" dir="ltr">
         {fmtDateTime(o.timestamp)}
@@ -480,7 +630,8 @@ function DetailsDrawer({
 
           <div className="space-y-1 border-t border-line/60 pt-2">
             {field("نوع العملية", o.typeLabel)}
-            {field("الفئة", CATEGORY_LABELS[o.category])}
+            {field("الفئة", OPKIND_LABELS[o.opType])}
+            {field("الاتجاه", o.impact === "in" ? "دخل (+)" : o.impact === "out" ? "خصم (−)" : "محايد")}
             {field("الأصل", o.asset ?? o.symbol ?? "—", true)}
             {field("المبلغ", `${fmtAmount(o.amount)} ${o.asset ?? o.symbol ?? ""}`, true)}
             {o.price != null ? field("السعر", fmtMoney(o.price), true) : null}
@@ -497,6 +648,21 @@ function DetailsDrawer({
             {field("التاريخ", fmtDateTime(o.timestamp), true)}
             {field("منذ", `من ${nowMs >= o.timestamp ? Math.max(1, Math.round((nowMs - o.timestamp) / 60000)) : 0} دقيقة`)}
           </div>
+
+          {o.rawType != null || o.rawSubType != null ? (
+            <div className="border-t border-line/60 pt-2">
+              <div className="pt-1 text-2xs font-bold text-muted">بيانات المصدر (خام)</div>
+              <div className="space-y-1">
+                {field("النوع الخام", o.rawType ?? "—", true)}
+                {o.rawSubType ? field("النوع الفرعي (income)", o.rawSubType, true) : null}
+                {field(
+                  "المصدر",
+                  o.kind === "trade" ? "سجل الصفقات (userTrades)" : "سجل العمليات (transactions)",
+                  true
+                )}
+              </div>
+            </div>
+          ) : null}
         </Box>
       </Drawer>
     </ThemeGate>

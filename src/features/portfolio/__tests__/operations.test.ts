@@ -2,11 +2,75 @@ import { describe, it, expect } from "vitest";
 import {
   bucketOf,
   buildOps,
+  classifyOp,
   computeStatement,
   filterOps,
   OP_FILTERS,
+  OP_KIND_OPTIONS,
 } from "../operations";
 import type { ImportedAccountDetailDto } from "../types";
+
+describe("classifyOp", () => {
+  it("maps deposits, withdrawals, transfers and trades", () => {
+    expect(classifyOp("DEPOSIT", null)).toEqual({ kind: "deposit", label: "إيداع" });
+    expect(classifyOp("WITHDRAWAL", null)).toEqual({ kind: "withdrawal", label: "سحب" });
+    expect(classifyOp("TRANSFER", null)).toEqual({ kind: "transfer", label: "تحويل" });
+    expect(classifyOp("FEE", "INTERNAL_TRANSFER")).toEqual({ kind: "transfer", label: "تحويل داخلي" });
+    expect(classifyOp("TRADE", null)).toEqual({ kind: "trade", label: "صفقة" });
+  });
+
+  it("keeps Insurance Fund Settlement as settlement, never liquidation", () => {
+    expect(classifyOp("FEE", "INSURANCE_CLEAR")).toEqual({
+      kind: "settlement",
+      label: "تسوية صندوق التأمين",
+    });
+    expect(classifyOp("FEE", "INSURANCE")).toEqual({ kind: "settlement", label: "تسوية تأمينية" });
+  });
+
+  it("maps only explicit liquidation signals to liquidation", () => {
+    expect(classifyOp("FEE", "LIQUIDATION_TRANSFER").kind).toBe("liquidation");
+    expect(classifyOp("FEE", "LIQUIDATION").kind).toBe("liquidation");
+    expect(classifyOp("FEE", "LIQUIDATION").label).toBe("تصفية");
+    // ADL only when it's the whole token (never a substring of another type).
+    expect(classifyOp("FEE", "ADL")).toEqual({ kind: "liquidation", label: "تقليل مركز تلقائي (ADL)" });
+    expect(classifyOp("FEE", "CROSS_COLLATERAL_TRANSFER").kind).toBe("transfer");
+  });
+
+  it("maps fees, funding, pnl, rewards and converts", () => {
+    expect(classifyOp("FEE", "COMMISSION")).toEqual({ kind: "fee", label: "عمولة تداول" });
+    expect(classifyOp("FUNDING", "FUNDING_FEE")).toEqual({ kind: "funding", label: "رسوم/دخل تمويل" });
+    expect(classifyOp("FEE", "REALIZED_PNL")).toEqual({ kind: "pnl", label: "ربح/خسارة محققة" });
+    expect(classifyOp("FEE", "COMMISSION_REBATE")).toEqual({ kind: "reward", label: "استرداد العمولة" });
+    expect(classifyOp("FEE", "COMMISSION_REBATE_CROSS")).toEqual({ kind: "reward", label: "استرداد عمولة (ضمانات)" });
+    expect(classifyOp("FEE", "COIN_SWAP_DEPOSIT")).toEqual({ kind: "convert", label: "تحويل/تبديل عملة (داخل)" });
+    expect(classifyOp("FEE", "WELCOME_BONUS")).toEqual({ kind: "reward", label: "مكافأة ترحيبية" });
+    expect(classifyOp("FEE", "TAX")).toEqual({ kind: "fee", label: "ضريبة" });
+  });
+
+  it("keeps unknown raw types visible under 'other' with the raw type preserved", () => {
+    expect(classifyOp("STRANGE_TYPE", "SOME_NEW_INCOME").kind).toBe("other");
+    expect(classifyOp("STRANGE_TYPE", "SOME_NEW_INCOME").label).toBe("STRANGE_TYPE");
+    expect(classifyOp("*", "MYSTERY").label).toBe("*");
+  });
+
+  it("exposes the requested main classification list", () => {
+    expect(OP_KIND_OPTIONS).toEqual([
+      "all",
+      "deposit",
+      "withdrawal",
+      "transfer",
+      "trade",
+      "fee",
+      "funding",
+      "settlement",
+      "liquidation",
+      "pnl",
+      "reward",
+      "convert",
+      "other",
+    ]);
+  });
+});
 
 describe("bucketOf", () => {
   it("buckets commissions, taxes, funding and insurance as fees", () => {
@@ -113,6 +177,39 @@ describe("buildOps", () => {
     const withdrawal = ops.find((o) => o.id === "tx:t7")!;
     expect(withdrawal.category).toBe("flow");
     expect(withdrawal.pnl).toBe(-300);
+  });
+
+  it("populates the unified classification (opType), raw types and impact", () => {
+    const ops = buildOps(DETAIL);
+    const insurance = ops.find((o) => o.id === "tx:t8")!;
+    // Insurance Fund Settlement stays under تسويات — never تصفية.
+    expect(insurance.opType).toBe("settlement");
+    expect(insurance.rawType).toBe("FEE");
+    expect(insurance.rawSubType).toBe("INSURANCE_CLEAR");
+    expect(insurance.subType).toBe("INSURANCE_CLEAR");
+    expect(insurance.impact).toBe("out");
+
+    const funding = ops.find((o) => o.id === "tx:t1")!;
+    expect(funding.opType).toBe("funding");
+    expect(funding.impact).toBe("out");
+
+    const deposit = ops.find((o) => o.id === "tx:t3")!;
+    expect(deposit.opType).toBe("deposit");
+    expect(deposit.rawType).toBe("DEPOSIT");
+    expect(deposit.impact).toBe("in");
+
+    const pnlRow = ops.find((o) => o.id === "tx:t4")!;
+    expect(pnlRow.opType).toBe("pnl");
+    expect(pnlRow.rawSubType).toBe("REALIZED_PNL");
+    expect(pnlRow.impact).toBe("in");
+
+    const trade = ops.find((o) => o.id === "tr:tr1")!;
+    expect(trade.opType).toBe("trade");
+    expect(trade.rawType).toBe("TRADE");
+    expect(trade.impact).toBe("in");
+
+    const lossTrade = ops.find((o) => o.id === "tr:tr2")!;
+    expect(lossTrade.impact).toBe("out");
   });
 
   it("counts futures closes once: trade fill carries the PnL, the mirrored income row is informational", () => {

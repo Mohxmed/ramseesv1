@@ -111,6 +111,31 @@ export type PortfolioMeta = PortfolioSummary | ImportedPortfolioSummary;
 export type OpCategory = "profit" | "loss" | "fee" | "flow" | "other";
 export type OpFilter = OpCategory | "all";
 
+/**
+ * RAMSEES unified operation classification — the normalized enum shown to the
+ * user. Never derived from Arabic text: every raw Binance/exchange type is
+ * mapped here (see `OP_TYPE_RULES` / `classifyOp` in operations.ts), and
+ * unknown raw types fall back to `other` while keeping the raw type for
+ * debugging. Extend the rules when new exchange types appear — the enum stays
+ * stable so the whole UI (filters, labels, sub-filters) keeps working.
+ */
+export type OpKind =
+  | "deposit"
+  | "withdrawal"
+  | "transfer"
+  | "trade"
+  | "fee"
+  | "funding"
+  | "settlement"
+  | "liquidation"
+  | "pnl"
+  | "reward"
+  | "convert"
+  | "other";
+
+/** Money direction of an operation, derived from its signed effect (never text). */
+export type OpImpact = "in" | "out" | "neutral";
+
 /** A single auto-recorded operation shown in the imported wallet's table. */
 export interface ImportedOpRow {
   id: string;
@@ -134,6 +159,16 @@ export interface ImportedOpRow {
   /** Signed money effect shown in the table (realized PnL for trades, income otherwise). */
   pnl: number | null;
   category: OpCategory;
+  /** RAMSEES normalized classification (see `OpKind`). */
+  opType: OpKind;
+  /** Original raw exchange type (kept for debugging/audit; never for UI decisions). */
+  rawType: string | null;
+  /** Raw exchange sub-type (e.g. incomeType) when available. */
+  rawSubType: string | null;
+  /** The matched detailed type token (e.g. INSURANCE_CLEAR) — used by sub-filters. */
+  subType: string | null;
+  /** Money direction (from signed pnl). */
+  impact: OpImpact;
 }
 
 /** Aggregate balance position of one asset held on the exchange. */
