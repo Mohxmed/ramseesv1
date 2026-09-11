@@ -223,7 +223,32 @@ export interface LivePositionDto extends ExchangePositionDto {
   valuedAt: number;
 }
 
-/** `GET /api/portfolio/exchanges/[id]/positions-live`. */
+/** `POST /api/portfolio/exchanges/[id]/live-session`. */
+export interface LiveSessionDto {
+  /** Ephemeral FUTURES User Data token (null for non-futures accounts). */
+  listenKey: string | null;
+  at: number;
+  snapshot: LiveStateDto;
+}
+
+/** Authoritative futures REST snapshot — `GET /api/portfolio/exchanges/[id]/live-state`. */
+export interface LiveStateDto {
+  equity: number;
+  walletBalance: number;
+  unrealizedPnl: number;
+  availableBalance: number;
+  positions: LivePositionDto[];
+  aggregate: {
+    unrealizedPnl: number;
+    margin: number;
+    notional: number;
+    count: number;
+  };
+  live: boolean;
+  at: number;
+}
+
+/** `GET /api/portfolio/exchanges/[id]/positions-live` (deprecated legacy shape). */
 export interface LivePositionsDto {
   positions: LivePositionDto[];
   aggregate: {
@@ -234,6 +259,10 @@ export interface LivePositionsDto {
   };
   live: boolean;
   at: number;
+  /** Optional equity fields surfaced by the live manager from /fapi/v1/account. */
+  equity?: number;
+  walletBalance?: number;
+  availableBalance?: number;
 }
 
 /** `GET /api/portfolio/exchanges/[id]` — what the imported wallet view reads. */

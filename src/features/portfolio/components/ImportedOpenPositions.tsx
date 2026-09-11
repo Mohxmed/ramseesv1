@@ -43,7 +43,7 @@ function fmtPrice(v: number): string {
 }
 
 export function ImportedOpenPositions({ accountId }: { accountId: string }) {
-  const { data, error, loading, lastUpdated } = useLivePositions(accountId);
+  const { data, error, loading, lastUpdated, status, reconnect } = useLivePositions(accountId);
 
   const rows = useMemo(() => {
     if (!data) return [];
@@ -52,19 +52,32 @@ export function ImportedOpenPositions({ accountId }: { accountId: string }) {
 
   const aggregate = data?.aggregate;
 
+  const badge =
+    status === "live" ? (
+      <span className="flex items-center gap-1.5 rounded-full bg-up/10 px-2 py-0.5 text-2xs font-bold text-up-fg ring-1 ring-up/30">
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-up-fg" />
+        مباشر
+      </span>
+    ) : status === "reconnecting" ? (
+      <span className="flex items-center gap-1.5 rounded-full bg-warn/10 px-2 py-0.5 text-2xs font-bold text-warn-fg ring-1 ring-warn/30">
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-warn" />
+        يعيد الاتصال…
+      </span>
+    ) : data ? (
+      <span className="flex items-center gap-1.5 rounded-full bg-zinc-500/10 px-2 py-0.5 text-2xs font-bold text-muted ring-1 ring-zinc-500/30">
+        <span className="h-1.5 w-1.5 rounded-full bg-zinc-500" />
+        آخر بيانات متاحة
+      </span>
+    ) : null;
+
   const titleBlock = (
     <div>
       <h2 className="flex items-center gap-2 text-sm font-bold text-foreground">
         المراكز المفتوحة — الأرباح/الخسائر غير المحقّقة
-        {data ? (
-          <span className="flex items-center gap-1.5 rounded-full bg-up/10 px-2 py-0.5 text-2xs font-bold text-up-fg ring-1 ring-up/30">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-up-fg" />
-            مباشر
-          </span>
-        ) : null}
+        {badge}
       </h2>
       <p className="mt-0.5 text-2xs text-muted">
-        تتحدّث الأسعار لحظيًا من سوق العقود الآجلة كل ١٥ ثانيةً تقريبًا.
+        بث مباشر من سوق العقود الآجلة عبر WebSocket — بلا أي قراءات لمخزن البيانات لحظيًا.
         {lastUpdated != null ? (
           <>
             {" "}· آخر تحديث{" "}
@@ -130,8 +143,21 @@ export function ImportedOpenPositions({ accountId }: { accountId: string }) {
       snippet={data.positions.length > 0 ? statStrip : undefined}
       bodyClassName=""
     >
-      {error ? (
-        <p className="px-4 py-3 text-2xs text-down-fg">{error}</p>
+      {error || status === "reconnecting" ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-2xs">
+          <p className="text-down-fg">
+            {error ?? "انقطع بث المنصة — يعيد الاتصال تلقائيًا…"}
+          </p>
+          {error ? (
+            <button
+              type="button"
+              onClick={() => reconnect()}
+              className="rounded-panel border border-down/30 px-2 py-1 font-bold text-down-fg transition-colors hover:bg-down/15"
+            >
+              إعادة الاتصال
+            </button>
+          ) : null}
+        </div>
       ) : null}
 
       {data.positions.length === 0 ? (

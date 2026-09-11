@@ -8,8 +8,14 @@
 
 import { NextResponse } from "next/server";
 import { UnauthorizedError } from "@/server/auth";
-import { ExchangeError, userSafeExchangeMessage, exchangeErrorHttpStatus } from "@/server/exchanges/core";
-import { getAccount } from "./portfolioDb";
+import {
+  ExchangeError,
+  userSafeExchangeMessage,
+  exchangeErrorHttpStatus,
+  type ExchangeCredentials,
+} from "@/server/exchanges/core";
+import { getAccount, getCredentialByAccount } from "./portfolioDb";
+import { decryptSecret } from "./vault";
 import { SyncConflictError, SyncMissingError } from "./sync.service";
 import type { StoredAccount } from "./models";
 
@@ -44,6 +50,26 @@ export async function requireOwnedAccount(uid: string, accountId: string): Promi
     throw new SyncMissingError(accountId);
   }
   return account;
+}
+
+/**
+ * Vault-resolve an owned account's live credential. Returns null when the
+ * credential row is missing so callers can degrade gracefully (live stays
+ * offline instead of erroring). The decrypted pair exists only in the returned
+ * object and must never be logged or persisted.
+ */
+export async function loadLiveCredential(
+  uid: string,
+  account: StoredAccount
+): Promise<ExchangeCredentials | null> {
+  const cred = await getCredentialByAccount(uid, account.id);
+  if (!cred) return null;
+  const secret = JSON.parse(decryptSecret(cred.secretCipher)) as { apiKey: string; secret: string };
+  return {
+    apiKey: secret.apiKey,
+    secret: secret.secret,
+    extra: { accountId: account.exchangeUid },
+  };
 }
 
 /** Build a short, sanitized detail line from the error's upstream context. */

@@ -4,7 +4,8 @@ import type {
   ExchangeDescriptorDto,
   ExchangeSyncStatusDto,
   ImportedAccountDetailDto,
-  LivePositionsDto,
+  LiveSessionDto,
+  LiveStateDto,
 } from "../types";
 
 /**
@@ -126,13 +127,40 @@ export const exchangesApi = {
     );
   },
 
-  /** Live open-positions overlay — fresh prices straight from Binance every poll. */
-  async livePositions(accountId: string): Promise<LivePositionsDto> {
-    return cachedFetch(`live:${accountId}`, 12_000, async () =>
+  /**
+   * Open a short-lived FUTURES User Data session. Returns the ephemeral
+   * listenKey the browser socket connects to plus an authoritative REST
+   * snapshot to boot the store. Not cached — sessions are minted on demand
+   * (leader election / reconnect) only.
+   */
+  async liveSession(accountId: string): Promise<LiveSessionDto> {
+    return readJson(
+      await authFetch(`/api/portfolio/exchanges/${encodeURIComponent(accountId)}/live-session`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      })
+    );
+  },
+
+  /** Renew a listenKey server-side so the existing user socket stays up. */
+  async keepAliveSession(accountId: string, listenKey: string): Promise<{ ok: boolean }> {
+    return readJson(
+      await authFetch(
+        `/api/portfolio/exchanges/${encodeURIComponent(accountId)}/live-session/keepalive`,
+        { method: "POST", body: JSON.stringify({ listenKey }) }
+      )
+    );
+  },
+
+  /**
+   * Authoritative futures REST snapshot — manual refresh + reconciliation.
+   * Shared micro-TTL dedupes simultaneous widget mounts without serving stale
+   * data to a deliberate "تحديث" press.
+   */
+  async liveState(accountId: string): Promise<LiveStateDto> {
+    return cachedFetch(`liveState:${accountId}`, 2_000, async () =>
       readJson(
-        await authFetch(
-          `/api/portfolio/exchanges/${encodeURIComponent(accountId)}/positions-live`
-        )
+        await authFetch(`/api/portfolio/exchanges/${encodeURIComponent(accountId)}/live-state`)
       )
     );
   },

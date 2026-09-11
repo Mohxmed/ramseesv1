@@ -1,59 +1,47 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { exchangesApi, ExchangeApiError } from "../services/exchanges.api";
-import type { LivePositionsDto } from "../types";
+import { useCallback } from "react";
+import { useBinanceLive } from "../live/useBinanceLive";
+import { liveManager, type LiveSnapshot } from "../live/binanceLiveManager";
 
 /**
- * Live poller for the wallet's open positions. Unlike the detail feed (which
- * only moves on exchange syncs), this hits the positions-live route which
- * asks Binance directly for the account's open perpetuals, so unrealized P&L
- * updates roughly every fifteen seconds. The route costs Firestore exactly two
- * document reads per poll (account + credential) — constant, no matter how
- * many positions are open.
+ * Compat wrapper over the live manager keeping the poller-era contract:
+ * `{ data, error, loading, lastUpdated, refresh }` — so existing widgets keep
+ * working unchanged. Data now flows from the shared WebSocket layer instead of
+ * the 15-second REST poll; `refresh()` is a deliberate manual action (Portfolio
+ * "تحديث") and `reconnect()` forces a fresh session.
  */
 
-const POLL_INTERVAL_MS = 15_000;
-
 export function useLivePositions(accountId: string) {
-  const [data, setData] = useState<LivePositionsDto | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const running = useRef(false);
+  const snap = useBinanceLive(accountId);
 
-  const refresh = useCallback(async () => {
-    if (!accountId || running.current) return;
-    // Skip while the tab is hidden — no point re-pricing positions nobody can
-    // see, and it keeps the Firestore read budget flat with the page open.
-    if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
-    running.current = true;
-    try {
-      const d = await exchangesApi.livePositions(accountId);
-      setData(d);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof ExchangeApiError ? e.message : "تعذر تحديث المراكز المفتوحة.");
-    } finally {
-      running.current = false;
-      setLoading(false);
-    }
+  const loading =
+    snap == null ||
+    snap.data == null ||
+    snap.status === "idle" ||
+    snap.status === "connecting";
+
+  // Surface a message only in hard-failure states — while reconnecting the last
+  // good data stays on screen (the manager reconciles it BEFORE reconnecting).
+  const error = snap?.status === "error" ? snap.error : null;
+
+  const refresh = useCallback(() => {
+    if (!accountId) return Promise.resolve(null);
+    return liveManager.refresh(accountId);
   }, [accountId]);
 
-  useEffect(() => {
-    if (!accountId) return;
-    const t0 = setTimeout(() => void refresh(), 0);
-    const t = setInterval(() => void refresh(), POLL_INTERVAL_MS);
-    return () => {
-      clearTimeout(t0);
-      clearInterval(t);
-    };
-  }, [accountId, refresh]);
+  const reconnect = useCallback(() => {
+    if (accountId) liveManager.reconnect(accountId);
+  }, [accountId]);
 
   return {
-    data,
+    data: snap?.data ?? null,
     error,
     loading,
     refresh,
-    lastUpdated: data?.at ?? null,
+    reconnect,
+    lastUpdated: snap?.data?.at ?? null,
+    status: snap?.status ?? "idle",
+    snapshot: snap as LiveSnapshot | null,
   };
 }

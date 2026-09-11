@@ -63,9 +63,12 @@ export function WalletSnippet() {
     meta && meta.source === "binance" ? (meta as ImportedPortfolioSummary) : null;
   const manual = meta && meta.source === "manual" ? (meta as PortfolioSummary) : null;
 
-  const { data: live, error: liveError, loading: liveLoading } = useLivePositions(
-    imported?.accountId ?? ""
-  );
+  const {
+    data: live,
+    error: liveError,
+    loading: liveLoading,
+    status: liveStatus,
+  } = useLivePositions(imported?.accountId ?? "");
 
   const positions = useMemo(() => {
     if (!live) return [];
@@ -93,7 +96,11 @@ export function WalletSnippet() {
     );
   }
 
-  const balance = imported ? imported.financials.currentEquity : manual!.currentBalance;
+  const balance = imported
+    ? live?.equity != null && (liveStatus === "live" || liveStatus === "reconnecting")
+      ? live.equity
+      : imported.financials.currentEquity
+    : manual!.currentBalance;
   const realized = imported ? imported.financials.realizedPnl : manual!.totalPnl;
   const unrealized = imported ? imported.financials.unrealizedPnl : 0;
   const totalPnl = imported ? realized + unrealized : manual!.totalPnl;

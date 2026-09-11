@@ -7,6 +7,7 @@ import { timeAgo } from "@/features/notifications/format";
 import { accountTypeLabel, exchangeTypeLabel } from "../utils";
 import type { ImportedPortfolioSummary } from "../types";
 import { useImportedPortfolio } from "../hooks/useImportedPortfolio";
+import { useLivePositions } from "../hooks/useLivePositions";
 import { ImportedOverview } from "./ImportedOverview";
 import { ImportedMetricGrid } from "./ImportedMetricGrid";
 import { ImportedOpenPositions } from "./ImportedOpenPositions";
@@ -31,6 +32,7 @@ function statusOf(syncStatus: ImportedPortfolioSummary["syncStatus"]) {
 
 export function ImportedPortfolioView({ meta }: { meta: ImportedPortfolioSummary }) {
   const { detail, error, isSyncing, syncingNow, syncNow } = useImportedPortfolio(meta.accountId, 200);
+  const { status: liveStatus, refresh: refreshLive } = useLivePositions(meta.accountId);
   const [hidden, setHidden] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
@@ -38,6 +40,15 @@ export function ImportedPortfolioView({ meta }: { meta: ImportedPortfolioSummary
     const t = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(t);
   }, []);
+
+  const livePill =
+    liveStatus === "live"
+      ? { label: "بث مباشر متصل", cls: "text-good" }
+      : liveStatus === "reconnecting"
+        ? { label: "الربط المباشر يُعاد توصيله…", cls: "text-warn-fg" }
+        : liveStatus === "error"
+          ? { label: "البث المباشر متوقف", cls: "text-down-fg" }
+          : null;
 
   const st = statusOf(meta.syncStatus);
   const loadingDetail = detail == null;
@@ -61,9 +72,17 @@ export function ImportedPortfolioView({ meta }: { meta: ImportedPortfolioSummary
         right={
           <>
             <Status label={st.label} tone={st.tone} pulse={st.pulse} />
+            {livePill ? (
+              <span className={`rounded-panel px-2 py-1 text-2xs font-bold ${livePill.cls} bg-surface-2/60 ring-1 ring-line/50`}>
+                {livePill.label}
+              </span>
+            ) : null}
             <button
               type="button"
-              onClick={() => void syncNow("INCREMENTAL")}
+              onClick={() => {
+                void syncNow("INCREMENTAL");
+                void refreshLive();
+              }}
               disabled={syncingNow || isSyncing}
               className="flex h-8 items-center gap-1.5 rounded-panel bg-gold/10 px-3 text-xs font-bold text-gold-fg ring-1 ring-gold/40 transition-colors hover:bg-gold/20 disabled:opacity-60"
             >
