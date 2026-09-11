@@ -82,7 +82,7 @@ export function Sidebar({ collapsed, onToggleCollapse, onNavigate }: SidebarProp
       >
         <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg">
           <Image
-            src="/favicon.avif"
+            src="/favicon.png"
             alt="شعار RAMSEES"
             width={36}
             height={36}

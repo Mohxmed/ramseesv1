@@ -5,7 +5,7 @@ export default function Home() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-surface-1">
       <Image
-        src="/favicon.avif"
+        src="/favicon.png"
         alt="شعار RAMSEES"
         width={80}
         height={80}
