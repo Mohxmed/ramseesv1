@@ -35,7 +35,7 @@ export function NotificationCenter() {
         aria-haspopup="true"
         aria-expanded={open}
         aria-label={`الإشعارات${unreadCount ? ` — ${unreadCount} غير مقروءة` : ""}`}
-        className="relative flex h-8 w-8 items-center justify-center rounded-panel text-zinc-300 transition-colors hover:bg-surface-2"
+        className="relative flex h-9 w-9 items-center justify-center rounded-panel text-zinc-300 transition-colors hover:bg-surface-2"
       >
         <BellIcon className="h-[18px] w-[18px]" />
         {unreadCount > 0 && (

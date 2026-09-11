@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { Sidebar } from "./sidebar";
@@ -45,12 +45,15 @@ export function DashboardShell({
     }
   }, [mobileOpen]);
 
-  // Close drawer on route change
+  // Close drawer on real navigation — watch pathname only. Previously this
+  // effect depended on `mobileOpen`, so every open scheduled a rAF close and
+  // the drawer flashed open then shut instantly.
+  const pathnameRef = useRef(pathname);
   useEffect(() => {
-    if (!mobileOpen) return;
-    const id = requestAnimationFrame(() => setMobileOpen(false));
-    return () => cancelAnimationFrame(id);
-  }, [pathname, mobileOpen]);
+    if (pathnameRef.current === pathname) return;
+    pathnameRef.current = pathname;
+    setMobileOpen(false);
+  }, [pathname]);
 
   // Escape closes mobile drawer
   useEffect(() => {

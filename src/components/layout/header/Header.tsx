@@ -1,6 +1,5 @@
 "use client";
 
-import { HeaderPageContext } from "./HeaderPageContext";
 import { MarketContext } from "./MarketContext";
 import { SystemStatus } from "./SystemStatus";
 import { NotificationCenter } from "./NotificationCenter";
@@ -18,12 +17,15 @@ import { HeaderTradesLink } from "./HeaderTradesLink";
  *
  * Physical layout, right → left:
  *   [☰ mobile] [Wallet] [Strategy ▾] [Goals] [Operations]
- *   [ BTC live ticker ] [page context] [Notifications] [System (wifi)] [User]
+ *   [ live BTC ticker (desktop, centered) ] [Notifications] [System] [User]
+ *
+ * No page title here — the active section is communicated by the sidebar item
+ * and the highlighted tool chip, keeping the top rail an instrument bar.
  */
 export function Header({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
   return (
     <header className="sticky top-0 z-30 h-14 shrink-0 border-b border-line bg-surface-1/85 backdrop-blur lg:h-16 [box-shadow:inset_0_-1px_0_rgba(201,169,97,0.12)]">
-      <div className="flex h-full items-center gap-1 px-2 sm:gap-2 sm:px-4">
+      <div className="flex h-full items-center gap-1 px-2 sm:gap-1.5 sm:px-4">
         {/* Mobile nav trigger (rightmost on small screens) */}
         <button
           type="button"
@@ -34,7 +36,7 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
           <MenuIcon className="h-5 w-5" />
         </button>
 
-        {/* Tools cluster — right (start): wallet, strategy dropdown, goals, trades */}
+        {/* Tools cluster — start (right): wallet, strategy dropdown, goals, trades */}
         <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
           <HeaderWalletLink />
           <StrategyMenu />
@@ -42,19 +44,19 @@ export function Header({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
           <HeaderTradesLink />
         </div>
 
-        {/* Center — live BTC ticker (hidden on small screens) */}
-        <div className="mx-3 hidden min-w-0 flex-1 items-center justify-center md:flex">
+        {/* Live BTC ticker (centered, desktop) */}
+        <div className="mx-auto hidden min-w-0 md:block">
           <MarketContext />
         </div>
+
+        {/* Mobile spacer pushes the end cluster to the far edge */}
         <div className="min-w-0 flex-1 md:hidden" aria-hidden />
 
-        {/* End cluster — left: page context, notifications, system wifi, user (far left) */}
+        {/* End cluster — notifications, system wifi, separator, user (far left) */}
         <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
-          <div className="mx-1 hidden min-w-0 max-w-[180px] items-center md:flex">
-            <HeaderPageContext />
-          </div>
           <NotificationCenter />
           <SystemStatus />
+          <span className="mx-0.5 hidden h-6 w-px bg-line sm:block" aria-hidden />
           <UserMenu />
         </div>
       </div>

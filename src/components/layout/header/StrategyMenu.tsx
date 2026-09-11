@@ -42,14 +42,18 @@ export function StrategyMenu() {
           aria-haspopup="true"
           aria-expanded={open}
           aria-label="مركز الاستراتيجيات"
-          className={`relative flex h-9 w-9 items-center justify-center rounded-panel transition-colors ${
+          className={`flex h-9 items-center gap-1 rounded-panel px-2 transition-colors ${
             open || active
               ? "bg-surface-2 text-gold-fg"
               : "text-zinc-300 hover:bg-surface-2 hover:text-zinc-100"
           }`}
         >
           <NetworkIcon className="h-[18px] w-[18px]" />
-          <ChevronDownIcon className="absolute -bottom-0.5 -left-0.5 h-3 w-3 text-muted" />
+          <ChevronDownIcon
+            className={`h-3.5 w-3.5 ${
+              open ? "rotate-180 text-gold-fg" : "text-muted"
+            } transition-transform`}
+          />
         </button>
       </Tooltip>
 
