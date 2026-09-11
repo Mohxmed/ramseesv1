@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { PageHeader, Status, num } from "@/components/ui";
-import { WalletIcon, HistoryIcon } from "@/components/icons/icons";
+import { WalletIcon, HistoryIcon, RefreshIcon } from "@/components/icons/icons";
 import { fmtMoney } from "@/features/portfolio/utils";
 import { usePortfolio } from "@/features/portfolio/hooks/usePortfolio";
 import { useImportedPortfolio } from "@/features/portfolio/hooks/useImportedPortfolio";
@@ -61,8 +61,8 @@ function OperationsPageInner() {
     error: detailError,
     loading: detailLoading,
     isSyncing,
-    syncingNow,
-    syncNow,
+    refreshing,
+    refreshManual,
   } = useImportedPortfolio(imported?.accountId ?? "", 200);
 
   const ops = useMemo(() => buildOps(detail), [detail]);
@@ -206,17 +206,18 @@ function OperationsPageInner() {
           <>
             {detailError ? <Status label="تعذر التحديث" tone="down" /> : null}
             <Status
-              label={isSyncing || syncingNow ? "جارٍ المزامنة…" : "محدَّث لحظياً"}
-              tone={isSyncing || syncingNow ? "warn" : "good"}
-              pulse={isSyncing || syncingNow}
+              label={isSyncing || refreshing ? "جارٍ التحديث…" : "محدَّث لحظياً"}
+              tone={isSyncing || refreshing ? "warn" : "good"}
+              pulse={isSyncing || refreshing}
             />
             <button
               type="button"
-              onClick={() => void syncNow()}
-              disabled={syncingNow || isSyncing || detailLoading}
+              onClick={() => void refreshManual()}
+              disabled={refreshing || isSyncing || detailLoading}
               className="flex h-8 items-center gap-1.5 rounded-panel bg-gold/10 px-3 text-xs font-bold text-gold-fg ring-1 ring-gold/40 transition-colors hover:bg-gold/20 disabled:opacity-60"
             >
-              مزامنة الآن
+              <RefreshIcon className={refreshing ? "animate-spin" : ""} />
+              {refreshing ? "جارٍ التحديث…" : "تحديث البيانات"}
             </button>
           </>
         }
@@ -243,7 +244,7 @@ function OperationsPageInner() {
           <div>
             <h2 className="text-sm font-bold text-foreground">سجل العمليات الكامل</h2>
             <p className="mt-0.5 text-2xs text-muted">
-              كل العمليات منذ بداية المزامنة — تُحدَّث تلقائيًا مع كل مزامنة.
+              كل العمليات منذ بداية المزامنة — تُحدَّث عند الضغط على «تحديث البيانات» أو تنفيذ مزامنة جديدة.
             </p>
           </div>
           <span className="rounded-chip border border-line px-2 py-0.5 text-2xs font-bold text-muted">

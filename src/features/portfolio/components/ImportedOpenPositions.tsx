@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   num,
   Badge,
@@ -9,7 +9,7 @@ import {
 } from "@/components/ui";
 import { fmtMoney, fmtPct } from "../utils";
 import { useLivePositions } from "../hooks/useLivePositions";
-import type { LivePositionDto } from "../types";
+import type { ImportedAccountDetailDto, LivePositionDto, LivePositionsDto } from "../types";
 import { PortfolioCard } from "./PortfolioCard";
 
 function toneOf(v: number): Tone {
@@ -42,17 +42,69 @@ function fmtPrice(v: number): string {
   })}`;
 }
 
-export function ImportedOpenPositions({ accountId }: { accountId: string }) {
-  const { data, error, loading, lastUpdated, status, reconnect } = useLivePositions(accountId);
+function fmtClock(ms: number | null | undefined): string | null {
+  if (ms == null || !Number.isFinite(ms)) return null;
+  return new Date(ms).toLocaleTimeString("en-US", { hour12: false });
+}
+
+/**
+ * Open positions card — STATIC-first. Shows the last saved snapshot (from the
+ * same shared detail the whole page renders); a separate «بث مباشر» button
+ * opens a live session ONLY while pressed and it is torn down when this widget
+ * unmounts. Streaming never starts automatically.
+ */
+export function ImportedOpenPositions({
+  accountId,
+  snapshot,
+}: {
+  accountId: string;
+  snapshot: ImportedAccountDetailDto | null;
+}) {
+  const { data, error, status, reconnect, start, stop } = useLivePositions(accountId);
+  const [liveOn, setLiveOn] = useState(false);
+
+  useEffect(() => {
+    if (liveOn) {
+      start();
+    } else {
+      stop();
+    }
+    return () => stop();
+  }, [liveOn, accountId, start, stop]);
+
+  const liveData: LivePositionsDto | null = liveOn && data ? data : null;
 
   const rows = useMemo(() => {
-    if (!data) return [];
-    return [...data.positions].sort((a, b) => Math.abs(b.unrealizedPnl) - Math.abs(a.unrealizedPnl));
-  }, [data]);
+    const src: LivePositionDto[] =
+      liveData?.positions ??
+      (snapshot?.positions ?? []).map((p) => ({
+        ...p,
+        unrealizedPnlPct: null,
+        pricedLive: false,
+        valuedAt: p.timestamp ?? 0,
+      }));
+    return [...src].sort((a, b) => Math.abs(b.unrealizedPnl) - Math.abs(a.unrealizedPnl));
+  }, [liveData, snapshot]);
 
-  const aggregate = data?.aggregate;
+  const aggregate = useMemo(() => {
+    if (liveData?.aggregate) return liveData.aggregate;
+    const pos = snapshot?.positions ?? [];
+    return {
+      count: pos.length,
+      unrealizedPnl: pos.reduce((s, p) => s + (p.unrealizedPnl ?? 0), 0),
+      margin: pos.reduce((s, p) => s + (p.margin ?? 0), 0),
+      notional: pos.reduce((s, p) => s + (p.notional ?? 0), 0),
+    };
+  }, [liveData, snapshot]);
 
-  const badge =
+  const lastClock =
+    liveOn && status === "live"
+      ? fmtClock(liveData?.at ?? data?.at)
+      : !liveOn
+        ? fmtClock(snapshot?.latestSnapshot?.timestamp)
+        : null;
+
+  const badge = liveOn ? (
     status === "live" ? (
       <span className="flex items-center gap-1.5 rounded-full bg-up/10 px-2 py-0.5 text-2xs font-bold text-up-fg ring-1 ring-up/30">
         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-up-fg" />
@@ -63,34 +115,60 @@ export function ImportedOpenPositions({ accountId }: { accountId: string }) {
         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-warn" />
         يعيد الاتصال…
       </span>
-    ) : data ? (
+    ) : status === "error" ? (
+      <span className="flex items-center gap-1.5 rounded-full bg-down/10 px-2 py-0.5 text-2xs font-bold text-down-fg ring-1 ring-down/30">
+        <span className="h-1.5 w-1.5 rounded-full bg-down" />
+        البث متوقف
+      </span>
+    ) : (
       <span className="flex items-center gap-1.5 rounded-full bg-zinc-500/10 px-2 py-0.5 text-2xs font-bold text-muted ring-1 ring-zinc-500/30">
         <span className="h-1.5 w-1.5 rounded-full bg-zinc-500" />
-        آخر بيانات متاحة
+        جارٍ الاتصال…
       </span>
-    ) : null;
+    )
+  ) : (
+    <span className="flex items-center gap-1.5 rounded-full bg-zinc-500/10 px-2 py-0.5 text-2xs font-bold text-muted ring-1 ring-zinc-500/30">
+      <span className="h-1.5 w-1.5 rounded-full bg-zinc-500" />
+      آخر مزامنة
+    </span>
+  );
 
   const titleBlock = (
-    <div>
-      <h2 className="flex items-center gap-2 text-sm font-bold text-foreground">
-        المراكز المفتوحة — الأرباح/الخسائر غير المحقّقة
-        {badge}
-      </h2>
-      <p className="mt-0.5 text-2xs text-muted">
-        بث مباشر من سوق العقود الآجلة عبر WebSocket — بلا أي قراءات لمخزن البيانات لحظيًا.
-        {lastUpdated != null ? (
-          <>
-            {" "}· آخر تحديث{" "}
-            <span className="text-foreground" dir="ltr">
-              {new Date(lastUpdated).toLocaleTimeString("en-US", { hour12: false })}
-            </span>
-          </>
-        ) : null}
-      </p>
+    <div className="flex flex-wrap items-start justify-between gap-2">
+      <div>
+        <h2 className="flex items-center gap-2 text-sm font-bold text-foreground">
+          المراكز المفتوحة — الأرباح/الخسائر غير المحقّقة
+          {badge}
+        </h2>
+        <p className="mt-0.5 text-2xs text-muted">
+          {liveOn
+            ? "بث مباشر من سوق العقود الآجلة عبر WebSocket — بلا أي قراءات لمخزن البيانات لحظيًا."
+            : "آخر بيانات محفوظة في Snapshot المحفظة — يمكنك التحديث بضغطة «تحديث البيانات» أو تفعيل البث المباشر."}
+          {lastClock != null ? (
+            <>
+              {" "}· آخر تحديث{" "}
+              <span className="text-foreground" dir="ltr">
+                {lastClock}
+              </span>
+            </>
+          ) : null}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={() => setLiveOn((v) => !v)}
+        className={`flex h-7 items-center rounded-panel px-2.5 text-2xs font-bold transition-colors disabled:opacity-60 ${
+          liveOn
+            ? "bg-down/10 text-down-fg ring-1 ring-down/40 hover:bg-down/20"
+            : "bg-gold/10 text-gold-fg ring-1 ring-gold/40 hover:bg-gold/20"
+        }`}
+      >
+        {liveOn ? "إيقاف البث مباشر" : "بث مباشر"}
+      </button>
     </div>
   );
 
-  if (loading || data == null) {
+  if (!liveOn && snapshot == null) {
     return (
       <PortfolioCard title={titleBlock} bodyClassName="p-4">
         <SkeletonCard className="min-h-52" />
@@ -140,15 +218,19 @@ export function ImportedOpenPositions({ accountId }: { accountId: string }) {
   return (
     <PortfolioCard
       title={titleBlock}
-      snippet={data.positions.length > 0 ? statStrip : undefined}
+      snippet={rows.length > 0 ? statStrip : undefined}
       bodyClassName=""
     >
-      {error || status === "reconnecting" ? (
+      {liveOn && (error || status === "reconnecting" || status === "connecting") ? (
         <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-2xs">
           <p className="text-down-fg">
-            {error ?? "انقطع بث المنصة — يعيد الاتصال تلقائيًا…"}
+            {liveOn && status === "error"
+              ? error ?? "تعذر الاتصال بالمنصة."
+              : status === "connecting"
+                ? "جارٍ الاتصال بالبث المباشر…"
+                : "انقطع بث المنصة — يعيد الاتصال تلقائيًا…"}
           </p>
-          {error ? (
+          {liveOn && status === "error" ? (
             <button
               type="button"
               onClick={() => reconnect()}
@@ -160,7 +242,7 @@ export function ImportedOpenPositions({ accountId }: { accountId: string }) {
         </div>
       ) : null}
 
-      {data.positions.length === 0 ? (
+      {rows.length === 0 ? (
         <div className="space-y-1 px-4 py-8 text-center text-2xs leading-5 text-muted">
           <p className="text-sm font-bold text-foreground">لا توجد مراكز مفتوحة</p>
           <p>كل الصفقات مغلقة — لا أرباح ولا خسائر غير محقّقة الآن.</p>
@@ -192,8 +274,10 @@ export function ImportedOpenPositions({ accountId }: { accountId: string }) {
           </div>
 
           <p className="border-t border-line/70 px-4 py-2 text-2xs text-muted">
-            تُحتسب القيم على أساس سعر السوق اللحظي للمشتقات؛{" "}
-            {rows.every((p) => p.pricedLive) ? "جميع الأسعار مباشرة." : "بعض الرموز ليست مدرجة على السوق الفوري وتُعرض بآخر سعر متزامن."}
+            {liveOn
+              ? "تُحتسب القيم على أساس سعر السوق اللحظي للمشتقات؛ " +
+                (rows.every((p) => p.pricedLive) ? "جميع الأسعار مباشرة." : "بعض الرموز ليست مدرجة على السوق الفوري وتُعرض بآخر سعر متزامن.")
+              : "تُحتسب القيم من آخر Snapshot مُحفَظ في المزامنة — اضغط «تحديث البيانات» أو فعّل «بث مباشر» لأرقام لحظية."}
           </p>
         </>
       )}

@@ -14,9 +14,10 @@ type SaveState = "idle" | "saving" | "success" | "error";
 /**
  * Reads the single wallet meta doc + (optional) newest transactions page.
  *
- * `withTransactions: false` keeps only the meta listener — used by screens
- * that just need `meta.source` to pick a view, so they never pay for a 100-doc
- * transactions listener they do not read.
+ * `withTransactions: false` keeps only the meta read — used by screens
+ * that just need `meta.source` to pick a view, so they never pay for the
+ * 100-doc transactions read they do not use. Reads are one-shot (mount +
+ * `retry`) with no realtime listeners and no periodic re-reads.
  */
 export function usePortfolio(opts: { withTransactions?: boolean } = {}) {
   const { withTransactions = true } = opts;
@@ -35,27 +36,37 @@ export function usePortfolio(opts: { withTransactions?: boolean } = {}) {
 
   const txIdsRef = useRef<Set<string>>(new Set());
 
-  /* Realtime wire-up: meta doc + newest transactions page. */
+  /* One-shot wire-up: meta doc + newest transactions page. Reads happen on
+     mount and on `retry()` only — no realtime listeners, no periodic re-reads. */
   useEffect(() => {
     if (!userId || authLoading) return;
-    const offMeta = portfolioService.subscribeMeta(userId, (s) => {
-      setSummary(s);
-      setLoadingMeta(false);
-    });
-    if (!withTransactions) {
-      return () => {
-        offMeta();
-      };
-    }
-    const offTx = portfolioService.subscribeTransactions(userId, PORTFOLIO_TX_PAGE, (txs, more) => {
-      setTransactions(txs);
-      txIdsRef.current = new Set(txs.map((t) => t.id));
-      setHasMore(more);
-      setLoadingTx(false);
-    });
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [s, txPage] = await Promise.all([
+          portfolioService.fetchSummary(userId),
+          withTransactions
+            ? portfolioService.fetchTransactionsPage(userId, PORTFOLIO_TX_PAGE)
+            : Promise.resolve(null),
+        ]);
+        if (cancelled) return;
+        setSummary(s);
+        setLoadingMeta(false);
+        if (txPage) {
+          txIdsRef.current = new Set(txPage.txs.map((t) => t.id));
+          setTransactions(txPage.txs);
+          setHasMore(txPage.hasMore);
+          setLoadingTx(false);
+        }
+      } catch (e) {
+        if (cancelled) return;
+        setError(e instanceof Error ? e.message : "تعذر تحميل بيانات المحفظة.");
+        setLoadingMeta(false);
+        setLoadingTx(false);
+      }
+    })();
     return () => {
-      offMeta();
-      offTx();
+      cancelled = true;
     };
   }, [userId, authLoading, refreshKey, withTransactions]);
 

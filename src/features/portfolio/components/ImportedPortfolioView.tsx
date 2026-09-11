@@ -7,7 +7,6 @@ import { timeAgo } from "@/features/notifications/format";
 import { accountTypeLabel, exchangeTypeLabel } from "../utils";
 import type { ImportedPortfolioSummary } from "../types";
 import { useImportedPortfolio } from "../hooks/useImportedPortfolio";
-import { useLivePositions } from "../hooks/useLivePositions";
 import { ImportedOverview } from "./ImportedOverview";
 import { ImportedMetricGrid } from "./ImportedMetricGrid";
 import { ImportedOpenPositions } from "./ImportedOpenPositions";
@@ -30,28 +29,36 @@ function statusOf(syncStatus: ImportedPortfolioSummary["syncStatus"]) {
   }
 }
 
+/** Freshness of the shown snapshot — display-only, never triggers a refresh. */
+function freshnessOf(ts: number | null, now: number) {
+  if (ts == null) return null;
+  const diff = now - ts;
+  if (diff < 5 * 60_000) return { label: "بيانات حديثة", cls: "text-good" };
+  if (diff <= 30 * 60_000) return { label: "تحتاج تحديث", cls: "text-warn-fg" };
+  return { label: "قديمة", cls: "text-down-fg" };
+}
+
 export function ImportedPortfolioView({ meta }: { meta: ImportedPortfolioSummary }) {
-  const { detail, error, isSyncing, syncingNow, syncNow } = useImportedPortfolio(meta.accountId, 200);
-  const { status: liveStatus, refresh: refreshLive } = useLivePositions(meta.accountId);
+  const { detail, error, isSyncing, refreshing, syncingNow, refreshManual, syncNow } = useImportedPortfolio(
+    meta.accountId,
+    200
+  );
   const [hidden, setHidden] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
+  // Display-only clock for "آخر تحديث منذ…" labels — reads nothing (no timers
+  // that touch Firestore or Binance).
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(t);
   }, []);
 
-  const livePill =
-    liveStatus === "live"
-      ? { label: "بث مباشر متصل", cls: "text-good" }
-      : liveStatus === "reconnecting"
-        ? { label: "الربط المباشر يُعاد توصيله…", cls: "text-warn-fg" }
-        : liveStatus === "error"
-          ? { label: "البث المباشر متوقف", cls: "text-down-fg" }
-          : null;
+  const lastUpdatedMs = detail?.latestSnapshot?.timestamp ?? meta.lastSuccessfulSync ?? null;
+  const freshness = freshnessOf(lastUpdatedMs, now);
 
   const st = statusOf(meta.syncStatus);
   const loadingDetail = detail == null;
+  const busy = refreshing || syncingNow || isSyncing;
 
   return (
     <div className="space-y-3">
@@ -63,37 +70,34 @@ export function ImportedPortfolioView({ meta }: { meta: ImportedPortfolioSummary
           <>
             حساب محفظة <b className="text-foreground">{accountTypeLabel(meta.accountType)}</b> على منصة{" "}
             <b className="text-foreground">{exchangeTypeLabel(meta.exchangeType)}</b>
-            {meta.accountName ? <> · {meta.accountName}</> : null} — آخر مزامنة:{" "}
+            {meta.accountName ? <> · {meta.accountName}</> : null} — آخر تحديث:{" "}
             <b dir="ltr" className="text-zinc-200">
-              {meta.lastSuccessfulSync != null ? timeAgo(meta.lastSuccessfulSync, now) : "لم تُكتمل بعد"}
+              {lastUpdatedMs != null ? timeAgo(lastUpdatedMs, now) : "لم يُحدَّث بعد"}
             </b>
           </>
         }
         right={
           <>
             <Status label={st.label} tone={st.tone} pulse={st.pulse} />
-            {livePill ? (
-              <span className={`rounded-panel px-2 py-1 text-2xs font-bold ${livePill.cls} bg-surface-2/60 ring-1 ring-line/50`}>
-                {livePill.label}
+            {freshness ? (
+              <span className={`rounded-panel px-2 py-1 text-2xs font-bold ${freshness.cls} bg-surface-2/60 ring-1 ring-line/50`}>
+                {freshness.label}
               </span>
             ) : null}
             <button
               type="button"
-              onClick={() => {
-                void syncNow("INCREMENTAL");
-                void refreshLive();
-              }}
-              disabled={syncingNow || isSyncing}
+              onClick={() => void refreshManual()}
+              disabled={busy}
               className="flex h-8 items-center gap-1.5 rounded-panel bg-gold/10 px-3 text-xs font-bold text-gold-fg ring-1 ring-gold/40 transition-colors hover:bg-gold/20 disabled:opacity-60"
             >
-              <RefreshIcon className={syncingNow ? "animate-spin" : ""} />
-              {syncingNow || isSyncing ? "جارٍ المزامنة…" : "تحديث الآن"}
+              <RefreshIcon className={refreshing ? "animate-spin" : ""} />
+              {refreshing ? "جارٍ التحديث…" : "تحديث البيانات"}
             </button>
             {!isSyncing && (
               <button
                 type="button"
                 onClick={() => void syncNow("INITIAL")}
-                disabled={syncingNow}
+                disabled={busy}
                 className="flex h-8 items-center rounded-panel px-3 text-xs font-semibold text-muted ring-1 ring-line/60 transition-colors hover:bg-surface-2 hover:text-foreground disabled:opacity-60"
                 title="إعادة سحب كامل سجل العمليات من المنصة (يُستخدم لاسترداد الخسائر والضرائب والرسوم القديمة)"
               >
@@ -106,11 +110,14 @@ export function ImportedPortfolioView({ meta }: { meta: ImportedPortfolioSummary
 
       {meta.lastError || error ? (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-panel border border-down/25 bg-down/10 px-3 py-2 text-xs font-medium text-down-fg">
-          <span>{meta.lastError ?? error}</span>
+          <span>
+            {meta.lastError ?? error}
+            {detail ? " — يتم عرض آخر بيانات ناجحة." : ""}
+          </span>
           <button
             type="button"
-            onClick={() => void syncNow("INCREMENTAL")}
-            disabled={syncingNow}
+            onClick={() => void refreshManual()}
+            disabled={busy}
             className="rounded-panel border border-down/30 px-2 py-1 text-2xs font-bold text-down-fg transition-colors hover:bg-down/15"
           >
             إعادة المحاولة
@@ -128,7 +135,7 @@ export function ImportedPortfolioView({ meta }: { meta: ImportedPortfolioSummary
 
       <ImportedMetricGrid meta={meta} detail={detail} loading={loadingDetail} nowMs={now} />
 
-      <ImportedOpenPositions accountId={meta.accountId} />
+      <ImportedOpenPositions accountId={meta.accountId} snapshot={detail} />
 
       <ImportedCashFlow meta={meta} detail={detail} loading={loadingDetail} nowMs={now} />
 

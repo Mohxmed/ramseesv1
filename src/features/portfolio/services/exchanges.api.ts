@@ -128,6 +128,34 @@ export const exchangesApi = {
   },
 
   /**
+   * Manual refresh — POST /refresh: the server runs one full incremental sync
+   * (Binance → persist → new portfolio snapshot) and returns the complete
+   * fresh detail. Never cached: every press is a deliberate, user-paced cycle.
+   * A 409 (sync already running) surfaces the Arabic conflict message while
+   * the UI keeps showing the last successful snapshot.
+   */
+  async refresh(accountId: string, opts: { limit?: number } = {}): Promise<ImportedAccountDetailDto> {
+    const q = opts.limit != null ? `?limit=${opts.limit}` : "";
+    const prefix = `detail:${accountId}:`;
+    try {
+      const body = await readJson<ImportedAccountDetailDto>(
+        await authFetch(`/api/portfolio/exchanges/${encodeURIComponent(accountId)}/refresh${q}`, {
+          method: "POST",
+          body: JSON.stringify({}),
+        })
+      );
+      // The detail is now fresher than any cached copy — drop it so the next
+      // read hits the server (the fresh values) instead of stale cache.
+      for (const key of [...cache.keys()]) {
+        if (key.startsWith(prefix)) cache.delete(key);
+      }
+      return body;
+    } catch (e) {
+      throw e;
+    }
+  },
+
+  /**
    * Open a short-lived FUTURES User Data session. Returns the ephemeral
    * listenKey the browser socket connects to plus an authoritative REST
    * snapshot to boot the store. Not cached — sessions are minted on demand

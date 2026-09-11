@@ -3,7 +3,6 @@ import {
   doc,
   getDoc,
   getDocs,
-  onSnapshot,
   OrderByDirection,
   orderBy,
   query,
@@ -389,7 +388,7 @@ export const portfolioService = {
     });
   },
 
-  /* ─── Realtime listeners ────────────────────────────────────────── */
+  /* ─── One-shot reads (no realtime listeners — static-first) ───────── */
 
   /** One-shot read of the summary doc (used by the boot data warm-up). */
   async fetchSummary(userId: string): Promise<PortfolioMeta | null> {
@@ -397,27 +396,15 @@ export const portfolioService = {
     return snap.exists() ? deserializeMeta(snap.data()) : null;
   },
 
-  subscribeMeta(userId: string, onNext: (meta: PortfolioMeta | null) => void): () => void {
-    return onSnapshot(metaRef(userId), (snap) => {
-      onNext(snap.exists() ? deserializeMeta(snap.data()) : null);
-    });
-  },
-
-  /**
-   * Realtime listener over the newest `howMany` transactions (ordered desc).
-   * Returns the unsubscribe fn and the docs count (for has-more detection).
-   */
-  subscribeTransactions(
+  /** One-shot read of the newest `howMany` transactions (ordered desc). */
+  async fetchTransactionsPage(
     userId: string,
-    howMany: number,
-    onNext: (txs: PortfolioTransaction[], hasMore: boolean, count: number) => void
-  ): () => void {
+    howMany: number
+  ): Promise<{ txs: PortfolioTransaction[]; hasMore: boolean; count: number }> {
     const q = query(txCol(userId), orderBy("timestamp", "desc" as OrderByDirection), limit(howMany));
-    return onSnapshot(q, (snap) => {
-      const txs = snap.docs.map((d) => deserializeTx(d.id, d.data()));
-      const hasMore = snap.size >= howMany;
-      onNext(txs, hasMore, snap.size);
-    });
+    const snap = await getDocs(q);
+    const txs = snap.docs.map((d) => deserializeTx(d.id, d.data()));
+    return { txs, hasMore: snap.size >= howMany, count: snap.size };
   },
 
   /** Load an older page of transactions (by timestamp cursor). */

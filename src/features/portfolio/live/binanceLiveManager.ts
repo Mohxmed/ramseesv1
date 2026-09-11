@@ -14,11 +14,16 @@
  *  - No API secrets near the browser: the server mints the short-lived
  *    listenKey (the session route) and renews it (the keepalive route).
  *    A listenKey is NOT a credential â€” it expires and cannot move funds.
- *  - Reconcile-on-disconnect: after any WS loss the store is re-seeded from
+*  - Reconcile-on-disconnect: after any WS loss the store is re-seeded from
  *    the REST live-state route before reconnecting (exponential backoff +
  *    full jitter). Live updates themselves never touch Firestore.
- *  - Manual refresh (the Portfolio "طھط­ط¯ظٹط«" button) goes straight to the
- *    live-state route â€” a deliberate, user-paced call, never a timer.
+ *  - OPT-IN only: nothing connects on mount. A live session starts when the
+ *    user presses «بث مباشر» (liveManager.start) and is torn down when the
+ *    holder leaves the screen (liveManager.stop). No live session ever opens
+ *    automatically.
+ *  - Manual refresh (the Portfolio "تحديث البيانات" button) is a single
+ *    synchronous server cycle (POST /refresh) — deliberate and user-paced,
+ *    never a timer.
  */
 
 import { exchangesApi } from "@/features/portfolio/services/exchanges.api";
@@ -115,6 +120,9 @@ class LiveManager {
   private readonly listeners = new Set<(snap: LiveSnapshot) => void>();
   private subscribedAccounts = new Set<string>();
   private disposed = true;
+  // Opt-in leases: >0 means at least one component explicitly started a live
+  // session («بث مباشر»). The manager never connects while the count is 0.
+  private readonly activeLeases = new Map<string, number>();
 
   // Leader coordination.
   private lockCtrl: AbortController | null = null;
@@ -147,17 +155,17 @@ class LiveManager {
   }
 
   subscribe(accountId: string, cb: (snap: LiveSnapshot) => void): () => void {
-    installLiveDebugHook(); // dev-only, idempotent
     if (accountId && this.accountId !== accountId) {
       this.switchAccount(accountId);
     }
     this.listeners.add(cb);
-    const wasDisposed = this.disposed;
     this.disposed = false;
     if (accountId) this.subscribedAccounts.add(accountId);
     cb(this.getSnapshot()!);
 
-    if (wasDisposed || this.subscribedAccounts.size === 1) {
+    // Read-only by default: only coordinate a live connection when the account
+    // has an explicit opt-in lease (the user pressed «بث مباشر»).
+    if ((this.activeLeases.get(accountId) ?? 0) > 0) {
       this.ensureCoordinated();
     }
 
@@ -169,6 +177,48 @@ class LiveManager {
     };
   }
 
+  /** Opt-in: the user explicitly opened a live session («بث مباشر»). */
+  start(accountId: string): void {
+    if (!accountId) return;
+    installLiveDebugHook(); // dev-only, idempotent
+    if (accountId !== this.accountId) {
+      this.switchAccount(accountId);
+    }
+    this.disposed = false;
+    this.subscribedAccounts.add(accountId);
+    this.activeLeases.set(accountId, (this.activeLeases.get(accountId) ?? 0) + 1);
+    this.ensureCoordinated();
+  }
+
+  /** Opt-out: a holder left the screen. Tears the whole live layer down when
+   *  the last lease for the account is released (sockets, timers, leadership);
+   *  the last snapshot stays in the store for an instant re-show. */
+  stop(accountId: string): void {
+    if (!accountId) return;
+    const cur = this.activeLeases.get(accountId) ?? 0;
+    if (cur <= 0) {
+      this.activeLeases.delete(accountId);
+      return;
+    }
+    const next = cur - 1;
+    if (next > 0) {
+      this.activeLeases.set(accountId, next);
+      return;
+    }
+    this.activeLeases.delete(accountId);
+    this.teardownSockets();
+    this.clearTimers();
+    this.abortLeadership();
+    this.sessionKey = null;
+    if (this.status !== "idle") {
+      this.status = "idle";
+      this.error = null;
+      this.cached = null;
+      this.notify();
+      this.broadcastStatus();
+    }
+  }
+
   private switchAccount(accountId: string): void {
     // Release the old account's lease/channel before switching; otherwise the
     // next ensureCoordinated() would early-return on a stale leader state and
@@ -176,6 +226,7 @@ class LiveManager {
     this.abortLeadership();
     this.teardownSockets();
     this.sessionKey = null;
+    this.activeLeases.clear();
     this.store = emptyLiveStore();
     this.status = "idle";
     this.error = null;
@@ -193,10 +244,12 @@ class LiveManager {
     return this.reconcileFromREST(accountId, { force: true });
   }
 
-  /** Force a fresh session + sockets now (retry button). */
+  /** Force a fresh session + sockets now (retry button). Only meaningful while
+   *  a live session is actually active. */
   reconnect(accountId: string): void {
-    if (!accountId || accountId !== this.accountId) {
-      if (accountId) this.switchAccount(accountId);
+    if (!accountId || (this.activeLeases.get(accountId) ?? 0) <= 0) return;
+    if (accountId !== this.accountId) {
+      this.switchAccount(accountId);
       return;
     }
     this.scheduleUserReconnect(true);
@@ -205,6 +258,7 @@ class LiveManager {
   dispose(): void {
     this.disposed = true;
     this.subscribedAccounts.clear();
+    this.activeLeases.clear();
     this.teardownSockets();
     this.clearTimers();
     this.abortLeadership();

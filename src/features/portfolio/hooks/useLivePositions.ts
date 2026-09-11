@@ -5,11 +5,12 @@ import { useBinanceLive } from "../live/useBinanceLive";
 import { liveManager, type LiveSnapshot } from "../live/binanceLiveManager";
 
 /**
- * Compat wrapper over the live manager keeping the poller-era contract:
- * `{ data, error, loading, lastUpdated, refresh }` — so existing widgets keep
- * working unchanged. Data now flows from the shared WebSocket layer instead of
- * the 15-second REST poll; `refresh()` is a deliberate manual action (Portfolio
- * "تحديث") and `reconnect()` forces a fresh session.
+ * Compat wrapper over the live manager. Data flows through the shared
+ * WebSocket layer — but ONLY while an explicit opt-in session is active.
+ *
+ * The manager never connects on mount. A component calls `start()` when the
+ * user presses «بث مباشر» and `stop()` when the widget leaves the screen
+ * (effect cleanup) — the last live snapshot stays in the store afterwards.
  */
 
 export function useLivePositions(accountId: string) {
@@ -24,6 +25,16 @@ export function useLivePositions(accountId: string) {
   // Surface a message only in hard-failure states — while reconnecting the last
   // good data stays on screen (the manager reconciles it BEFORE reconnecting).
   const error = snap?.status === "error" ? snap.error : null;
+
+  /** Open a live session now (user-pressed «بث مباشر»). */
+  const start = useCallback(() => {
+    if (accountId) liveManager.start(accountId);
+  }, [accountId]);
+
+  /** Release a live lease; tears the connection down at zero holders. */
+  const stop = useCallback(() => {
+    if (accountId) liveManager.stop(accountId);
+  }, [accountId]);
 
   const refresh = useCallback(() => {
     if (!accountId) return Promise.resolve(null);
@@ -40,6 +51,8 @@ export function useLivePositions(accountId: string) {
     loading,
     refresh,
     reconnect,
+    start,
+    stop,
     lastUpdated: snap?.data?.at ?? null,
     status: snap?.status ?? "idle",
     snapshot: snap as LiveSnapshot | null,
