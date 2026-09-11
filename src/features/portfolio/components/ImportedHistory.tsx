@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
 import Box from "@mui/material/Box";
+import { TablePagination } from "@mui/material";
 import { ThemeGate, Tabs, Select, SkeletonTable, num, Badge } from "@/components/ui";
 import {
   TradesIcon,
@@ -96,6 +97,8 @@ export function ImportedHistory({
   const [range, setRange] = useState("all");
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<ImportedOpRow | null>(null);
+  const [page, setPage] = useState(0);
+  const [perPage, setPerPage] = useState(10);
 
   const ops = useMemo(() => (detail ? buildOps(detail) : []), [detail]);
 
@@ -142,6 +145,9 @@ export function ImportedHistory({
   }
 
   const netSum = ops.reduce((acc, o) => acc + (o.pnl ?? 0), 0);
+  const count = filtered.length;
+  const safePage = Math.min(page, Math.max(0, Math.ceil(count / perPage) - 1));
+  const pageRows = filtered.slice(safePage * perPage, safePage * perPage + perPage);
 
   return (
     <PortfolioCard
@@ -177,7 +183,10 @@ export function ImportedHistory({
         <Tabs
           slim
           value={tab}
-          onChange={(v) => setTab(v as TabKey)}
+          onChange={(v) => {
+            setTab(v as TabKey);
+            setPage(0);
+          }}
           items={TABS.map((t) => ({ value: t.key, label: t.label, icon: t.icon ?? undefined }))}
         />
 
@@ -185,14 +194,20 @@ export function ImportedHistory({
           <input
             type="search"
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setPage(0);
+            }}
             placeholder="بحث…"
             className="h-8 w-36 rounded-panel border border-line bg-surface-2/40 px-2.5 text-xs text-foreground placeholder:text-muted focus:border-gold/50 focus:outline-none"
           />
           <div style={{ width: 130 }}>
             <Select
               value={typeFilter}
-              onChange={setTypeFilter}
+              onChange={(v) => {
+                setTypeFilter(v);
+                setPage(0);
+              }}
               options={OP_FILTERS.map((f) => ({ value: f.key, label: f.label }))}
               placeholder="النوع"
             />
@@ -200,14 +215,20 @@ export function ImportedHistory({
           <div style={{ width: 120 }}>
             <Select
               value={asset}
-              onChange={setAsset}
+              onChange={(v) => {
+                setAsset(v);
+                setPage(0);
+              }}
               options={[{ value: "all", label: "كل العملات" }, ...assets.map((a) => ({ value: a, label: a }))]}
             />
           </div>
           <div style={{ width: 130 }}>
             <Select
               value={range}
-              onChange={setRange}
+              onChange={(v) => {
+                setRange(v);
+                setPage(0);
+              }}
               options={RANGE_OPTIONS}
             />
           </div>
@@ -230,6 +251,7 @@ export function ImportedHistory({
                 setAsset("all");
                 setRange("all");
                 setQ("");
+                setPage(0);
               }}
               className="mt-3 rounded-panel border border-line px-3 py-1.5 text-xs font-semibold text-muted transition-colors hover:text-zinc-200"
             >
@@ -254,7 +276,7 @@ export function ImportedHistory({
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((o) => (
+                {pageRows.map((o) => (
                   <Row key={o.id} o={o} onOpen={() => setSelected(o)} />
                 ))}
               </tbody>
@@ -263,7 +285,7 @@ export function ImportedHistory({
 
           {/* Mobile cards */}
           <div className="divide-y divide-line/50 md:hidden">
-            {filtered.map((o) => (
+            {pageRows.map((o) => (
               <button
                 key={o.id}
                 type="button"
@@ -293,10 +315,31 @@ export function ImportedHistory({
             ))}
           </div>
 
-          <div className="flex items-center justify-between gap-3 border-t border-line/60 px-4 py-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line/60 px-3 md:px-2">
             <span className="text-2xs text-muted">
               {filtered.length} عملية — الأحدث أولاً
             </span>
+            {filtered.length > perPage ? (
+              <ThemeGate>
+                <TablePagination
+                  component="div"
+                  count={filtered.length}
+                  page={safePage}
+                  rowsPerPage={perPage}
+                  onPageChange={(_e, p) => setPage(p)}
+                  onRowsPerPageChange={(e) => {
+                    setPerPage(parseInt(e.target.value, 10));
+                    setPage(0);
+                  }}
+                  rowsPerPageOptions={[10, 25, 50]}
+                  sx={{
+                    color: "text.secondary",
+                    fontSize: 12,
+                    "& .MuiTablePagination-select": { color: "text.secondary" },
+                  }}
+                />
+              </ThemeGate>
+            ) : null}
             <a
               href={`/operations?filter=${typeFilter !== "all" ? typeFilter : "all"}`}
               className="flex items-center gap-1 text-2xs font-bold text-gold-fg transition-colors hover:text-gold"
