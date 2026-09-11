@@ -57,7 +57,7 @@ function fmtPrice(v: number): string {
 }
 
 export function WalletSnippet() {
-  const { meta } = usePortfolio();
+  const { meta } = usePortfolio({ withTransactions: false });
 
   const imported =
     meta && meta.source === "binance" ? (meta as ImportedPortfolioSummary) : null;

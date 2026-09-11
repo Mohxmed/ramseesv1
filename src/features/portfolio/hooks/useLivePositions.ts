@@ -6,13 +6,14 @@ import type { LivePositionsDto } from "../types";
 
 /**
  * Live poller for the wallet's open positions. Unlike the detail feed (which
- * only moves on exchange syncs), this hits the positions-live route and
- * re-prices every stored position with the current public futures mark price,
- * so unrealized P&L updates roughly every three seconds without touching the
- * exchange credentials.
+ * only moves on exchange syncs), this hits the positions-live route which
+ * asks Binance directly for the account's open perpetuals, so unrealized P&L
+ * updates roughly every fifteen seconds. The route costs Firestore exactly two
+ * document reads per poll (account + credential) — constant, no matter how
+ * many positions are open.
  */
 
-const POLL_INTERVAL_MS = 10_000;
+const POLL_INTERVAL_MS = 15_000;
 
 export function useLivePositions(accountId: string) {
   const [data, setData] = useState<LivePositionsDto | null>(null);

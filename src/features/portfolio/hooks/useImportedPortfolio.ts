@@ -11,13 +11,13 @@ import type { ImportedAccountDetailDto } from "../types";
  *
  * Read-budget: the detail route returns the full account window (snapshots,
  * ledger, trades…) which is expensive in Firestore reads, so this hook never
- * hammers it. It polls detail on a slow 60s cadence, and while a sync is
+ * hammers it. It polls detail on a slow 120s cadence, and while a sync is
  * running it polls the CHEAP /sync status route instead — a full detail
  * refresh happens exactly once when the sync completes (the only moment its
  * payload actually changes).
  */
 
-const LIST_INTERVAL_MS = 60_000;
+const LIST_INTERVAL_MS = 120_000;
 const SYNC_STATUS_POLL_MS = 4_000;
 
 export function useImportedPortfolio(accountId: string, limit = 50) {

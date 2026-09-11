@@ -42,7 +42,7 @@ export default function OperationsPage() {
 
 function OperationsPageInner() {
   const searchParams = useSearchParams();
-  const { meta, loading, error, retry, isAuthenticated } = usePortfolio();
+  const { meta, loading, error, retry, isAuthenticated } = usePortfolio({ withTransactions: false });
   const [filter, setFilter] = useState<OpFilter>(() => toFilter(searchParams.get("filter")));
   const [now, setNow] = useState(() => Date.now());
 
@@ -63,7 +63,7 @@ function OperationsPageInner() {
     isSyncing,
     syncingNow,
     syncNow,
-  } = useImportedPortfolio(imported?.accountId ?? "", 500);
+  } = useImportedPortfolio(imported?.accountId ?? "", 200);
 
   const ops = useMemo(() => buildOps(detail), [detail]);
   const statement = useMemo(() => computeStatement(ops), [ops]);

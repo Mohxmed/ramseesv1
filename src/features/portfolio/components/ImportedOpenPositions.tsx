@@ -64,7 +64,7 @@ export function ImportedOpenPositions({ accountId }: { accountId: string }) {
         ) : null}
       </h2>
       <p className="mt-0.5 text-2xs text-muted">
-        تتحدّث الأسعار لحظيًا من سوق العقود الآجلة كل ٣ ثوانٍ تقريبًا.
+        تتحدّث الأسعار لحظيًا من سوق العقود الآجلة كل ١٥ ثانيةً تقريبًا.
         {lastUpdated != null ? (
           <>
             {" "}· آخر تحديث{" "}

@@ -18,6 +18,31 @@ import type {
 
 export class ExchangeApiError extends Error {}
 
+/**
+ * Poller read budget: several widgets may poll the same account at the same
+ * time (dashboard wallet + portfolio open positions + sync status). The TTL
+ * cache below makes those pollers share ONE request per window instead of
+ * each hitting the server (and Firestore) separately — and an in-flight
+ * promise is shared too, so a burst of mounts still produces a single read.
+ */
+const cache = new Map<string, { at: number; value: unknown }>();
+const inflight = new Map<string, Promise<unknown>>();
+
+function cachedFetch<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < ttlMs) return Promise.resolve(hit.value as T);
+  const running = inflight.get(key) as Promise<T> | undefined;
+  if (running) return running;
+  const p = fn()
+    .then((v) => {
+      cache.set(key, { at: Date.now(), value: v });
+      return v;
+    })
+    .finally(() => inflight.delete(key));
+  inflight.set(key, p);
+  return p;
+}
+
 async function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const auth = getAuthInstance();
   const user = auth.currentUser;
@@ -93,16 +118,21 @@ export const exchangesApi = {
 
   async detail(accountId: string, opts: { limit?: number } = {}): Promise<ImportedAccountDetailDto> {
     const q = opts.limit != null ? `?limit=${opts.limit}` : "";
-    return readJson(
-      await authFetch(`/api/portfolio/exchanges/${encodeURIComponent(accountId)}${q}`)
+    const cacheKey = `detail:${accountId}:${opts.limit ?? ""}`;
+    return cachedFetch(cacheKey, 100_000, async () =>
+      readJson(
+        await authFetch(`/api/portfolio/exchanges/${encodeURIComponent(accountId)}${q}`)
+      )
     );
   },
 
-  /** Live open-positions overlay — futures mark prices re-priced every poll. */
+  /** Live open-positions overlay — fresh prices straight from Binance every poll. */
   async livePositions(accountId: string): Promise<LivePositionsDto> {
-    return readJson(
-      await authFetch(
-        `/api/portfolio/exchanges/${encodeURIComponent(accountId)}/positions-live`
+    return cachedFetch(`live:${accountId}`, 12_000, async () =>
+      readJson(
+        await authFetch(
+          `/api/portfolio/exchanges/${encodeURIComponent(accountId)}/positions-live`
+        )
       )
     );
   },
@@ -125,8 +155,10 @@ export const exchangesApi = {
   },
 
   async syncStatus(accountId: string): Promise<ExchangeSyncStatusDto> {
-    return readJson(
-      await authFetch(`/api/portfolio/exchanges/${encodeURIComponent(accountId)}/sync`)
+    return cachedFetch(`syncStatus:${accountId}`, 3_000, async () =>
+      readJson(
+        await authFetch(`/api/portfolio/exchanges/${encodeURIComponent(accountId)}/sync`)
+      )
     );
   },
 

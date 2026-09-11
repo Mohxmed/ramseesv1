@@ -11,7 +11,15 @@ import type {
 
 type SaveState = "idle" | "saving" | "success" | "error";
 
-export function usePortfolio() {
+/**
+ * Reads the single wallet meta doc + (optional) newest transactions page.
+ *
+ * `withTransactions: false` keeps only the meta listener — used by screens
+ * that just need `meta.source` to pick a view, so they never pay for a 100-doc
+ * transactions listener they do not read.
+ */
+export function usePortfolio(opts: { withTransactions?: boolean } = {}) {
+  const { withTransactions = true } = opts;
   const { user, loading: authLoading } = useAuth();
   const userId = user?.uid ?? null;
 
@@ -19,7 +27,7 @@ export function usePortfolio() {
   const [transactions, setTransactions] = useState<PortfolioTransaction[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMeta, setLoadingMeta] = useState(true);
-  const [loadingTx, setLoadingTx] = useState(true);
+  const [loadingTx, setLoadingTx] = useState(!withTransactions);
   const [saving, setSaving] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +42,11 @@ export function usePortfolio() {
       setSummary(s);
       setLoadingMeta(false);
     });
+    if (!withTransactions) {
+      return () => {
+        offMeta();
+      };
+    }
     const offTx = portfolioService.subscribeTransactions(userId, PORTFOLIO_TX_PAGE, (txs, more) => {
       setTransactions(txs);
       txIdsRef.current = new Set(txs.map((t) => t.id));
@@ -44,7 +57,7 @@ export function usePortfolio() {
       offMeta();
       offTx();
     };
-  }, [userId, authLoading, refreshKey]);
+  }, [userId, authLoading, refreshKey, withTransactions]);
 
   const createPortfolio = useCallback(
     async (initialBalance: number): Promise<boolean> => {
@@ -116,10 +129,10 @@ export function usePortfolio() {
 
   const retry = useCallback(() => {
     setLoadingMeta(true);
-    setLoadingTx(true);
+    if (withTransactions) setLoadingTx(true);
     setError(null);
     setRefreshKey((k) => k + 1);
-  }, []);
+  }, [withTransactions]);
 
   const clearSaveState = useCallback(() => setSaveState("idle"), []);
 
