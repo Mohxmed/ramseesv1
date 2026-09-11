@@ -55,6 +55,8 @@ export interface ChartContainerProps {
   yFormatter?: (v: number) => string;
   xFormatter?: (v: number | string) => string;
   valueFormatter?: (v: number | string | null, name: string) => React.ReactNode;
+  /** Formats the tooltip's x label (defaults to the raw datum). */
+  labelFormatter?: (label: number | string) => React.ReactNode;
   showLegend?: boolean;
   showGrid?: boolean;
   showXAxis?: boolean;
@@ -96,6 +98,7 @@ export function ChartContainer({
   yFormatter,
   xFormatter,
   valueFormatter,
+  labelFormatter,
   showLegend = false,
   showGrid = true,
   showXAxis = true,
@@ -144,7 +147,7 @@ export function ChartContainer({
   const tooltip = (
     <Tooltip
       cursor={cursorProps}
-      content={<ChartTooltip formatter={valueFormatter} />}
+      content={<ChartTooltip formatter={valueFormatter} labelFormatter={labelFormatter} />}
     />
   );
 

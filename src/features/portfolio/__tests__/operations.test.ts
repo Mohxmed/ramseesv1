@@ -40,7 +40,7 @@ describe("bucketOf", () => {
   });
 });
 
-const DETAIL: ImportedAccountDetailDto = {
+const DETAIL_BASE = {
   account: {
     id: "a1",
     name: "Binance Futures",
@@ -74,10 +74,24 @@ const DETAIL: ImportedAccountDetailDto = {
     { id: "t8", type: "FEE", asset: "USDT", amount: 2, usdValue: 0, fee: 2, feeAsset: "USDT", income: -2, incomeType: "INSURANCE_CLEAR", status: "CONFIRMED", timestamp: 60 },
   ],
   trades: [
-    { id: "tr1", symbol: "BTCUSDT", side: "SELL", quantity: 1, price: 100, quoteAmount: 100, fee: 0.1, feeAsset: "USDT", realizedPnlUsd: 50, timestamp: 400 },
-    { id: "tr2", symbol: "BTCUSDT", side: "SELL", quantity: 1, price: 90, quoteAmount: 90, fee: 0.1, feeAsset: "USDT", realizedPnlUsd: -20, timestamp: 350 },
+    { id: "tr1", symbol: "BTCUSDT", side: "SELL", quantity: 1, price: 100, quoteAmount: 100, fee: 0.1, feeAsset: "USDT", realizedPnlUsd: 50, timestamp: 400, orderId: null },
+    { id: "tr2", symbol: "BTCUSDT", side: "SELL", quantity: 1, price: 90, quoteAmount: 90, fee: 0.1, feeAsset: "USDT", realizedPnlUsd: -20, timestamp: 350, orderId: null },
   ],
   syncInProgress: false,
+};
+
+const DETAIL: ImportedAccountDetailDto = {
+  ...DETAIL_BASE,
+  balances: [],
+  positions: [],
+  latestSnapshot: null,
+  snapshots: [],
+  transactions: DETAIL_BASE.transactions.map((t) => ({ ...t, externalId: null })),
+  trades: DETAIL_BASE.trades.map((t) => ({
+    ...t,
+    side: t.side as "BUY" | "SELL",
+    orderId: null as string | null,
+  })),
 };
 
 describe("buildOps", () => {

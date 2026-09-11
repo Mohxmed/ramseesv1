@@ -121,6 +121,10 @@ export interface ImportedOpRow {
   amount: number;
   asset: string | null;
   usdValue: number | null;
+  /** Fill/transaction price (trades only; null when unknown). */
+  price: number | null;
+  /** Upstream reference (order id / tx hash) when available. */
+  orderId: string | null;
   fee: number;
   /** Signed exchange income (funding paid/received, tax, commissions…). */
   income: number | null;
@@ -130,6 +134,48 @@ export interface ImportedOpRow {
   /** Signed money effect shown in the table (realized PnL for trades, income otherwise). */
   pnl: number | null;
   category: OpCategory;
+}
+
+/** Aggregate balance position of one asset held on the exchange. */
+export interface ExchangeBalanceDto {
+  asset: string;
+  free: number;
+  locked: number;
+  total: number;
+  available: number;
+  usdValue: number;
+  price: number | null;
+  valuedAt: number;
+}
+
+/** Open futures/spot position (state mirror). */
+export interface ExchangePositionDto {
+  symbol: string;
+  side: "LONG" | "SHORT";
+  quantity: number;
+  entryPrice: number;
+  markPrice: number;
+  liquidationPrice: number | null;
+  leverage: number;
+  margin: number;
+  unrealizedPnl: number;
+  realizedPnl: number;
+  notional: number;
+  timestamp: number;
+}
+
+/** Account equity snapshot taken at each sync (the performance-chart series). */
+export interface ExchangeSnapshotDto {
+  timestamp: number;
+  totalEquity: number;
+  cashValue: number;
+  assetValue: number;
+  unrealizedPnl: number;
+  realizedPnl: number;
+  totalPnl: number;
+  deposits: number;
+  withdrawals: number;
+  fees: number;
 }
 
 /** `GET /api/portfolio/exchanges/[id]` — what the imported wallet view reads. */
@@ -146,6 +192,8 @@ export interface ImportedAccountDetailDto {
     lastErrorAt: number | null;
     financials: ExchangeFinancialsDto;
   };
+  balances: ExchangeBalanceDto[];
+  positions: ExchangePositionDto[];
   transactions: Array<{
     id: string;
     type: string;
@@ -159,6 +207,8 @@ export interface ImportedAccountDetailDto {
     incomeType: string | null;
     status: string | null;
     timestamp: number;
+    /** Upstream reference (tx hash / block ref) when available. */
+    externalId: string | null;
   }>;
   trades: Array<{
     id: string;
@@ -171,7 +221,17 @@ export interface ImportedAccountDetailDto {
     feeAsset: string | null;
     realizedPnlUsd: number | null;
     timestamp: number;
+    /** Upstream order reference when available. */
+    orderId: string | null;
   }>;
+  latestSnapshot: {
+    timestamp: number;
+    totalEquity: number;
+    realizedPnl: number;
+    unrealizedPnl: number;
+    totalPnl: number;
+  } | null;
+  snapshots: ExchangeSnapshotDto[];
   syncInProgress: boolean;
 }
 
