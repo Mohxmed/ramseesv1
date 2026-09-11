@@ -56,7 +56,7 @@ export async function GET(
       getTransactions(uid, id, { limit }),
       getTrades(uid, id, { limit }),
       getRunningSync(uid, id),
-      getSnapshots(uid, id, { limit: 500 }),
+      getSnapshots(uid, id, { limit }),
       listReconciliationEvents(uid, id, 10),
     ]);
 

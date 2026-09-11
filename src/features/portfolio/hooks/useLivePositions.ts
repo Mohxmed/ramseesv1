@@ -12,7 +12,7 @@ import type { LivePositionsDto } from "../types";
  * exchange credentials.
  */
 
-const POLL_INTERVAL_MS = 3_000;
+const POLL_INTERVAL_MS = 10_000;
 
 export function useLivePositions(accountId: string) {
   const [data, setData] = useState<LivePositionsDto | null>(null);
@@ -22,6 +22,9 @@ export function useLivePositions(accountId: string) {
 
   const refresh = useCallback(async () => {
     if (!accountId || running.current) return;
+    // Skip while the tab is hidden — no point re-pricing positions nobody can
+    // see, and it keeps the Firestore read budget flat with the page open.
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
     running.current = true;
     try {
       const d = await exchangesApi.livePositions(accountId);
