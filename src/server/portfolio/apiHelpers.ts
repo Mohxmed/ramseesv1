@@ -27,6 +27,15 @@ export function routeErrorResponse(err: unknown): NextResponse {
   if (err instanceof ExchangeError) {
     const status = exchangeErrorHttpStatus(err.kind);
     const detail = sanitizeExchangeErrorDetail(err);
+    // Never log context wholesale: it may embed credentials. BinanceRestClient
+    // stores a query-stripped URL in context.path (no keys/signatures) — safe.
+    const rawPath =
+      typeof err.context["path"] === "string"
+        ? (err.context["path"] as string)
+        : undefined;
+    const safePath =
+      rawPath && (rawPath.startsWith("/") || rawPath.startsWith("https://")) ? rawPath : undefined;
+    console.error(`[exchange-api] kind=${err.kind} status=${status}${safePath ? ` path=${safePath}` : ""}`, err.message);
     return NextResponse.json(
       { error: userSafeExchangeMessage(err.kind), ...(detail ? { detail } : {}) },
       { status }

@@ -40,19 +40,25 @@ export async function POST(
     const uid = await authenticateRequest(req);
     const { id } = await params;
     const account = await requireOwnedAccount(uid, id);
+    const ctx = `live-session acct=${id} type=${account.accountType}`;
 
     // Live positions are a perpetuals feature; spot has nothing to watch live.
     if (account.accountType !== "FUTURES") {
+      console.log(`[portfolio] ${ctx} -> no futures, no session`);
       return NextResponse.json({ listenKey: null, at: Date.now(), snapshot: emptyFuturesLiveState() });
     }
 
     const creds = await loadLiveCredential(uid, account);
     if (!creds) {
+      console.log(`[portfolio] ${ctx} -> no credential, no session`);
       return NextResponse.json({ listenKey: null, at: Date.now(), snapshot: emptyFuturesLiveState() });
     }
 
+    console.log(`[portfolio] ${ctx} -> creds ok, minting session`);
     const listenKey = await createFuturesListenKey(creds);
+    console.log(`[portfolio] ${ctx} -> listenKey minted, fetching snapshot`);
     const snapshot = await fetchFuturesLiveState(creds);
+    console.log(`[portfolio] ${ctx} -> snapshot ok (${snapshot.positions.length} positions)`);
     return NextResponse.json({ listenKey, at: snapshot.at, snapshot });
   } catch (err) {
     return routeErrorResponse(err);
