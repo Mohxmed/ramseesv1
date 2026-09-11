@@ -52,6 +52,44 @@ export function fmtShortDate(ms: number): string {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
 }
 
+/* ─── Account / exchange labels ────────────────────────────────────── */
+
+const ACCOUNT_TYPE_LABELS: Record<string, string> = {
+  FUTURES: "العقود الآجلة (Futures)",
+  "USDT_FUTURES": "العقود الآجلة بالدولار (USDT-M)",
+  "USDT-FUTURES": "العقود الآجلة بالدولار (USDT-M)",
+  "USDT_M_FUTURES": "العقود الآجلة بالدولار (USDT-M)",
+  "USDT-M": "العقود الآجلة بالدولار (USDT-M)",
+  "USD_M_FUTURES": "العقود الآجلة بالعملة (COIN-M)",
+  "USD-M FUTURES": "العقود الآجلة بالعملة (COIN-M)",
+  "COIN_M_FUTURES": "العقود الآجلة بالعملة (COIN-M)",
+  "COIN-M": "العقود الآجلة بالعملة (COIN-M)",
+  SPOT: "الحساب الفوري (Spot)",
+  MARGIN: "حساب الهامش (Margin)",
+};
+
+/** Clear Arabic label for an exchange account type (falls back to the raw value). */
+export function accountTypeLabel(t: string | null | undefined): string {
+  if (!t) return "المحفظة";
+  return ACCOUNT_TYPE_LABELS[t.trim().toUpperCase()] ?? t;
+}
+
+const EXCHANGE_TYPE_LABELS: Record<string, string> = {
+  BINANCE: "باينانس",
+  BINANCE_FUTURES: "باينانس",
+  BINANCE_SPOT: "باينانس",
+  BYBIT: "بايبيت",
+  OKX: "أوكاي (OKX)",
+  KUCOIN: "كوكوين",
+  HTX: "HTX",
+};
+
+/** Clear Arabic label for an exchange provider (falls back to the raw value). */
+export function exchangeTypeLabel(t: string | null | undefined): string {
+  if (!t) return "المنصة";
+  return EXCHANGE_TYPE_LABELS[t.trim().toUpperCase()] ?? t;
+}
+
 /* ─── Ledger → analytics (pure, no Firebase) ──────────────────────── */
 
 /**

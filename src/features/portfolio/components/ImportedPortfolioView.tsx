@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { PageHeader, Status } from "@/components/ui";
 import { WalletIcon, RefreshIcon } from "@/components/icons/icons";
 import { timeAgo } from "@/features/notifications/format";
+import { accountTypeLabel, exchangeTypeLabel } from "../utils";
 import type { ImportedPortfolioSummary } from "../types";
 import { useImportedPortfolio } from "../hooks/useImportedPortfolio";
 import { ImportedOverview } from "./ImportedOverview";
@@ -49,8 +50,8 @@ export function ImportedPortfolioView({ meta }: { meta: ImportedPortfolioSummary
         title="المحفظة"
         description={
           <>
-            حساب <b className="text-foreground">{meta.accountType}</b> على{" "}
-            <b className="text-foreground">{meta.exchangeType}</b>
+            حساب محفظة <b className="text-foreground">{accountTypeLabel(meta.accountType)}</b> على منصة{" "}
+            <b className="text-foreground">{exchangeTypeLabel(meta.exchangeType)}</b>
             {meta.accountName ? <> · {meta.accountName}</> : null} — آخر مزامنة:{" "}
             <b dir="ltr" className="text-zinc-200">
               {meta.lastSuccessfulSync != null ? timeAgo(meta.lastSuccessfulSync, now) : "لم تُكتمل بعد"}

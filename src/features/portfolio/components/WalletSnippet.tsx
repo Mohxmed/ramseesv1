@@ -13,7 +13,7 @@ import {
 import { num } from "@/components/ui";
 import { usePortfolio } from "../hooks/usePortfolio";
 import { useLivePositions } from "../hooks/useLivePositions";
-import { fmtPct } from "../utils";
+import { accountTypeLabel, exchangeTypeLabel, fmtPct } from "../utils";
 import type {
   ImportedPortfolioSummary,
   PortfolioSummary,
@@ -27,10 +27,6 @@ import type {
  * their current unrealized P&L. The connection pill shows "متصل بباينانس".
  */
 
-const EXCHANGE_LABELS: Record<string, string> = {
-  binance: "باينانس",
-};
-
 function money(v: number | null | undefined, opts: { signed?: boolean } = {}): string {
   if (v == null || !Number.isFinite(v)) return "—";
   const d = Math.abs(v).toLocaleString("en-US", {
@@ -39,10 +35,6 @@ function money(v: number | null | undefined, opts: { signed?: boolean } = {}): s
   });
   const sign = v < 0 ? "-" : opts.signed && v > 0 ? "+" : "";
   return `${sign}${d} $`;
-}
-
-function exchangeLabel(t: string): string {
-  return EXCHANGE_LABELS[t.toLowerCase()] ?? t;
 }
 
 function fmtQty(q: number): string {
@@ -122,7 +114,7 @@ export function WalletSnippet() {
           title="المحفظة"
           subtitle={
             imported
-              ? `حساب ${exchangeLabel(imported.exchangeType)}${imported.accountType ? ` · ${imported.accountType}` : ""}`
+              ? `حساب محفظة ${accountTypeLabel(imported.accountType)} على منصة ${exchangeTypeLabel(imported.exchangeType)}`
               : "تتبع يدوي للرصيد"
           }
           pill={<ConnectionPill imported={imported} />}

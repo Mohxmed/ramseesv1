@@ -117,7 +117,7 @@ export function ChartContainer({
 
   const chartProps = {
     data,
-    margin: { top: 6, right: 8, left: 12, bottom: 0 },
+    margin: { top: 12, right: 8, left: 12, bottom: 0 },
   };
 
   const axes = (
@@ -137,10 +137,10 @@ export function ChartContainer({
           orientation={yAxisOrientation === "right" ? "right" : "left"}
           tickFormatter={yFormatter ? (v) => yFormatter(Number(v)) : undefined}
           domain={yDomain}
-          width={64}
-          tickMargin={10}
+          width={68}
+          tickMargin={12}
           minTickGap={24}
-          tick={{ ...tickStyle }}
+          tick={{ ...tickStyle, textAnchor: "end", verticalAnchor: "end" }}
         />
       ) : null}
     </>
