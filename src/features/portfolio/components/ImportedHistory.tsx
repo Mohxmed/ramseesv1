@@ -4,8 +4,10 @@ import { useMemo, useState } from "react";
 import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
 import Box from "@mui/material/Box";
+import Popover from "@mui/material/Popover";
 import { TablePagination } from "@mui/material";
 import {
+  Filter,
   LayoutGrid,
   ArrowRightLeft,
   ShieldCheck,
@@ -16,7 +18,7 @@ import {
   Repeat,
   Shuffle,
 } from "lucide-react";
-import { ThemeGate, Select, SkeletonTable, num, Badge, type Tone } from "@/components/ui";
+import { ThemeGate, Select, SkeletonTable, num, Badge, colors, type Tone } from "@/components/ui";
 import {
   TradesIcon,
   DepositIcon,
@@ -128,6 +130,7 @@ export function ImportedHistory({
   const [selected, setSelected] = useState<ImportedOpRow | null>(null);
   const [page, setPage] = useState(0);
   const [perPage, setPerPage] = useState(10);
+  const [filterAnchor, setFilterAnchor] = useState<HTMLElement | null>(null);
 
   const ops = useMemo(
     () =>
@@ -179,6 +182,8 @@ export function ImportedHistory({
     setRange("all");
     setPage(0);
   };
+
+  const activeCount = [asset, direction, status, range].filter((v) => v !== "all").length;
 
   const changeKind = (k: OpKind | "all") => {
     setOpKind(k);
@@ -266,60 +271,34 @@ export function ImportedHistory({
         </div>
 
         {/* Filters */}
-        <div className="flex flex-wrap items-center gap-2 px-4 py-2.5">
-          <div style={{ width: 120 }}>
-            <Select
-              value={asset}
-              onChange={(v) => {
-                setAsset(v);
-                setPage(0);
-              }}
-              options={[{ value: "all", label: "كل العملات" }, ...assets.map((a) => ({ value: a, label: a }))]}
-            />
-          </div>
-          <div style={{ width: 130 }}>
-            <Select
-              value={direction}
-              onChange={(v) => {
-                setDirection(v as OpImpact | "all");
-                setPage(0);
-              }}
-              options={IMPACT_OPTIONS as unknown as { value: string; label: string }[]}
-            />
-          </div>
-          <div style={{ width: 130 }}>
-            <Select
-              value={status}
-              onChange={(v) => {
-                setStatus(v);
-                setPage(0);
-              }}
-              options={[
-                { value: "all", label: "كل الحالات" },
-                ...statuses.map((s) => ({ value: s, label: STATUS_LABELS[s] ?? s })),
-              ]}
-            />
-          </div>
-          <div style={{ width: 130 }}>
-            <Select
-              value={range}
-              onChange={(v) => {
-                setRange(v);
-                setPage(0);
-              }}
-              options={RANGE_OPTIONS}
-            />
-          </div>
+        <div className="flex items-center justify-between gap-2 px-4 py-1.5">
           <button
             type="button"
-            onClick={resetFilters}
-            disabled={opKind === "all" && asset === "all" && direction === "all" && status === "all" && range === "all"}
-            className="flex h-8 items-center gap-1.5 rounded-panel border border-line/70 px-2.5 text-2xs font-semibold text-muted transition-colors hover:bg-surface-2 hover:text-foreground disabled:opacity-40"
-            title="إعادة تعيين كل الفلاتر"
+            onClick={(e) => setFilterAnchor(e.currentTarget)}
+            aria-haspopup="dialog"
+            aria-expanded={Boolean(filterAnchor)}
+            className="flex h-7 items-center gap-1.5 rounded-panel px-2 text-2xs font-semibold text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
           >
-            <RefreshIcon className="h-3.5 w-3.5" />
-            إعادة التعيين
+            <Filter className="h-3.5 w-3.5" />
+            الفلاتر
+            {activeCount > 0 ? (
+              <span
+                className={`${num} flex h-4 min-w-4 items-center justify-center rounded-full bg-gold/20 px-1 text-[10px] font-bold leading-none text-gold-fg`}
+              >
+                {activeCount}
+              </span>
+            ) : null}
           </button>
+          {activeCount > 0 ? (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="flex h-7 items-center gap-1.5 rounded-panel px-2 text-2xs font-semibold text-muted transition-colors hover:bg-surface-2 hover:text-foreground"
+            >
+              <RefreshIcon className="h-3 w-3" />
+              مسح الفلاتر
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -438,6 +417,70 @@ export function ImportedHistory({
         </>
       )}
 
+      <ThemeGate>
+        <Popover
+          open={Boolean(filterAnchor)}
+          anchorEl={filterAnchor}
+          onClose={() => setFilterAnchor(null)}
+          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+          transformOrigin={{ vertical: "top", horizontal: "right" }}
+          slotProps={{
+            paper: { sx: { width: 256, mt: 0.5, p: 1.5, border: `1px solid ${colors.line}` } },
+          }}
+        >
+          <div className="space-y-3">
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <span className="text-xs font-bold text-foreground">الفلاتر</span>
+              <PopoverReset activeCount={activeCount} onReset={resetFilters} />
+            </div>
+
+            <FilterField label="العملة">
+              <Select
+                value={asset}
+                onChange={(v) => {
+                  setAsset(v);
+                  setPage(0);
+                }}
+                options={[{ value: "all", label: "كل العملات" }, ...assets.map((a) => ({ value: a, label: a }))]}
+              />
+            </FilterField>
+            <FilterField label="الاتجاه">
+              <Select
+                value={direction}
+                onChange={(v) => {
+                  setDirection(v as OpImpact | "all");
+                  setPage(0);
+                }}
+                options={IMPACT_OPTIONS as unknown as { value: string; label: string }[]}
+              />
+            </FilterField>
+            <FilterField label="الحالة">
+              <Select
+                value={status}
+                onChange={(v) => {
+                  setStatus(v);
+                  setPage(0);
+                }}
+                options={[
+                  { value: "all", label: "كل الحالات" },
+                  ...statuses.map((s) => ({ value: s, label: STATUS_LABELS[s] ?? s })),
+                ]}
+              />
+            </FilterField>
+            <FilterField label="الفترة">
+              <Select
+                value={range}
+                onChange={(v) => {
+                  setRange(v);
+                  setPage(0);
+                }}
+                options={RANGE_OPTIONS}
+              />
+            </FilterField>
+          </div>
+        </Popover>
+      </ThemeGate>
+
       <DetailsDrawer row={selected} onClose={() => setSelected(null)} nowMs={nowMs} />
     </PortfolioCard>
   );
@@ -453,6 +496,29 @@ function pnlTone(o: ImportedOpRow): string {
 
 function pnlText(o: ImportedOpRow): string {
   return o.pnl == null ? "—" : fmtMoney(o.pnl, { signed: true });
+}
+
+function FilterField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="mb-1 text-2xs font-semibold text-muted">{label}</div>
+      {children}
+    </div>
+  );
+}
+
+function PopoverReset({ activeCount, onReset }: { activeCount: number; onReset: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onReset}
+      disabled={activeCount === 0}
+      className="flex h-6 items-center gap-1 rounded-panel px-1.5 text-2xs font-semibold text-gold-fg transition-colors hover:bg-surface-2 hover:text-gold disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      <RefreshIcon className="h-3 w-3" />
+      إعادة تعيين
+    </button>
+  );
 }
 
 function Row({

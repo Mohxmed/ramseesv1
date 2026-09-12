@@ -10,11 +10,10 @@ import { useImportedPortfolio } from "../hooks/useImportedPortfolio";
 import { exchangesApi, ExchangeApiError } from "../services/exchanges.api";
 import { liveManager } from "../live/binanceLiveManager";
 import { ImportedOverview } from "./ImportedOverview";
-import { ImportedMetricGrid } from "./ImportedMetricGrid";
 import { ImportedOpenPositions } from "./ImportedOpenPositions";
-import { ImportedCashFlow } from "./ImportedCashFlow";
-import { ImportedPerformance } from "./ImportedPerformance";
+import { ImportedMetricGrid } from "./ImportedMetricGrid";
 import { ImportedHistory } from "./ImportedHistory";
+import { ImportedPerformance } from "./ImportedPerformance";
 import { BinanceUnlinkModal } from "./BinanceUnlinkModal";
 import { BinanceRelinkModal } from "./BinanceRelinkModal";
 import { BinanceDeleteModal } from "./BinanceDeleteModal";
@@ -278,11 +277,9 @@ export function ImportedPortfolioView({
       <ImportedMetricGrid meta={meta} detail={detail} loading={loadingDetail} nowMs={now} />
 
       <div className="grid items-start gap-3 lg:grid-cols-2">
-        <ImportedCashFlow meta={meta} detail={detail} loading={loadingDetail} nowMs={now} />
+        <ImportedHistory detail={detail} loading={loadingDetail} nowMs={now} />
         <ImportedPerformance meta={meta} detail={detail} loading={loadingDetail} nowMs={now} />
       </div>
-
-      <ImportedHistory detail={detail} loading={loadingDetail} nowMs={now} />
 
       <BinanceUnlinkModal
         open={unlinkOpen}
