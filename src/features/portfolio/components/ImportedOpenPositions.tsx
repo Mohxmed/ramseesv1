@@ -191,7 +191,7 @@ export function ImportedOpenPositions({
   const pnlTone = toneOf(aggregate?.unrealizedPnl ?? 0);
 
   const statStrip = (
-    <div className="grid grid-cols-2 gap-px bg-line/60 sm:grid-cols-4">
+    <div className="grid grid-cols-2 gap-px bg-line/60">
       <StatCell
         label="عدد المراكز"
         value={<span className={num}>{aggregate?.count ?? 0}</span>}
@@ -263,27 +263,11 @@ export function ImportedOpenPositions({
         <>
           {statStrip}
 
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-sm">
-              <thead>
-                <tr className="border-b border-line/70 text-2xs uppercase tracking-[0.12em] text-muted">
-                  <Th>الصفقة</Th>
-                  <Th>الكمية</Th>
-                  <Th ltr>سعر الدخول</Th>
-                  <Th ltr>السعر اللحظي</Th>
-                  <Th ltr>سعر التصفية</Th>
-                  <Th>الرافعة</Th>
-                  <Th ltr>الهامش</Th>
-                  <Th ltr>الربح/الخسارة غير المحقّق</Th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line/60">
-                {rows.map((p) => (
-                  <PositionRow key={`${p.symbol}_${p.side}`} p={p} />
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ul className="divide-y divide-line/60">
+            {rows.map((p) => (
+              <CompactPositionRow key={`${p.symbol}_${p.side}`} p={p} />
+            ))}
+          </ul>
 
           <p className="border-t border-line/70 px-4 py-2 text-2xs text-muted">
             {streaming
@@ -297,11 +281,47 @@ export function ImportedOpenPositions({
   );
 }
 
-function Th({ children, ltr }: { children: ReactNode; ltr?: boolean }) {
+function CompactPositionRow({ p }: { p: LivePositionDto }) {
+  const t = toneOf(p.unrealizedPnl);
   return (
-    <th className="whitespace-nowrap px-3 py-2 text-right text-2xs font-bold">
-      <span dir={ltr ? "ltr" : "rtl"}>{children}</span>
-    </th>
+    <li className="flex items-center justify-between gap-3 px-4 py-2.5 transition-colors hover:bg-surface-2/40">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="truncate text-xs font-bold text-foreground" dir="ltr">
+            {p.symbol}
+          </span>
+          <Badge tone={p.side === "LONG" ? "up" : "down"}>
+            {p.side === "LONG" ? "شراء" : "بيع"}
+          </Badge>
+          <span className="rounded-panel bg-surface-2/60 px-1.5 py-0.5 text-2xs font-bold text-muted" dir="ltr">
+            {p.leverage}x
+          </span>
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-2xs text-muted">
+          <span className={`${num} font-semibold text-foreground`} dir="ltr">
+            {fmtQty(p.quantity)}
+          </span>
+          <span dir="ltr">
+            {fmtPrice(p.entryPrice)} ← {fmtPrice(p.markPrice)}
+          </span>
+          {p.liquidationPrice != null ? (
+            <span dir="ltr">تصفية {fmtPrice(p.liquidationPrice)}</span>
+          ) : null}
+        </div>
+      </div>
+      <div className="shrink-0 text-right">
+        <div
+          className={`${num} text-xs font-bold ${toneText(t)}`}
+          dir="ltr"
+          title={t === "up" ? "صفقة رابحة" : t === "down" ? "صفقة خاسرة" : undefined}
+        >
+          {fmtMoney(p.unrealizedPnl, { signed: true })}
+        </div>
+        <div className={`${num} mt-0.5 text-2xs ${toneText(t)}`} dir="ltr">
+          {p.unrealizedPnlPct != null ? fmtPct(p.unrealizedPnlPct) : "—"}
+        </div>
+      </div>
+    </li>
   );
 }
 
@@ -321,61 +341,5 @@ function StatCell({
         {value}
       </p>
     </div>
-  );
-}
-
-function PositionRow({ p }: { p: LivePositionDto }) {
-  const t = toneOf(p.unrealizedPnl);
-  const profit = p.unrealizedPnl > 0;
-  return (
-    <tr className="transition-colors hover:bg-surface-2/40">
-      <td className="px-3 py-2.5">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs font-bold text-foreground" dir="ltr">
-            {p.symbol}
-          </span>
-          <Badge tone={p.side === "LONG" ? "up" : "down"}>
-            {p.side === "LONG" ? "شراء" : "بيع"}
-          </Badge>
-        </div>
-      </td>
-      <td className="px-3 py-2.5">
-        <span className={`${num} text-xs text-foreground`} dir="ltr">
-          {fmtQty(p.quantity)}
-        </span>
-        <span className="block text-2xs text-muted" dir="ltr">
-          {p.notional > 0 ? fmtMoney(p.notional, { compact: true }) : "—"}
-        </span>
-      </td>
-      <td className={`${num} px-3 py-2.5 text-xs text-foreground`} dir="ltr">
-        {fmtPrice(p.entryPrice)}
-      </td>
-      <td className={`${num} px-3 py-2.5 text-xs text-foreground`} dir="ltr">
-        {fmtPrice(p.markPrice)}
-      </td>
-      <td className={`${num} hidden px-3 py-2.5 text-xs text-muted lg:table-cell`} dir="ltr">
-        {p.liquidationPrice != null ? fmtPrice(p.liquidationPrice) : "—"}
-      </td>
-      <td className="px-3 py-2.5 text-xs text-foreground" dir="ltr">
-        {p.leverage}x
-      </td>
-      <td className={`${num} px-3 py-2.5 text-xs text-foreground`} dir="ltr">
-        {fmtMoney(p.margin)}
-      </td>
-      <td className="px-3 py-2.5 text-right">
-        <div className="flex flex-col items-end gap-0.5" dir="rtl">
-          <span
-            className={`${num} text-xs font-bold ${toneText(t)}`}
-            dir="ltr"
-            title={profit ? "صفقة رابحة" : "صفقة خاسرة"}
-          >
-            {fmtMoney(p.unrealizedPnl, { signed: true })}
-          </span>
-          <span className={`${num} text-2xs opacity-90 ${toneText(t)}`} dir="ltr">
-            {p.unrealizedPnlPct != null ? fmtPct(p.unrealizedPnlPct) : "—"}
-          </span>
-        </div>
-      </td>
-    </tr>
   );
 }

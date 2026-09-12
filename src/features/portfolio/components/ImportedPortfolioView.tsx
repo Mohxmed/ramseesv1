@@ -255,21 +255,27 @@ export function ImportedPortfolioView({
         </div>
       ) : null}
 
-      <ImportedOverview
-        meta={meta}
-        detail={detail}
-        hidden={hidden}
-        onToggle={() => setHidden((v) => !v)}
-        nowMs={now}
-      />
+      <div className="grid items-start gap-3 lg:grid-cols-3">
+        <div className="min-w-0 lg:col-span-2">
+          <ImportedOverview
+            meta={meta}
+            detail={detail}
+            hidden={hidden}
+            onToggle={() => setHidden((v) => !v)}
+            nowMs={now}
+          />
+        </div>
+        <div className="min-w-0">
+          <ImportedOpenPositions accountId={meta.accountId} snapshot={detail} liveEnabled={!disconnected} />
+        </div>
+      </div>
 
       <ImportedMetricGrid meta={meta} detail={detail} loading={loadingDetail} nowMs={now} />
 
-      <ImportedOpenPositions accountId={meta.accountId} snapshot={detail} liveEnabled={!disconnected} />
-
-      <ImportedCashFlow meta={meta} detail={detail} loading={loadingDetail} nowMs={now} />
-
-      <ImportedPerformance meta={meta} detail={detail} loading={loadingDetail} />
+      <div className="grid items-start gap-3 lg:grid-cols-2">
+        <ImportedCashFlow meta={meta} detail={detail} loading={loadingDetail} nowMs={now} />
+        <ImportedPerformance meta={meta} detail={detail} loading={loadingDetail} nowMs={now} />
+      </div>
 
       <ImportedHistory detail={detail} loading={loadingDetail} nowMs={now} />
 

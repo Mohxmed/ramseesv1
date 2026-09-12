@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
-import { num, SkeletonCard, type Tone } from "@/components/ui";
+import { colors, num, SkeletonCard, type Tone } from "@/components/ui";
+import { BarChart } from "@/components/charts";
+import { timeAgo } from "@/features/notifications/format";
 import { fmtMoney } from "../utils";
 import { buildOps, computeStatement } from "../operations";
 import { PortfolioCard } from "./PortfolioCard";
@@ -17,10 +19,12 @@ export function ImportedPerformance({
   meta,
   detail,
   loading,
+  nowMs,
 }: {
   meta: ImportedPortfolioSummary;
   detail: ImportedAccountDetailDto | null;
   loading: boolean;
+  nowMs: number;
 }) {
   const f = meta.financials;
   const statement = useMemo(() => computeStatement(detail ? buildOps(detail) : []), [detail]);
@@ -33,7 +37,27 @@ export function ImportedPerformance({
 
   const rows = detail == null || loading ? null : (
     <>
-      <div className="grid gap-3 md:grid-cols-2">
+      <BarChart
+        data={[
+          { label: "أرباح محققة", value: Math.round(statement.profit * 100) / 100, color: colors.upFg },
+          { label: "خسائر محققة", value: -Math.round(statement.loss * 100) / 100, color: colors.downFg },
+          {
+            label: "غير محقق",
+            value: Math.round(f.unrealizedPnl * 100) / 100,
+            color: f.unrealizedPnl >= 0 ? colors.upFg : colors.downFg,
+          },
+          { label: "رسوم", value: Math.round(statement.fees * 100) / 100, color: colors.warnFg },
+        ]}
+        xKey="label"
+        height={130}
+        yDomain={["auto", "auto"]}
+        minTickGap={8}
+        series={[{ key: "value", name: "القيمة", dataKeyForCellColor: "color" }]}
+        yFormatter={(v) => fmtMoney(v, { compact: true })}
+        valueFormatter={(v) => fmtMoney(Number(v))}
+      />
+
+      <div className="space-y-3">
         <div className="rounded-panel border border-line/60 bg-surface-2/30 p-3">
           <h3 className="text-2xs font-bold uppercase tracking-[0.14em] text-muted">
             أداء التداول
@@ -55,11 +79,11 @@ export function ImportedPerformance({
             <Row label="إجمالي الإيداعات" value={fmtMoney(f.netDeposits)} tone="neutral" />
             <Row label="إجمالي السحوبات" value={fmtMoney(f.netWithdrawals)} tone="neutral" />
             <Row label="صافي حركة الفلوس" value={fmtMoney(netFlow, { signed: true })} tone={flowTone} strong />
-            <Row label="المدة منذ الربط" value="—" tone="neutral" />
+            <Row label="المدة منذ الربط" value={timeAgo(meta.importedAt, nowMs)} tone="neutral" />
           </dl>
         </div>
       </div>
-      <p className="mt-3 text-2xs leading-5 text-muted">
+      <p className="pt-3 text-2xs leading-5 text-muted">
         أداء التداول يُحسب من سجل العمليات المحمّل (أرباح − خسائر − رسوم). حركة رأس المال
         إجمالية تراكمية من آخر مزامنة. أي عمليات لم تُستورد بعد لن تظهر في الأرقام.
       </p>

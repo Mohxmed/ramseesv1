@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { num, SkeletonCard, type Tone } from "@/components/ui";
+import { colors, num, SkeletonCard, type Tone } from "@/components/ui";
 import { DepositIcon, WithdrawIcon } from "@/components/icons/icons";
+import { BarChart } from "@/components/charts";
 import { fmtMoney } from "../utils";
 import { buildOps } from "../operations";
 import { PortfolioCard } from "./PortfolioCard";
@@ -61,7 +62,6 @@ export function ImportedCashFlow({
     return { deposits, withdrawals, net: deposits - withdrawals, fromMeta: false };
   }, [detail, range, nowMs, f]);
 
-  const maxBar = win ? Math.max(win.deposits, win.withdrawals, 1) : 1;
   const netTone = win ? toneOf(win.net) : "neutral";
 
   const titleBlock = (
@@ -132,7 +132,7 @@ export function ImportedCashFlow({
       {loading || detail == null || win == null ? (
         <SkeletonCard rows={2} className="border-0 p-0" />
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-panel border border-line/60 bg-surface-2/30 px-3 py-2.5">
               <div className="flex items-center gap-1.5 text-2xs font-semibold text-muted">
@@ -141,12 +141,6 @@ export function ImportedCashFlow({
               </div>
               <div className={`${num} mt-1 text-lg font-extrabold text-up-fg`} dir="ltr">
                 {fmtMoney(win.deposits)}
-              </div>
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-line">
-                <div
-                  className="h-full rounded-full bg-up/70 transition-all duration-500"
-                  style={{ width: `${Math.max((win.deposits / maxBar) * 100, 2)}%` }}
-                />
               </div>
             </div>
             <div className="rounded-panel border border-line/60 bg-surface-2/30 px-3 py-2.5">
@@ -157,14 +151,22 @@ export function ImportedCashFlow({
               <div className={`${num} mt-1 text-lg font-extrabold text-down-fg`} dir="ltr">
                 {fmtMoney(win.withdrawals)}
               </div>
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-line">
-                <div
-                  className="h-full rounded-full bg-down/70 transition-all duration-500"
-                  style={{ width: `${Math.max((win.withdrawals / maxBar) * 100, 2)}%` }}
-                />
-              </div>
             </div>
           </div>
+
+          <BarChart
+            data={[
+              { label: "إيداعات", value: Math.round(win.deposits * 100) / 100, color: colors.upFg },
+              { label: "سحوبات", value: -Math.round(win.withdrawals * 100) / 100, color: colors.downFg },
+            ]}
+            xKey="label"
+            height={150}
+            yDomain={["auto", "auto"]}
+            minTickGap={8}
+            series={[{ key: "value", name: "القيمة", dataKeyForCellColor: "color" }]}
+            yFormatter={(v) => fmtMoney(v, { compact: true })}
+            valueFormatter={(v) => fmtMoney(Number(v))}
+          />
 
           <div className="flex items-center justify-between border-t border-line/60 pt-3">
             <span className="text-2xs font-semibold text-muted">صافي حركة الفلوس</span>

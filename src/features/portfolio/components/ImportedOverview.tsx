@@ -173,6 +173,11 @@ export function ImportedOverview({
             yDomain={["dataMin", "auto"]}
             minTickGap={32}
             series={[{ key: "equity", name: "قيمة المحفظة", color: chartColor }]}
+            referenceLines={
+              haveChart
+                ? [{ y: window[0].totalEquity, label: "بداية الفترة", color: colors.muted }]
+                : undefined
+            }
             yFormatter={(v) => fmtMoney(v, { compact: true })}
             xFormatter={xTick}
             valueFormatter={(v) => fmtMoney(Number(v))}
