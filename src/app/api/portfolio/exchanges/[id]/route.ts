@@ -6,9 +6,13 @@
  *            from Firestore ONLY, so a disconnected wallet keeps rendering its
  *            saved history without a single exchange call.
  *   PATCH  → rename the account / reset the portfolio baseline.
- *   DELETE → unlink: delete the vaulted credential, disable the account,
- *            release sync locks and mark the wallet DISCONNECTED. Wallet data
- *            and performance history are preserved.
+ *   DELETE → unlink (default): delete the vaulted credential, disable the
+ *            account, release sync locks and mark the wallet DISCONNECTED.
+ *            Wallet data and performance history are preserved.
+ *            With `?purge=true`: ALSO permanently delete every byte the wallet
+ *            owns (credential, ledger, snapshots, reconciliation, sync jobs,
+ *            account doc and the wallet meta) — the user is left with no
+ *            wallet at all. Irreversible; the route is the only entry point.
  *
  * All reads/writes are bound to the verified uid and the account must belong
  * to that user (requireOwnedAccount).
@@ -23,6 +27,7 @@ import {
 } from "@/server/portfolio/apiHelpers";
 import {
   cancelRunningSyncs,
+  deleteAccountData,
   deleteCredential,
   getCredentialByAccount,
   patchAccount,
@@ -111,14 +116,16 @@ export async function PATCH(
 }
 
 /**
- * Unlink the exchange. The order matters: the credential dies FIRST, so even a
- * partial failure afterwards leaves an account that physically cannot reach
- * Binance again (every platform path resolves its key through the vault).
+ * Unlink (default) — or permanently PURGE the wallet when `?purge=true`.
  *
- * What is destroyed: the encrypted API key/secret, the account's "enabled"
- * state, and any stale sync lock.
- * What is kept: balances, ledger, snapshots, financials and the baseline —
- * the wallet keeps showing its full performance history while disconnected.
+ * The order matters in both paths: the credential dies FIRST, so even a
+ * partial failure afterwards leaves an account that physically cannot reach
+ * Binance again (every platform path resolves its key through the vault),
+ * and the sync locks are released so nothing keeps mutating the ledger.
+ *
+ * `purge`: after the credential + locks are gone, `deleteAccountData` wipes
+ * the whole account (see portfolioDb) and the wallet meta — the user returns
+ * to a no-wallet state. NOTHING here can be undone.
  */
 export async function DELETE(
   req: Request,
@@ -129,13 +136,29 @@ export async function DELETE(
     const { id } = await params;
     const account = await requireOwnedAccountForRead(uid, id);
 
+    const url = new URL(req.url);
+    const purge = url.searchParams.get("purge") === "true";
+
     const cred = await getCredentialByAccount(uid, id);
     if (cred) {
       await deleteCredential(uid, cred.id);
     }
     // Release any lock left behind by a crashed job so a future re-link is not
-    // rejected with "sync already running".
-    const cancelled = await cancelRunningSyncs(uid, id);
+    // rejected with "sync already running" — and, for purge, so a wiped ledger
+    // cannot be re-populated by a still-running sync.
+    const cancelledSyncs = await cancelRunningSyncs(uid, id);
+
+    if (purge) {
+      const { recordsDeleted } = await deleteAccountData(uid, id);
+      return NextResponse.json({
+        ok: true,
+        purged: true,
+        accountId: account.id,
+        credentialDeleted: cred != null,
+        recordsDeleted,
+      });
+    }
+
     await patchAccount(uid, id, {
       status: "DISCONNECTED",
       disabledAt: account.disabledAt ?? Date.now(),
@@ -150,7 +173,7 @@ export async function DELETE(
       accountId: account.id,
       status: "DISCONNECTED",
       credentialDeleted: cred != null,
-      cancelledSyncs: cancelled,
+      cancelledSyncs,
     });
   } catch (err) {
     return routeErrorResponse(err);

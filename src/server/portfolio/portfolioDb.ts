@@ -11,7 +11,11 @@
  */
 
 import { getAdminDb } from "../firebase/admin";
-import type { CollectionReference, DocumentData, DocumentReference } from "firebase-admin/firestore";
+import type {
+  DocumentData,
+  DocumentReference,
+  Query,
+} from "firebase-admin/firestore";
 import { idempotentId } from "./ids";
 import type {
   ReconciliationEvent,
@@ -45,6 +49,41 @@ const reconciliation = (uid: string) => PORTFOLIO_ROOT(uid).collection("reconcil
 export { idempotentId };
 
 const BATCH_LIMIT = 400;
+
+/* ─── Destruction helpers ──────────────────────────────────────────── */
+
+/** Smallest safe delete slice — bounded batches everywhere below. */
+const DELETE_CHUNK = 300;
+
+/**
+ * Delete every document a query matches, page by page. Firestore queries are
+ * consistent on deletion, so repeatedly fetching `limit(DELETE_CHUNK)` until
+ * empty converges — safe for collections too big for one batch.
+ */
+async function wipeQueryDocs(q: Query<DocumentData>): Promise<number> {
+  let deleted = 0;
+  for (;;) {
+    const snap = await q.limit(DELETE_CHUNK).get();
+    if (snap.empty) break;
+    const batch = getAdminDb().batch();
+    for (const doc of snap.docs) batch.delete(doc.ref);
+    await batch.commit();
+    deleted += snap.size;
+  }
+  return deleted;
+}
+
+/**
+ * Delete a document and everything under it. Subcollections are wiped flat
+ * (app data nests exactly one level deep today); the document itself goes last.
+ * A missing doc is fine — "already gone" is a normal outcome of an idempotent
+ * wipe.
+ */
+async function wipeDocument(ref: DocumentReference<DocumentData>): Promise<void> {
+  const subCols = await ref.listCollections();
+  for (const col of subCols) await wipeQueryDocs(col);
+  await ref.delete().catch(() => undefined);
+}
 
 /* ─── Credentials (server-only) ───────────────────────────────────── */
 
@@ -180,26 +219,43 @@ export async function setImportedPortfolioConnection(
  * Remove the manual wallet (meta + ledger) entirely. Used only when REPLACING
  * the manual wallet with an imported one — the client cannot do this itself
  * (rules keep meta deletes closed), so it goes through this admin write.
- * Runs recursively so any nested subcollections under ledger are wiped too.
+ * Recursive: any nested subcollections under ledger are wiped too.
  */
 export async function deleteManualPortfolio(uid: string): Promise<void> {
-  const wallet = portfolioCol(uid);
-
-  async function wipeDocument(ref: DocumentReference<DocumentData>): Promise<void> {
-    const subCols = await ref.listCollections();
-    await Promise.all(subCols.map((col) => wipeCollection(col)));
-    await ref.delete().catch(() => undefined); // already gone is fine
-  }
-  async function wipeCollection(col: CollectionReference<DocumentData>): Promise<void> {
-    const docs = await col.listDocuments();
-    await Promise.all(docs.map((doc) => wipeDocument(doc)));
-  }
-
   // meta / ledger are DOCUMENTS under the portfolio collection; their entries
   // live in subcollections (ledger.transactions), so wiping each document
   // recursively removes the entries too.
-  await wipeDocument(wallet.doc("meta"));
-  await wipeDocument(wallet.doc("ledger"));
+  await wipeDocument(portfolioCol(uid).doc("meta"));
+  await wipeDocument(portfolioCol(uid).doc("ledger"));
+}
+
+/**
+ * Permanently delete EVERYTHING a linked exchange account owns, then remove
+ * the wallet meta — afterwards the user has no wallet (fresh start).
+ *
+ * This is the irreversible counterpart to unlink: unlink destroys only the
+ * credential and freezes the account; purge also removes the balances, ledger
+ * (transactions/trades), positions, open orders, snapshots, reconciliation
+ * events and sync jobs, plus the account document and the `meta` doc that
+ * makes the wallet appear at all.
+ *
+ * The wipe runs AFTER the credential and sync locks are gone (see the route),
+ * so a wiped ledger cannot be re-populated by a still-running sync.
+ */
+export async function deleteAccountData(
+  uid: string,
+  accountId: string
+): Promise<{ recordsDeleted: number }> {
+  let recordsDeleted = 0;
+  recordsDeleted += await wipeQueryDocs(credentials(uid).where("accountId", "==", accountId));
+  recordsDeleted += await wipeQueryDocs(snapshots(uid).where("accountId", "==", accountId));
+  recordsDeleted += await wipeQueryDocs(syncJobs(uid).where("accountId", "==", accountId));
+  recordsDeleted += await wipeQueryDocs(reconciliation(uid).where("accountId", "==", accountId));
+  // Ledger subcollections (balances/positions/openOrders/transactions/trades)
+  // live under the account document — wiping the doc includes them.
+  await wipeDocument(accounts(uid).doc(accountId));
+  await portfolioCol(uid).doc("meta").delete().catch(() => undefined);
+  return { recordsDeleted };
 }
 
 /* ─── Balances (current state, overwrite per asset) ───────────────── */

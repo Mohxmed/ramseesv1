@@ -246,6 +246,36 @@ export const exchangesApi = {
   },
 
   /**
+   * Permanently delete EVERYTHING the wallet owns — credential, ledger,
+   * snapshots, reconciliation, sync jobs, account doc and the wallet meta.
+   * Irreversible; after this the user has no wallet at all. Only the server
+   * route (`DELETE ?purge=true`, guarded by account ownership) performs the
+   * wipe; the client just requests it.
+   */
+  async purge(accountId: string): Promise<{
+    ok: boolean;
+    purged: boolean;
+    accountId: string;
+    credentialDeleted: boolean;
+    recordsDeleted: number;
+  }> {
+    const body = await readJson<{
+      ok: boolean;
+      purged: boolean;
+      accountId: string;
+      credentialDeleted: boolean;
+      recordsDeleted: number;
+    }>(
+      await authFetch(
+        `/api/portfolio/exchanges/${encodeURIComponent(accountId)}?purge=true`,
+        { method: "DELETE" }
+      )
+    );
+    purgeAccountCache(accountId);
+    return body;
+  },
+
+  /**
    * Re-link a disconnected wallet with a fresh API key. The original baseline
    * (initial capital) is preserved server-side — re-linking never restarts the
    * performance record.

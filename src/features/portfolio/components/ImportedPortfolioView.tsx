@@ -17,6 +17,7 @@ import { ImportedPerformance } from "./ImportedPerformance";
 import { ImportedHistory } from "./ImportedHistory";
 import { BinanceUnlinkModal } from "./BinanceUnlinkModal";
 import { BinanceRelinkModal } from "./BinanceRelinkModal";
+import { BinanceDeleteModal } from "./BinanceDeleteModal";
 
 function statusOf(syncStatus: ImportedPortfolioSummary["syncStatus"]) {
   switch (syncStatus) {
@@ -61,6 +62,9 @@ export function ImportedPortfolioView({
   const [relinkOpen, setRelinkOpen] = useState(false);
   const [unlinking, setUnlinking] = useState(false);
   const [unlinkError, setUnlinkError] = useState<string | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Display-only clock for "آخر تحديث منذ…" labels — reads nothing (no timers
   // that touch Firestore or Binance).
@@ -89,6 +93,24 @@ export function ImportedPortfolioView({
       setUnlinkError(e instanceof ExchangeApiError ? e.message : "تعذر إلغاء الاقتران.");
     } finally {
       setUnlinking(false);
+    }
+  }, [meta.accountId, onConnectionChange]);
+
+  // Permanent wipe — same socket/leadership teardown as unlink, then the whole
+  // wallet disappears from the server; `onConnectionChange` re-reads the meta
+  // (now gone) and the page returns to the no-wallet state.
+  const handleDelete = useCallback(async () => {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await exchangesApi.purge(meta.accountId);
+      liveManager.dispose();
+      setDeleteOpen(false);
+      onConnectionChange?.();
+    } catch (e) {
+      setDeleteError(e instanceof ExchangeApiError ? e.message : "تعذر حذف بيانات المحفظة.");
+    } finally {
+      setDeleting(false);
     }
   }, [meta.accountId, onConnectionChange]);
 
@@ -133,14 +155,28 @@ export function ImportedPortfolioView({
               </span>
             ) : null}
             {disconnected ? (
-              <button
-                type="button"
-                onClick={() => setRelinkOpen(true)}
-                className="flex h-8 items-center gap-1.5 rounded-panel bg-gold/10 px-3 text-xs font-bold text-gold-fg ring-1 ring-gold/40 transition-colors hover:bg-gold/20"
-              >
-                <LinkIcon className="h-3.5 w-3.5" />
-                ربط {exchangeName}
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => setRelinkOpen(true)}
+                  className="flex h-8 items-center gap-1.5 rounded-panel bg-gold/10 px-3 text-xs font-bold text-gold-fg ring-1 ring-gold/40 transition-colors hover:bg-gold/20"
+                >
+                  <LinkIcon className="h-3.5 w-3.5" />
+                  ربط {exchangeName}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeleteError(null);
+                    setDeleteOpen(true);
+                  }}
+                  disabled={deleting}
+                  className="flex h-8 items-center rounded-panel px-3 text-xs font-semibold text-muted ring-1 ring-line/60 transition-colors hover:bg-down/10 hover:text-down-fg disabled:opacity-60"
+                  title={`حذف كل بيانات محفظة ${exchangeName} نهائيًا — مفاتيح API والسجل والأداء`}
+                >
+                  حذف البيانات نهائيًا
+                </button>
+              </>
             ) : (
               <>
                 <button
@@ -174,6 +210,18 @@ export function ImportedPortfolioView({
                   title={`فصل المحفظة عن ${exchangeName} وحذف مفاتيح API المخزّنة — دون حذف بيانات المحفظة`}
                 >
                   إلغاء الاقتران
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeleteError(null);
+                    setDeleteOpen(true);
+                  }}
+                  disabled={deleting}
+                  className="flex h-8 items-center rounded-panel px-3 text-xs font-semibold text-down-fg/80 ring-1 ring-down/30 transition-colors hover:bg-down/10 hover:text-down-fg disabled:opacity-60"
+                  title={`حذف كل بيانات محفظة ${exchangeName} نهائيًا — مفاتيح API والسجل والأداء وخط الأساس`}
+                >
+                  حذف البيانات
                 </button>
               </>
             )}
@@ -254,6 +302,15 @@ export function ImportedPortfolioView({
           setRelinkOpen(false);
           onConnectionChange?.();
         }}
+      />
+
+      <BinanceDeleteModal
+        open={deleteOpen}
+        exchangeName={exchangeName}
+        busy={deleting}
+        error={deleteError}
+        onClose={() => setDeleteOpen(false)}
+        onConfirm={() => void handleDelete()}
       />
     </div>
   );
