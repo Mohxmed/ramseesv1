@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader, Status } from "@/components/ui";
-import { WalletIcon, RefreshIcon, LinkIcon } from "@/components/icons/icons";
+import { WalletIcon, LinkIcon, RefreshIcon, RotateIcon, LogoutIcon, TrashIcon } from "@/components/icons/icons";
 import { timeAgo } from "@/features/notifications/format";
 import { accountTypeLabel, exchangeTypeLabel } from "../utils";
 import type { ImportedPortfolioSummary } from "../types";
@@ -18,6 +18,7 @@ import { ImportedHistory } from "./ImportedHistory";
 import { BinanceUnlinkModal } from "./BinanceUnlinkModal";
 import { BinanceRelinkModal } from "./BinanceRelinkModal";
 import { BinanceDeleteModal } from "./BinanceDeleteModal";
+import { WalletActionsMenu, type WalletActionItem } from "./WalletActionsMenu";
 
 function statusOf(syncStatus: ImportedPortfolioSummary["syncStatus"]) {
   switch (syncStatus) {
@@ -155,76 +156,64 @@ export function ImportedPortfolioView({
               </span>
             ) : null}
             {disconnected ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setRelinkOpen(true)}
-                  className="flex h-8 items-center gap-1.5 rounded-panel bg-gold/10 px-3 text-xs font-bold text-gold-fg ring-1 ring-gold/40 transition-colors hover:bg-gold/20"
-                >
-                  <LinkIcon className="h-3.5 w-3.5" />
-                  ربط {exchangeName}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDeleteError(null);
-                    setDeleteOpen(true);
-                  }}
-                  disabled={deleting}
-                  className="flex h-8 items-center rounded-panel px-3 text-xs font-semibold text-muted ring-1 ring-line/60 transition-colors hover:bg-down/10 hover:text-down-fg disabled:opacity-60"
-                  title={`حذف كل بيانات محفظة ${exchangeName} نهائيًا — مفاتيح API والسجل والأداء`}
-                >
-                  حذف البيانات نهائيًا
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => void refreshManual()}
-                  disabled={busy}
-                  className="flex h-8 items-center gap-1.5 rounded-panel bg-gold/10 px-3 text-xs font-bold text-gold-fg ring-1 ring-gold/40 transition-colors hover:bg-gold/20 disabled:opacity-60"
-                >
-                  <RefreshIcon className={refreshing ? "animate-spin" : ""} />
-                  {refreshing ? "جارٍ التحديث…" : "تحديث البيانات"}
-                </button>
-                {!isSyncing && (
-                  <button
-                    type="button"
-                    onClick={() => void syncNow("INITIAL")}
-                    disabled={busy}
-                    className="flex h-8 items-center rounded-panel px-3 text-xs font-semibold text-muted ring-1 ring-line/60 transition-colors hover:bg-surface-2 hover:text-foreground disabled:opacity-60"
-                    title="إعادة سحب سجل العمليات من المنصة ابتداءً من خط الأساس (يُستخدم لاسترداد الخسائر والضرائب والرسوم الناقصة)"
-                  >
-                    إعادة مزامنة كاملة
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUnlinkError(null);
-                    setUnlinkOpen(true);
-                  }}
-                  disabled={unlinking}
-                  className="flex h-8 items-center rounded-panel px-3 text-xs font-semibold text-muted ring-1 ring-line/60 transition-colors hover:bg-down/10 hover:text-down-fg disabled:opacity-60"
-                  title={`فصل المحفظة عن ${exchangeName} وحذف مفاتيح API المخزّنة — دون حذف بيانات المحفظة`}
-                >
-                  إلغاء الاقتران
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDeleteError(null);
-                    setDeleteOpen(true);
-                  }}
-                  disabled={deleting}
-                  className="flex h-8 items-center rounded-panel px-3 text-xs font-semibold text-down-fg/80 ring-1 ring-down/30 transition-colors hover:bg-down/10 hover:text-down-fg disabled:opacity-60"
-                  title={`حذف كل بيانات محفظة ${exchangeName} نهائيًا — مفاتيح API والسجل والأداء وخط الأساس`}
-                >
-                  حذف البيانات
-                </button>
-              </>
-            )}
+              <button
+                type="button"
+                onClick={() => setRelinkOpen(true)}
+                className="flex h-8 items-center gap-1.5 rounded-panel bg-gold/10 px-3 text-xs font-bold text-gold-fg ring-1 ring-gold/40 transition-colors hover:bg-gold/20"
+              >
+                <LinkIcon className="h-3.5 w-3.5" />
+                ربط {exchangeName}
+              </button>
+            ) : null}
+            <WalletActionsMenu
+              items={
+                [
+                  ...(!disconnected
+                    ? [
+                        {
+                          key: "refresh",
+                          label: "تحديث البيانات",
+                          icon: <RefreshIcon className="h-4 w-4" />,
+                          disabled: busy,
+                          onSelect: () => void refreshManual(),
+                        },
+                        ...(!isSyncing
+                          ? [
+                              {
+                                key: "resync",
+                                label: "إعادة مزامنة كاملة",
+                                icon: <RotateIcon className="h-4 w-4" />,
+                                disabled: busy,
+                                onSelect: () => void syncNow("INITIAL"),
+                              },
+                            ]
+                          : []),
+                        {
+                          key: "unlink",
+                          label: "إلغاء الاقتران",
+                          icon: <LogoutIcon className="h-4 w-4" />,
+                          disabled: unlinking,
+                          onSelect: () => {
+                            setUnlinkError(null);
+                            setUnlinkOpen(true);
+                          },
+                        },
+                      ]
+                    : []),
+                  {
+                    key: "delete",
+                    label: "حذف المحفظة",
+                    icon: <TrashIcon className="h-4 w-4" />,
+                    danger: true,
+                    disabled: deleting,
+                    onSelect: () => {
+                      setDeleteError(null);
+                      setDeleteOpen(true);
+                    },
+                  },
+                ] as WalletActionItem[]
+              }
+            />
           </>
         }
       />
