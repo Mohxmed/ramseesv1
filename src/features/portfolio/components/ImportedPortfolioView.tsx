@@ -266,7 +266,12 @@ export function ImportedPortfolioView({
           />
         </div>
         <div className="min-w-0">
-          <ImportedOpenPositions accountId={meta.accountId} snapshot={detail} liveEnabled={!disconnected} />
+          <ImportedOpenPositions
+            accountId={meta.accountId}
+            snapshot={detail}
+            liveEnabled={!disconnected}
+            nowMs={now}
+          />
         </div>
       </div>
 

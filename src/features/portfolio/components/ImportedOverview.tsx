@@ -140,7 +140,7 @@ export function ImportedOverview({
       }
       actions={
         <div
-          className="flex shrink-0 flex-wrap items-center gap-1 rounded-panel border border-line/70 bg-surface-2/30 p-1"
+          className="flex shrink-0 items-center gap-0.5"
           role="group"
           aria-label="الفترة الزمنية"
         >
@@ -149,10 +149,10 @@ export function ImportedOverview({
               key={p}
               type="button"
               onClick={() => setPeriod(p)}
-              className={`rounded-panel px-2.5 py-1 text-2xs font-bold transition-colors ${
+              className={`border-b-2 px-2.5 py-1.5 text-2xs font-bold leading-none transition-colors ${
                 period === p
-                  ? "bg-gold/15 text-gold-fg ring-1 ring-gold/40"
-                  : "text-muted hover:bg-surface-2 hover:text-foreground"
+                  ? "border-gold/80 text-gold-fg"
+                  : "border-transparent text-muted hover:border-line hover:text-foreground"
               }`}
             >
               {PERIOD_LABELS[p]}

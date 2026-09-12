@@ -7,6 +7,13 @@ import {
   SkeletonCard,
   type Tone,
 } from "@/components/ui";
+import { timeAgo } from "@/features/notifications/format";
+import {
+  TargetIcon,
+  PlayIcon,
+  PauseIcon,
+  RefreshIcon,
+} from "@/components/icons/icons";
 import { fmtMoney, fmtPct } from "../utils";
 import { useLivePositions } from "../hooks/useLivePositions";
 import type { ImportedAccountDetailDto, LivePositionDto, LivePositionsDto } from "../types";
@@ -57,6 +64,7 @@ export function ImportedOpenPositions({
   accountId,
   snapshot,
   liveEnabled = true,
+  nowMs,
 }: {
   accountId: string;
   snapshot: ImportedAccountDetailDto | null;
@@ -65,6 +73,7 @@ export function ImportedOpenPositions({
    * the live session cannot be opened (there is no credential to mint one).
    */
   liveEnabled?: boolean;
+  nowMs: number;
 }) {
   const { data, error, status, reconnect, start, stop } = useLivePositions(accountId);
   const [liveOn, setLiveOn] = useState(false);
@@ -114,70 +123,77 @@ export function ImportedOpenPositions({
         ? fmtClock(snapshot?.latestSnapshot?.timestamp)
         : null;
 
-  const badge = streaming ? (
-    status === "live" ? (
-      <span className="flex items-center gap-1.5 rounded-full bg-up/10 px-2 py-0.5 text-2xs font-bold text-up-fg ring-1 ring-up/30">
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-up-fg" />
-        مباشر
-      </span>
-    ) : status === "reconnecting" ? (
-      <span className="flex items-center gap-1.5 rounded-full bg-warn/10 px-2 py-0.5 text-2xs font-bold text-warn-fg ring-1 ring-warn/30">
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-warn" />
-        يعيد الاتصال…
-      </span>
-    ) : status === "error" ? (
-      <span className="flex items-center gap-1.5 rounded-full bg-down/10 px-2 py-0.5 text-2xs font-bold text-down-fg ring-1 ring-down/30">
-        <span className="h-1.5 w-1.5 rounded-full bg-down" />
-        البث متوقف
-      </span>
-    ) : (
-      <span className="flex items-center gap-1.5 rounded-full bg-zinc-500/10 px-2 py-0.5 text-2xs font-bold text-muted ring-1 ring-zinc-500/30">
-        <span className="h-1.5 w-1.5 rounded-full bg-zinc-500" />
-        جارٍ الاتصال…
-      </span>
-    )
-  ) : (
-    <span className="flex items-center gap-1.5 rounded-full bg-zinc-500/10 px-2 py-0.5 text-2xs font-bold text-muted ring-1 ring-zinc-500/30">
-      <span className="h-1.5 w-1.5 rounded-full bg-zinc-500" />
-      آخر مزامنة
+  const dataAt = streaming ? (data?.at ?? null) : (snapshot?.latestSnapshot?.timestamp ?? null);
+
+  const lastInfo = dataAt != null ? (
+    <span
+      className="hidden items-center gap-1 text-2xs text-muted sm:flex"
+      title={`آخر تحديث ${lastClock ?? ""}`}
+    >
+      <RefreshIcon className="h-3 w-3" />
+      <b className={`${num} font-bold text-foreground`} dir="ltr">
+        {lastClock}
+      </b>
+      <span>· {timeAgo(dataAt, nowMs)}</span>
     </span>
-  );
+  ) : null;
+
+  const badge =
+    streaming && status === "live" ? (
+      <Pill dot="bg-up-fg animate-pulse" text="مباشر" cls="bg-up/10 text-up-fg ring-up/30" />
+    ) : streaming && status === "reconnecting" ? (
+      <Pill dot="bg-warn animate-pulse" text="يعيد الاتصال…" cls="bg-warn/10 text-warn-fg ring-warn/30" />
+    ) : streaming && status === "error" ? (
+      <Pill dot="bg-down" text="البث متوقف" cls="bg-down/10 text-down-fg ring-down/30" />
+    ) : streaming ? (
+      <Pill dot="bg-muted" text="جارٍ الاتصال…" cls="bg-zinc-500/10 text-muted ring-zinc-500/30" />
+    ) : (
+      <Pill dot="bg-muted" text="آخر مزامنة" cls="bg-zinc-500/10 text-muted ring-zinc-500/30" />
+    );
 
   const titleBlock = (
-    <div className="flex flex-wrap items-start justify-between gap-2">
-      <div>
+    <div className="min-w-0">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
         <h2 className="flex items-center gap-2 text-sm font-bold text-foreground">
-          المراكز المفتوحة — الأرباح/الخسائر غير المحقّقة
-          {badge}
+          <TargetIcon className="h-4 w-4 text-gold-fg" />
+          الصفقات المفتوحة
         </h2>
-        <p className="mt-0.5 text-2xs text-muted">
-          {streaming
-            ? "بث مباشر من سوق العقود الآجلة عبر WebSocket — بلا أي قراءات لمخزن البيانات لحظيًا."
-            : "آخر بيانات محفوظة في Snapshot المحفظة — يمكنك التحديث بضغطة «تحديث البيانات» أو تفعيل البث المباشر."}
-          {lastClock != null ? (
-            <>
-              {" "}· آخر تحديث{" "}
-              <span className="text-foreground" dir="ltr">
-                {lastClock}
-              </span>
-            </>
-          ) : null}
-        </p>
+        {badge}
+        {lastInfo}
       </div>
-      <button
-        type="button"
-        onClick={() => setLiveOn((v) => !v)}
-        disabled={!liveEnabled}
-        title={liveEnabled ? undefined : "المحفظة غير مرتبطة بالمنصة — أعد الربط لتفعيل البث المباشر"}
-        className={`flex h-7 items-center rounded-panel px-2.5 text-2xs font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-          streaming
-            ? "bg-down/10 text-down-fg ring-1 ring-down/40 hover:bg-down/20"
-            : "bg-gold/10 text-gold-fg ring-1 ring-gold/40 hover:bg-gold/20"
-        }`}
-      >
-        {streaming ? "إيقاف البث مباشر" : "بث مباشر"}
-      </button>
+      <p className="mt-1 text-2xs leading-4 text-muted">
+        {streaming
+          ? "بث مباشر من سوق العقود الآجلة — أسعار لحظية دون أي قراءات للمخزن."
+          : "آخر بيانات محفوظة من المزامنة الأخيرة — حدّث البيانات أو فعّل البث المباشر."}
+      </p>
     </div>
+  );
+
+  const liveButton = (
+    <button
+      type="button"
+      onClick={() => setLiveOn((v) => !v)}
+      disabled={!liveEnabled}
+      title={
+        liveEnabled
+          ? streaming
+            ? "إيقاف البث المباشر"
+            : "بدء البث المباشر"
+          : "المحفظة غير مرتبطة بالمنصة — أعد الربط لتفعيل البث المباشر"
+      }
+      aria-label={streaming ? "إيقاف البث المباشر" : "بدء البث المباشر"}
+      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-panel transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+        streaming
+          ? "bg-down/10 text-down-fg ring-1 ring-down/40 hover:bg-down/20"
+          : "bg-gold/10 text-gold-fg ring-1 ring-gold/40 hover:bg-gold/20"
+      }`}
+    >
+      {streaming ? (
+        <PauseIcon className="h-3.5 w-3.5" />
+      ) : (
+        <PlayIcon className="h-3.5 w-3.5" />
+      )}
+    </button>
   );
 
   if (!streaming && snapshot == null) {
@@ -230,6 +246,7 @@ export function ImportedOpenPositions({
   return (
     <PortfolioCard
       title={titleBlock}
+      actions={liveButton}
       snippet={rows.length > 0 ? statStrip : undefined}
       bodyClassName=""
     >
@@ -322,6 +339,17 @@ function CompactPositionRow({ p }: { p: LivePositionDto }) {
         </div>
       </div>
     </li>
+  );
+}
+
+function Pill({ dot, text, cls }: { dot: string; text: string; cls: string }) {
+  return (
+    <span
+      className={`flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ring-1 ${cls}`}
+    >
+      <span className={`h-1 w-1 rounded-full ${dot}`} />
+      {text}
+    </span>
   );
 }
 

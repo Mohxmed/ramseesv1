@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
 import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
 import { TablePagination } from "@mui/material";
 import {
   LayoutGrid,
@@ -17,7 +16,7 @@ import {
   Repeat,
   Shuffle,
 } from "lucide-react";
-import { ThemeGate, Tabs, Select, SkeletonTable, num, Badge, type Tone } from "@/components/ui";
+import { ThemeGate, Select, SkeletonTable, num, Badge, type Tone } from "@/components/ui";
 import {
   TradesIcon,
   DepositIcon,
@@ -28,7 +27,7 @@ import {
   RefreshIcon,
 } from "@/components/icons/icons";
 import { fmtMoney, fmtDateTime } from "../utils";
-import { buildOps, classifyOp, OP_KIND_OPTIONS, OPKIND_LABELS } from "../operations";
+import { buildOps, OPKIND_LABELS } from "../operations";
 import { PortfolioCard } from "./PortfolioCard";
 import type {
   ImportedAccountDetailDto,
@@ -53,20 +52,22 @@ const KIND_ICONS: Record<OpKind | "all", React.ReactNode> = {
   other: <CircleHelp className="h-3.5 w-3.5" />,
 };
 
-const KIND_DOTS: Record<OpKind, string> = {
-  deposit: "bg-up-fg",
-  withdrawal: "bg-down-fg",
-  transfer: "bg-muted",
-  trade: "bg-muted",
-  fee: "bg-warn-fg",
-  funding: "bg-muted",
-  settlement: "bg-muted",
-  liquidation: "bg-down-fg",
-  pnl: "bg-good",
-  reward: "bg-good",
-  convert: "bg-muted",
-  other: "bg-muted/70",
-};
+/**
+ * The main classification tabs. Kept slim on purpose: deposits / withdrawals /
+ * rewards / asset-conversions are covered by the direction + asset filters and
+ * the rows they produce, so they don't need their own tab here.
+ */
+const KIND_TABS: (OpKind | "all")[] = [
+  "all",
+  "transfer",
+  "trade",
+  "fee",
+  "funding",
+  "settlement",
+  "liquidation",
+  "pnl",
+  "other",
+];
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: "معلّقة",
@@ -120,8 +121,6 @@ export function ImportedHistory({
   nowMs: number;
 }) {
   const [opKind, setOpKind] = useState<OpKind | "all">("all");
-  const [subType, setSubType] = useState<string>("all");
-  const [q, setQ] = useState("");
   const [asset, setAsset] = useState("all");
   const [direction, setDirection] = useState<OpImpact | "all">("all");
   const [status, setStatus] = useState("all");
@@ -159,30 +158,9 @@ export function ImportedHistory({
     return m;
   }, [ops]);
 
-  /* Detailed sub-types present under the selected classification (only shown
-     when it helps, so the bar never gets crowded). */
-  const subOptions = useMemo(() => {
-    if (opKind === "all") return [];
-    const seen = new Map<string, string>();
-    for (const o of ops) {
-      if (o.opType !== opKind) continue;
-      const key = o.subType ?? o.typeLabel;
-      if (seen.has(key)) continue;
-      seen.set(
-        key,
-        o.subType && (o.rawType ?? "") !== ""
-          ? classifyOp(o.rawType ?? "", o.rawSubType).label
-          : o.typeLabel
-      );
-    }
-    return Array.from(seen, ([key, label]) => ({ key, label }));
-  }, [ops, opKind]);
-
   const filtered = useMemo(() => {
     let rows = ops;
     if (opKind !== "all") rows = rows.filter((o) => o.opType === opKind);
-    if (opKind !== "all" && subType !== "all")
-      rows = rows.filter((o) => (o.subType ?? o.typeLabel) === subType);
     if (asset !== "all") rows = rows.filter((o) => (o.asset ?? o.symbol) === asset);
     if (direction !== "all") rows = rows.filter((o) => o.impact === direction);
     if (status !== "all") rows = rows.filter((o) => (o.status ?? null) === status);
@@ -190,28 +168,11 @@ export function ImportedHistory({
       const since = nowMs - RANGE_MS[range];
       rows = rows.filter((o) => o.timestamp >= since);
     }
-    const needle = q.trim().toLowerCase();
-    if (needle) {
-      rows = rows.filter((o) =>
-        [
-          o.typeLabel,
-          OPKIND_LABELS[o.opType],
-          o.symbol,
-          o.asset,
-          o.orderId,
-          o.status,
-          o.rawType,
-          o.rawSubType,
-        ].some((v) => v != null && v.toLowerCase().includes(needle))
-      );
-    }
     return rows;
-  }, [ops, opKind, subType, asset, direction, status, range, q, nowMs]);
+  }, [ops, opKind, asset, direction, status, range, nowMs]);
 
   const resetFilters = () => {
     setOpKind("all");
-    setSubType("all");
-    setQ("");
     setAsset("all");
     setDirection("all");
     setStatus("all");
@@ -221,7 +182,6 @@ export function ImportedHistory({
 
   const changeKind = (k: OpKind | "all") => {
     setOpKind(k);
-    setSubType("all");
     setPage(0);
   };
 
@@ -274,63 +234,39 @@ export function ImportedHistory({
       bodyClassName="p-0"
     >
       <div className="border-b border-line/60">
-        {/* Main classification bar */}
-        <div className="px-4 pt-1.5">
-          <Tabs
-            slim
-            value={opKind}
-            onChange={(v) => changeKind(v as OpKind | "all")}
-            items={OP_KIND_OPTIONS.map((k) => ({
-              value: k,
-              label: (
-                <span className="flex items-center gap-1">
-                  {KIND_ICONS[k]}
-                  {k === "all" ? "الكل" : OPKIND_LABELS[k]}
-                  <span className={`${num} text-2xs ${k === opKind ? "text-gold-fg" : "text-muted"}`}>
-                    {kindCounts.get(k) ?? 0}
-                  </span>
+        {/* Main classification tabs */}
+        <div
+          className="flex items-center gap-1 overflow-x-auto px-4"
+          role="tablist"
+          aria-label="تصنيف العمليات"
+        >
+          {KIND_TABS.map((k) => {
+            const active = opKind === k;
+            return (
+              <button
+                key={k}
+                type="button"
+                onClick={() => changeKind(k)}
+                role="tab"
+                aria-selected={active}
+                className={`flex shrink-0 items-center gap-1.5 border-b-2 px-2.5 py-1.5 text-2xs font-bold leading-none transition-colors ${
+                  active
+                    ? "border-gold/80 text-gold-fg"
+                    : "border-transparent text-muted hover:border-line hover:text-foreground"
+                }`}
+              >
+                {KIND_ICONS[k]}
+                {k === "all" ? "الكل" : OPKIND_LABELS[k]}
+                <span className={`${num} text-2xs font-bold leading-none ${active ? "text-gold-fg" : "text-muted"}`}>
+                  {kindCounts.get(k) ?? 0}
                 </span>
-              ),
-            }))}
-          />
+              </button>
+            );
+          })}
         </div>
 
-        {/* Detailed sub-type chips — only when a classification is selected */}
-        {subOptions.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-1.5 px-4 py-1.5">
-            <ThemeGate>
-              {[{ key: "all", label: "كل الأنواع" }, ...subOptions].map((s) => {
-                const active = subType === s.key;
-                return (
-                  <Chip
-                    key={s.key}
-                    size="small"
-                    label={s.label}
-                    variant={active ? "filled" : "outlined"}
-                    color={active ? "primary" : "default"}
-                    onClick={() => {
-                      setSubType(s.key);
-                      setPage(0);
-                    }}
-                  />
-                );
-              })}
-            </ThemeGate>
-          </div>
-        ) : null}
-
-        {/* Secondary filters */}
-        <div className="flex flex-wrap items-center gap-2 px-4 py-2">
-          <input
-            type="search"
-            value={q}
-            onChange={(e) => {
-              setQ(e.target.value);
-              setPage(0);
-            }}
-            placeholder="بحث…"
-            className="h-8 w-36 rounded-panel border border-line bg-surface-2/40 px-2.5 text-xs text-foreground placeholder:text-muted focus:border-gold/50 focus:outline-none"
-          />
+        {/* Filters */}
+        <div className="flex flex-wrap items-center gap-2 px-4 py-2.5">
           <div style={{ width: 120 }}>
             <Select
               value={asset}
@@ -351,7 +287,7 @@ export function ImportedHistory({
               options={IMPACT_OPTIONS as unknown as { value: string; label: string }[]}
             />
           </div>
-          <div style={{ width: 120 }}>
+          <div style={{ width: 130 }}>
             <Select
               value={status}
               onChange={(v) => {
@@ -377,7 +313,7 @@ export function ImportedHistory({
           <button
             type="button"
             onClick={resetFilters}
-            disabled={opKind === "all" && subType === "all" && !q && asset === "all" && direction === "all" && status === "all" && range === "all"}
+            disabled={opKind === "all" && asset === "all" && direction === "all" && status === "all" && range === "all"}
             className="flex h-8 items-center gap-1.5 rounded-panel border border-line/70 px-2.5 text-2xs font-semibold text-muted transition-colors hover:bg-surface-2 hover:text-foreground disabled:opacity-40"
             title="إعادة تعيين كل الفلاتر"
           >
@@ -415,7 +351,6 @@ export function ImportedHistory({
                   <th className="px-3 py-2 font-semibold">الأصل</th>
                   <th className="px-3 py-2 text-right font-semibold">المبلغ</th>
                   <th className="px-3 py-2 text-right font-semibold">الربح / الخسارة</th>
-                  <th className="px-3 py-2 text-right font-semibold">الرسوم</th>
                   <th className="px-3 py-2 font-semibold">الحالة</th>
                   <th className="px-3 py-2 text-right font-semibold">الوقت</th>
                   <th className="px-2 py-2" />
@@ -438,20 +373,24 @@ export function ImportedHistory({
                 onClick={() => setSelected(o)}
                 className="flex w-full items-center justify-between gap-3 px-4 py-3 text-right transition-colors hover:bg-surface-2/30"
               >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate text-xs font-bold text-foreground">{o.typeLabel}</span>
-                    {o.side ? (
-                      <Badge tone={o.side === "BUY" ? "up" : "down"}>{o.side === "BUY" ? "شراء" : "بيع"}</Badge>
-                    ) : null}
-                  </div>
-                  <div className="mt-0.5 flex items-center gap-1.5 text-2xs text-muted">
-                    <span className={`inline-block h-1 w-1 rounded-full ${KIND_DOTS[o.opType]}`} />
-                    <span>{OPKIND_LABELS[o.opType]}</span>
-                    <span dir="ltr">· {o.asset ?? o.symbol ?? "—"} · {fmtDateTime(o.timestamp)}</span>
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-panel bg-surface-2/70">
+                    {KIND_ICONS[o.opType]}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-xs font-bold text-foreground">{o.typeLabel}</span>
+                      {o.side ? (
+                        <Badge tone={o.side === "BUY" ? "up" : "down"}>{o.side === "BUY" ? "شراء" : "بيع"}</Badge>
+                      ) : null}
+                    </div>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-2xs text-muted">
+                      <span>{OPKIND_LABELS[o.opType]}</span>
+                      <span dir="ltr">· {o.asset ?? o.symbol ?? "—"} · {fmtDateTime(o.timestamp)}</span>
+                    </div>
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="shrink-0 text-right">
                   <div className={`${num} text-xs font-bold ${pnlTone(o)}`} dir="ltr">
                     {pnlText(o)}
                   </div>
@@ -463,7 +402,7 @@ export function ImportedHistory({
             ))}
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line/60 px-3 md:px-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line/60 px-4 py-2">
             <span className="text-2xs text-muted">
               {filtered.length} عملية — الأحدث أولاً
             </span>
@@ -490,7 +429,7 @@ export function ImportedHistory({
             ) : null}
             <a
               href="/operations"
-              className="flex items-center gap-1 text-2xs font-bold text-gold-fg transition-colors hover:text-gold"
+              className="flex h-8 items-center gap-1.5 rounded-panel px-2.5 text-2xs font-bold text-gold-fg transition-colors hover:bg-surface-2 hover:text-gold"
             >
               السجل الكامل في صفحة العمليات
               <ArrowLeftIcon className="h-3.5 w-3.5" />
@@ -528,32 +467,33 @@ function Row({
       onClick={onOpen}
       className="cursor-pointer border-b border-line/40 transition-colors last:border-b-0 hover:bg-surface-2/30"
     >
-      <td className="px-4 py-2.5">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-foreground">{o.typeLabel}</span>
-          {o.side ? (
-            <Badge tone={o.side === "BUY" ? "up" : "down"}>{o.side === "BUY" ? "شراء" : "بيع"}</Badge>
-          ) : null}
-        </div>
-        <div className="mt-0.5 flex items-center gap-1.5 text-2xs text-muted">
-          <span className={`inline-block h-1 w-1 rounded-full ${KIND_DOTS[o.opType]}`} />
-          <span>{OPKIND_LABELS[o.opType]}</span>
+      <td className="px-4 py-2">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-panel bg-surface-2/70">
+            {KIND_ICONS[o.opType]}
+          </span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="truncate text-xs font-bold text-foreground">{o.typeLabel}</span>
+              {o.side ? (
+                <Badge tone={o.side === "BUY" ? "up" : "down"}>{o.side === "BUY" ? "شراء" : "بيع"}</Badge>
+              ) : null}
+            </div>
+            <div className="mt-0.5 truncate text-2xs text-muted">{OPKIND_LABELS[o.opType]}</div>
+          </div>
         </div>
       </td>
-      <td className="px-3 py-2.5 font-semibold text-foreground" dir="ltr">
+      <td className="px-3 py-2 text-xs font-semibold text-foreground" dir="ltr">
         {o.asset ?? o.symbol ?? "—"}
       </td>
-      <td className="px-3 py-2.5 text-right" dir="ltr">
-        <span className="font-semibold text-foreground">{fmtAmount(o.amount)}</span>
-        <span className="text-muted"> {o.asset ?? o.symbol ?? ""}</span>
+      <td className="px-3 py-2 text-right" dir="ltr">
+        <span className={`${num} text-xs font-semibold text-foreground`}>{fmtAmount(o.amount)}</span>
+        <span className="text-2xs text-muted"> {o.asset ?? o.symbol ?? ""}</span>
       </td>
-      <td className={`${num} px-3 py-2.5 text-right ${pnlTone(o)}`} dir="ltr">
+      <td className={`${num} px-3 py-2 text-right text-xs ${pnlTone(o)}`} dir="ltr">
         {pnlText(o)}
       </td>
-      <td className={`${num} px-3 py-2.5 text-right`} dir="ltr">
-        {o.fee !== 0 ? fmtMoney(o.fee) : "—"}
-      </td>
-      <td className="px-3 py-2.5">
+      <td className="px-3 py-2">
         {o.status ? (
           <Badge tone={STATUS_TONES[o.status] ?? "quiet"}>
             {STATUS_LABELS[o.status] ?? o.status}
@@ -562,10 +502,10 @@ function Row({
           <span className="text-muted">—</span>
         )}
       </td>
-      <td className="px-3 py-2.5 text-right text-muted" dir="ltr">
+      <td className="px-3 py-2 text-right text-2xs text-muted" dir="ltr">
         {fmtDateTime(o.timestamp)}
       </td>
-      <td className="px-2 py-2.5">
+      <td className="px-2 py-2">
         <ArrowLeftIcon className="h-3.5 w-3.5 text-muted" />
       </td>
     </tr>
