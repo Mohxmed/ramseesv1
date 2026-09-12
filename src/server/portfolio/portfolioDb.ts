@@ -99,7 +99,7 @@ export async function patchAccount(uid: string, accountId: string, patch: Partia
 
 export interface ImportedMetaState {
   financials?: StoredAccount["financials"];
-  status: "HEALTHY" | "SYNCING" | "ERROR";
+  status: "HEALTHY" | "SYNCING" | "ERROR" | "DISCONNECTED";
   lastError?: string | null;
   lastErrorAt?: number | null;
   lastSuccessfulSync?: number | null;
@@ -150,6 +150,30 @@ export async function syncImportedPortfolioMeta(
   };
   if (state.financials) patch.financials = state.financials;
   await portfolioCol(uid).doc("meta").update(patch);
+}
+
+/**
+ * Flip ONLY the connection state of the imported wallet meta.
+ *
+ * Unlike `syncImportedPortfolioMeta` (a sync-result mirror that resets the
+ * freshness fields), this preserves every historical value — financials,
+ * lastSuccessfulSync, the whole performance record — because unlinking an
+ * exchange must never destroy what the wallet already earned. It only answers
+ * "is this wallet currently attached to the exchange?".
+ */
+export async function setImportedPortfolioConnection(
+  uid: string,
+  accountId: string,
+  status: "CONNECTING" | "SYNCING" | "DISCONNECTED"
+): Promise<void> {
+  const meta = await getPortfolioMeta(uid);
+  if (!meta || meta.source !== "binance" || meta.accountId !== accountId) return;
+  await portfolioCol(uid).doc("meta").update({
+    syncStatus: status,
+    lastError: null,
+    lastErrorAt: null,
+    updatedAt: Date.now(),
+  });
 }
 
 /**
@@ -358,4 +382,23 @@ export async function getRunningSync(uid: string, accountId: string): Promise<Sy
   const snap = await syncJobs(uid).where("accountId", "==", accountId).where("status", "==", "RUNNING").limit(1).get();
   if (snap.empty) return null;
   return { id: snap.docs[0].id, ...(snap.docs[0].data() as Omit<SyncJob, "id">) };
+}
+
+/**
+ * Release every persisted sync lock for an account (disconnect path).
+ *
+ * A RUNNING job whose process already died would otherwise block the account
+ * forever — including a later re-link — because `acquirePersistedLock` refuses
+ * to start while one exists. Returns how many jobs were cancelled.
+ */
+export async function cancelRunningSyncs(uid: string, accountId: string): Promise<number> {
+  const snap = await syncJobs(uid).where("accountId", "==", accountId).where("status", "==", "RUNNING").get();
+  if (snap.empty) return 0;
+  const now = Date.now();
+  const batch = getAdminDb().batch();
+  for (const doc of snap.docs) {
+    batch.update(doc.ref, { status: "CANCELLED" as SyncJobStatus, finishedAt: now });
+  }
+  await batch.commit();
+  return snap.size;
 }

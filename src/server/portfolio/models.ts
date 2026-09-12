@@ -52,10 +52,36 @@ export interface StoredAccount {
   financials: AccountFinancials;
 }
 
+/** One asset line of the baseline capital composition (captured once). */
+export interface BaselineAsset {
+  asset: string;
+  amount: number;
+  usdValue: number;
+  price: number | null;
+}
+
 export interface AccountFinancials {
-  /** portfolioBaseline — equity at creation / first sync / user choice. */
+  /**
+   * portfolioBaseline — the account's INITIAL CAPITAL. Captured exactly once,
+   * at first activation (the first sync after linking), and never recreated
+   * automatically afterwards (`baselineLocked`). Every performance number
+   * (P&L, return, drawdown) is measured from this point: exchange history
+   * older than `baselineAt` is deliberately ignored.
+   * Only an explicit user action (PATCH baselineEquity) may move it.
+   */
   baselineEquity: number;
   baselineAt: number | null;
+  /**
+   * Asset distribution at `baselineAt` — what the initial capital consisted of.
+   * Optional: accounts linked before this field existed have no record of it.
+   */
+  baselineAssets?: BaselineAsset[];
+  /**
+   * True once the baseline was captured; blocks any automatic re-capture.
+   * Optional for the same back-compat reason (`baselineAt != null` is the
+   * fallback signal on legacy documents).
+   */
+  baselineLocked?: boolean;
   currentEquity: number;
   lastValuedAt: number | null;
   netDeposits: number;

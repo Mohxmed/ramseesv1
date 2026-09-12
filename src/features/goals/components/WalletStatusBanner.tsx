@@ -10,6 +10,8 @@ import { formatNumber } from "../utils";
  *  - no wallet at all   → prompt to link one
  *  - manual, no balance → prompt to record a balance
  *  - imported live      → ladder is anchored to the exchange balance
+ *  - imported unlinked  → the user deliberately disconnected; the ladder keeps
+ *                         its last known anchor (NOT an error)
  *  - imported dead sync → temporary constant anchor until sync recovers
  *  - imported pending   → first sync still running; ladder re-anchors on arrival
  */
@@ -74,7 +76,22 @@ export function WalletStatusBanner({
     );
   }
 
-  if (wallet.syncStatus === "ERROR" || wallet.syncStatus === "DISCONNECTED") {
+  // A deliberate unlink is not a failure — never report it as one.
+  if (wallet.syncStatus === "DISCONNECTED") {
+    return (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-card border border-line/70 bg-surface-2/25 px-4 py-3 text-xs text-zinc-300">
+        <span className="font-semibold text-muted">
+          اقتران {typeLabel} ملغى
+        </span>
+        <span className="text-2xs text-muted">
+          تُحسب الأهداف على آخر رصيد محفوظ — أعد الربط من صفحة المحفظة لاستئناف
+          التحديث التلقائي.
+        </span>
+      </div>
+    );
+  }
+
+  if (wallet.syncStatus === "ERROR") {
     return (
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-card border border-down/40 bg-down/5 px-4 py-3 text-xs text-zinc-300">
         <span className="font-semibold text-down-fg">

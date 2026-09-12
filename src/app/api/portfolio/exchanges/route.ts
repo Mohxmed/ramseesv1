@@ -34,7 +34,7 @@ import type {
   StoredAccount,
   StoredCredential,
 } from "@/server/portfolio/models";
-import { routeErrorResponse } from "@/server/portfolio/apiHelpers";
+import { routeErrorResponse, keyAllowsWithdrawals, securityModeOf, WITHDRAWAL_KEY_REJECTED } from "@/server/portfolio/apiHelpers";
 import { encryptSecret } from "@/server/portfolio/vault";
 import {
   createAccount as persistAccount,
@@ -51,9 +51,16 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
+/**
+ * A brand-new link has no baseline yet: the FIRST sync captures it (equity +
+ * asset distribution at that moment) and locks it forever. Never seed a
+ * baseline here — the account has not been valued at this point.
+ */
 const EMPTY_FINANCIALS = {
   baselineEquity: 0,
   baselineAt: null,
+  baselineAssets: [],
+  baselineLocked: false,
   currentEquity: 0,
   lastValuedAt: null,
   netDeposits: 0,
@@ -144,6 +151,11 @@ export async function POST(req: Request): Promise<Response> {
     if (!test.ok || !test.accountInfo) {
       return NextResponse.json({ error: "فشل التحقق من البيانات — حاول مجددًا." }, { status: 400 });
     }
+    // Least privilege: a key that can move funds is refused before anything is
+    // stored — RAMSEES never needs it (read-only is the whole contract).
+    if (keyAllowsWithdrawals(test.accountInfo.permissions)) {
+      return NextResponse.json({ error: WITHDRAWAL_KEY_REJECTED }, { status: 400 });
+    }
 
     const now = Date.now();
     const accountId = randomUUID();
@@ -172,7 +184,7 @@ export async function POST(req: Request): Promise<Response> {
       accountType,
       name: (body.name ?? "").trim().slice(0, 60) || `${descriptor?.displayName ?? exchangeType} ${accountType}`,
       status: "CONNECTED",
-      securityMode: "unrestricted",
+      securityMode: securityModeOf(test.accountInfo.permissions),
       permissions: test.accountInfo.permissions,
       capabilities: descriptor?.capabilities ?? adapter.capabilities,
       displayCapabilities: {

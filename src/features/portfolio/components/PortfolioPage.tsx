@@ -191,7 +191,7 @@ export function PortfolioPage() {
   }
 
   if (imported) {
-    return <ImportedPortfolioView meta={imported} />;
+    return <ImportedPortfolioView meta={imported} onConnectionChange={retry} />;
   }
 
   const manual = meta as PortfolioSummary;

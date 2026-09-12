@@ -13,6 +13,8 @@ import {
   userSafeExchangeMessage,
   exchangeErrorHttpStatus,
   type ExchangeCredentials,
+  type ExchangePermissions,
+  type SecurityMode,
 } from "@/server/exchanges/core";
 import { getAccount, getCredentialByAccount } from "./portfolioDb";
 import { decryptSecret } from "./vault";
@@ -62,6 +64,24 @@ export async function requireOwnedAccount(uid: string, accountId: string): Promi
 }
 
 /**
+ * Read-only variant that also accepts a DISCONNECTED (disabled) account.
+ *
+ * After unlinking, the wallet keeps rendering its SAVED history — that data
+ * belongs to the user and is never deleted. Ownership is enforced identically;
+ * only the "still linked" requirement is dropped.
+ *
+ * NEVER use this on a path that talks to the exchange: a disconnected account
+ * has no credential and must produce zero platform traffic.
+ */
+export async function requireOwnedAccountForRead(uid: string, accountId: string): Promise<StoredAccount> {
+  const account = await getAccount(uid, accountId);
+  if (!account || account.userId !== uid) {
+    throw new SyncMissingError(accountId);
+  }
+  return account;
+}
+
+/**
  * Vault-resolve an owned account's live credential. Returns null when the
  * credential row is missing so callers can degrade gracefully (live stays
  * offline instead of erroring). The decrypted pair exists only in the returned
@@ -79,6 +99,31 @@ export async function loadLiveCredential(
     secret: secret.secret,
     extra: { accountId: account.exchangeUid },
   };
+}
+
+/* ─── Least privilege (connect / re-link gate) ─────────────────────── */
+
+/**
+ * RAMSEES only ever READS an exchange account — it never places, cancels or
+ * withdraws anything. A key that can move funds therefore buys the user zero
+ * features while carrying the entire downside, so it is refused at the door
+ * instead of being stored "just in case".
+ *
+ * Trading permission is tolerated (most users' default keys have it and
+ * revoking it is a Binance-side action), but it downgrades the security mode
+ * so the UI can tell the user their key is broader than necessary.
+ */
+export function keyAllowsWithdrawals(permissions: ExchangePermissions): boolean {
+  return permissions.withdrawalsEnabled === true;
+}
+
+export const WITHDRAWAL_KEY_REJECTED =
+  "هذا المفتاح يسمح بالسحب من حساب Binance. RAMSEES يقرأ بياناتك فقط ولا يحتاج هذه الصلاحية — " +
+  "أنشئ مفتاحًا بصلاحية القراءة فقط (Enable Reading) مع تعطيل Withdrawals ثم أعد المحاولة.";
+
+/** `restricted` = read-only key (the recommended posture). */
+export function securityModeOf(permissions: ExchangePermissions): SecurityMode {
+  return permissions.readOnly ? "restricted" : "unrestricted";
 }
 
 /** Build a short, sanitized detail line from the error's upstream context. */

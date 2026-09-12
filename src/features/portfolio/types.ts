@@ -385,9 +385,21 @@ export interface ExchangeCapabilitiesDto {
   supportsAccountSnapshots: boolean;
 }
 
+/** One asset line of the baseline capital composition. */
+export interface BaselineAssetDto {
+  asset: string;
+  amount: number;
+  usdValue: number;
+  price: number | null;
+}
+
 export interface ExchangeFinancialsDto {
+  /** Initial capital — captured once at first activation, never auto-renewed. */
   baselineEquity: number;
   baselineAt: number | null;
+  /** What the initial capital consisted of (absent on legacy links). */
+  baselineAssets?: BaselineAssetDto[];
+  baselineLocked?: boolean;
   currentEquity: number;
   lastValuedAt: number | null;
   netDeposits: number;

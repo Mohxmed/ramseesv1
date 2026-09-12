@@ -44,6 +44,21 @@ function cachedFetch<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promi
   return p;
 }
 
+/**
+ * Drop every cached response belonging to an account. Called on unlink so no
+ * widget can render — or re-serve — data from a connection that no longer
+ * exists.
+ */
+function purgeAccountCache(accountId: string): void {
+  const suffix = `:${accountId}`;
+  for (const key of [...cache.keys()]) {
+    if (key.includes(suffix)) cache.delete(key);
+  }
+  for (const key of [...inflight.keys()]) {
+    if (key.includes(suffix)) inflight.delete(key);
+  }
+}
+
 async function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const auth = getAuthInstance();
   const user = auth.currentUser;
@@ -202,12 +217,61 @@ export const exchangesApi = {
     );
   },
 
-  async disconnect(accountId: string) {
-    return readJson(
+  /**
+   * Unlink the wallet from the exchange. The server deletes the vaulted
+   * credential and marks the account DISCONNECTED; the wallet's own data and
+   * performance history are preserved. Every cached response for the account
+   * is dropped here so nothing keeps rendering from a dead connection.
+   */
+  async disconnect(accountId: string): Promise<{
+    ok: boolean;
+    accountId: string;
+    status: string;
+    credentialDeleted: boolean;
+    cancelledSyncs: number;
+  }> {
+    const body = await readJson<{
+      ok: boolean;
+      accountId: string;
+      status: string;
+      credentialDeleted: boolean;
+      cancelledSyncs: number;
+    }>(
       await authFetch(`/api/portfolio/exchanges/${encodeURIComponent(accountId)}`, {
         method: "DELETE",
       })
     );
+    purgeAccountCache(accountId);
+    return body;
+  },
+
+  /**
+   * Re-link a disconnected wallet with a fresh API key. The original baseline
+   * (initial capital) is preserved server-side — re-linking never restarts the
+   * performance record.
+   */
+  async reconnect(
+    accountId: string,
+    input: { apiKey: string; secret: string }
+  ): Promise<{
+    ok: boolean;
+    accountId: string;
+    baselinePreserved: number | null;
+    sync: { status: string; inProgress: boolean };
+  }> {
+    const body = await readJson<{
+      ok: boolean;
+      accountId: string;
+      baselinePreserved: number | null;
+      sync: { status: string; inProgress: boolean };
+    }>(
+      await authFetch(`/api/portfolio/exchanges/${encodeURIComponent(accountId)}/reconnect`, {
+        method: "POST",
+        body: JSON.stringify(input),
+      })
+    );
+    purgeAccountCache(accountId);
+    return body;
   },
 
   async syncStatus(accountId: string): Promise<ExchangeSyncStatusDto> {

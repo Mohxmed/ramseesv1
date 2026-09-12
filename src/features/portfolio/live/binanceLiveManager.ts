@@ -704,7 +704,7 @@ class LiveManager {
 
   private setErrorState(err: unknown): void {
     this.error =
-      err instanceof Error && err.message ? err.message : "طھط¹ط°ط± ط§ظ„ط§طھطµط§ظ„ ط¨ظ…ظ†طµط© Binance.";
+      err instanceof Error && err.message ? err.message : "تعذر الاتصال بمنصة Binance.";
     this.status = "error";
     this.cached = null;
     this.notify();

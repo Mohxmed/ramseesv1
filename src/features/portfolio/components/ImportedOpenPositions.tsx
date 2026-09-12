@@ -56,23 +56,33 @@ function fmtClock(ms: number | null | undefined): string | null {
 export function ImportedOpenPositions({
   accountId,
   snapshot,
+  liveEnabled = true,
 }: {
   accountId: string;
   snapshot: ImportedAccountDetailDto | null;
+  /**
+   * False once the wallet is unlinked: the saved positions still render, but
+   * the live session cannot be opened (there is no credential to mint one).
+   */
+  liveEnabled?: boolean;
 }) {
   const { data, error, status, reconnect, start, stop } = useLivePositions(accountId);
   const [liveOn, setLiveOn] = useState(false);
 
+  // Derived, never synchronized: unlinking the wallet revokes streaming without
+  // a second state write (and without a cascading render).
+  const streaming = liveOn && liveEnabled;
+
   useEffect(() => {
-    if (liveOn) {
+    if (streaming) {
       start();
     } else {
       stop();
     }
     return () => stop();
-  }, [liveOn, accountId, start, stop]);
+  }, [streaming, accountId, start, stop]);
 
-  const liveData: LivePositionsDto | null = liveOn && data ? data : null;
+  const liveData: LivePositionsDto | null = streaming && data ? data : null;
 
   const rows = useMemo(() => {
     const src: LivePositionDto[] =
@@ -98,13 +108,13 @@ export function ImportedOpenPositions({
   }, [liveData, snapshot]);
 
   const lastClock =
-    liveOn && status === "live"
+    streaming && status === "live"
       ? fmtClock(liveData?.at ?? data?.at)
-      : !liveOn
+      : !streaming
         ? fmtClock(snapshot?.latestSnapshot?.timestamp)
         : null;
 
-  const badge = liveOn ? (
+  const badge = streaming ? (
     status === "live" ? (
       <span className="flex items-center gap-1.5 rounded-full bg-up/10 px-2 py-0.5 text-2xs font-bold text-up-fg ring-1 ring-up/30">
         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-up-fg" />
@@ -141,7 +151,7 @@ export function ImportedOpenPositions({
           {badge}
         </h2>
         <p className="mt-0.5 text-2xs text-muted">
-          {liveOn
+          {streaming
             ? "بث مباشر من سوق العقود الآجلة عبر WebSocket — بلا أي قراءات لمخزن البيانات لحظيًا."
             : "آخر بيانات محفوظة في Snapshot المحفظة — يمكنك التحديث بضغطة «تحديث البيانات» أو تفعيل البث المباشر."}
           {lastClock != null ? (
@@ -157,18 +167,20 @@ export function ImportedOpenPositions({
       <button
         type="button"
         onClick={() => setLiveOn((v) => !v)}
-        className={`flex h-7 items-center rounded-panel px-2.5 text-2xs font-bold transition-colors disabled:opacity-60 ${
-          liveOn
+        disabled={!liveEnabled}
+        title={liveEnabled ? undefined : "المحفظة غير مرتبطة بالمنصة — أعد الربط لتفعيل البث المباشر"}
+        className={`flex h-7 items-center rounded-panel px-2.5 text-2xs font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+          streaming
             ? "bg-down/10 text-down-fg ring-1 ring-down/40 hover:bg-down/20"
             : "bg-gold/10 text-gold-fg ring-1 ring-gold/40 hover:bg-gold/20"
         }`}
       >
-        {liveOn ? "إيقاف البث مباشر" : "بث مباشر"}
+        {streaming ? "إيقاف البث مباشر" : "بث مباشر"}
       </button>
     </div>
   );
 
-  if (!liveOn && snapshot == null) {
+  if (!streaming && snapshot == null) {
     return (
       <PortfolioCard title={titleBlock} bodyClassName="p-4">
         <SkeletonCard className="min-h-52" />
@@ -221,16 +233,16 @@ export function ImportedOpenPositions({
       snippet={rows.length > 0 ? statStrip : undefined}
       bodyClassName=""
     >
-      {liveOn && (error || status === "reconnecting" || status === "connecting") ? (
+      {streaming && (error || status === "reconnecting" || status === "connecting") ? (
         <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-2xs">
           <p className="text-down-fg">
-            {liveOn && status === "error"
+            {streaming && status === "error"
               ? error ?? "تعذر الاتصال بالمنصة."
               : status === "connecting"
                 ? "جارٍ الاتصال بالبث المباشر…"
                 : "انقطع بث المنصة — يعيد الاتصال تلقائيًا…"}
           </p>
-          {liveOn && status === "error" ? (
+          {streaming && status === "error" ? (
             <button
               type="button"
               onClick={() => reconnect()}
@@ -274,7 +286,7 @@ export function ImportedOpenPositions({
           </div>
 
           <p className="border-t border-line/70 px-4 py-2 text-2xs text-muted">
-            {liveOn
+            {streaming
               ? "تُحتسب القيم على أساس سعر السوق اللحظي للمشتقات؛ " +
                 (rows.every((p) => p.pricedLive) ? "جميع الأسعار مباشرة." : "بعض الرموز ليست مدرجة على السوق الفوري وتُعرض بآخر سعر متزامن.")
               : "تُحتسب القيم من آخر Snapshot مُحفَظ في المزامنة — اضغط «تحديث البيانات» أو فعّل «بث مباشر» لأرقام لحظية."}

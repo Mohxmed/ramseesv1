@@ -3,6 +3,11 @@
  * route and the manual-refresh (POST /refresh) route so both endpoints return
  * byte-identical shapes. The UI reads this body once on open and once per
  * manual refresh — never on a timer.
+ *
+ * Baseline rule: everything dated before `financials.baselineAt` is withheld.
+ * The baseline IS the wallet's starting point, so showing operations that do
+ * not feed any of its numbers would contradict the P&L on the same screen.
+ * The rows are only hidden from the payload — never deleted from Firestore.
  */
 
 import {
@@ -12,6 +17,7 @@ import {
   listReconciliationEvents,
 } from "./portfolioDb";
 import { getOpenOrders, getPositions, getTransactions, getTrades } from "./queries";
+import { sinceBaseline } from "./engine/baseline";
 import type { StoredAccount } from "./models";
 
 export async function buildAccountDetailBody(
@@ -20,8 +26,9 @@ export async function buildAccountDetailBody(
   opts: { limit?: number } = {}
 ) {
   const limit = Number.isFinite(opts.limit) ? Math.min(Math.max(Math.floor(opts.limit ?? 50), 1), 500) : 50;
+  const since = account.financials?.baselineAt ?? null;
 
-  const [balances, positions, openOrders, transactions, trades, running, snapshots, recon] = await Promise.all([
+  const [balances, positions, openOrders, allTransactions, allTrades, running, allSnapshots, recon] = await Promise.all([
     getBalances(uid, account.id),
     getPositions(uid, account.id),
     getOpenOrders(uid, account.id),
@@ -31,6 +38,10 @@ export async function buildAccountDetailBody(
     getSnapshots(uid, account.id, { limit }),
     listReconciliationEvents(uid, account.id, 10),
   ]);
+
+  const transactions = sinceBaseline(allTransactions, since);
+  const trades = sinceBaseline(allTrades, since);
+  const snapshots = sinceBaseline(allSnapshots, since);
 
   const latest = snapshots[snapshots.length - 1] ?? null;
   return {

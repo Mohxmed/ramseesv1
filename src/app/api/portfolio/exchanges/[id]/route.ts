@@ -2,9 +2,13 @@
  * /api/portfolio/exchanges/[id]
  *
  *   GET    → account detail: balances, positions, open orders, recent ledger,
- *            latest snapshot + freshness fields (the UI polls this).
+ *            latest snapshot + freshness fields (the UI polls this). Served
+ *            from Firestore ONLY, so a disconnected wallet keeps rendering its
+ *            saved history without a single exchange call.
  *   PATCH  → rename the account / reset the portfolio baseline.
- *   DELETE → disconnect: disable the account + delete its vaulted credential.
+ *   DELETE → unlink: delete the vaulted credential, disable the account,
+ *            release sync locks and mark the wallet DISCONNECTED. Wallet data
+ *            and performance history are preserved.
  *
  * All reads/writes are bound to the verified uid and the account must belong
  * to that user (requireOwnedAccount).
@@ -12,11 +16,17 @@
 
 import { NextResponse } from "next/server";
 import { authenticateRequest } from "@/server/auth";
-import { routeErrorResponse, requireOwnedAccount } from "@/server/portfolio/apiHelpers";
 import {
+  routeErrorResponse,
+  requireOwnedAccount,
+  requireOwnedAccountForRead,
+} from "@/server/portfolio/apiHelpers";
+import {
+  cancelRunningSyncs,
   deleteCredential,
   getCredentialByAccount,
   patchAccount,
+  setImportedPortfolioConnection,
 } from "@/server/portfolio/portfolioDb";
 import { buildAccountDetailBody } from "@/server/portfolio/accountDetail";
 import type { StoredAccount } from "@/server/portfolio/models";
@@ -37,7 +47,7 @@ export async function GET(
   try {
     const uid = await authenticateRequest(req);
     const { id } = await params;
-    const account = await requireOwnedAccount(uid, id);
+    const account = await requireOwnedAccountForRead(uid, id);
 
     // Operations feed — the wallet page shows the last 10, the operations page
     // pulls a wider window. Capped so a request can never explode memory.
@@ -68,11 +78,25 @@ export async function PATCH(
     if (typeof body.name === "string" && body.name.trim() !== "") {
       patch.name = body.name.trim().slice(0, 60);
     }
+    // Explicit, user-driven baseline override. This is the ONLY way the initial
+    // capital ever moves after first activation; the sync engine will not
+    // re-capture it (baselineLocked stays true).
     if (typeof body.baselineEquity === "number" && Number.isFinite(body.baselineEquity) && body.baselineEquity >= 0) {
+      const current = account.financials;
       patch.financials = {
-        ...(account.financials ?? { netDeposits: 0, netWithdrawals: 0, totalFees: 0, realizedPnl: 0, unrealizedPnl: 0 }),
+        ...(current ?? {
+          baselineAssets: [],
+          currentEquity: 0,
+          lastValuedAt: null,
+          netDeposits: 0,
+          netWithdrawals: 0,
+          totalFees: 0,
+          realizedPnl: 0,
+          unrealizedPnl: 0,
+        }),
         baselineEquity: body.baselineEquity,
         baselineAt: Date.now(),
+        baselineLocked: true,
       };
     }
     if (patch.name === undefined && patch.financials === undefined) {
@@ -86,6 +110,16 @@ export async function PATCH(
   }
 }
 
+/**
+ * Unlink the exchange. The order matters: the credential dies FIRST, so even a
+ * partial failure afterwards leaves an account that physically cannot reach
+ * Binance again (every platform path resolves its key through the vault).
+ *
+ * What is destroyed: the encrypted API key/secret, the account's "enabled"
+ * state, and any stale sync lock.
+ * What is kept: balances, ledger, snapshots, financials and the baseline —
+ * the wallet keeps showing its full performance history while disconnected.
+ */
 export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -93,19 +127,31 @@ export async function DELETE(
   try {
     const uid = await authenticateRequest(req);
     const { id } = await params;
-    const account = await requireOwnedAccount(uid, id);
+    const account = await requireOwnedAccountForRead(uid, id);
 
     const cred = await getCredentialByAccount(uid, id);
     if (cred) {
       await deleteCredential(uid, cred.id);
     }
+    // Release any lock left behind by a crashed job so a future re-link is not
+    // rejected with "sync already running".
+    const cancelled = await cancelRunningSyncs(uid, id);
     await patchAccount(uid, id, {
       status: "DISCONNECTED",
-      disabledAt: Date.now(),
+      disabledAt: account.disabledAt ?? Date.now(),
       lastError: null,
+      lastErrorAt: null,
     });
+    // The wallet view flips to "مفصول" — financials/history stay untouched.
+    await setImportedPortfolioConnection(uid, id, "DISCONNECTED");
 
-    return NextResponse.json({ ok: true, disabled: account.id });
+    return NextResponse.json({
+      ok: true,
+      accountId: account.id,
+      status: "DISCONNECTED",
+      credentialDeleted: cred != null,
+      cancelledSyncs: cancelled,
+    });
   } catch (err) {
     return routeErrorResponse(err);
   }

@@ -1,18 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { PageHeader, Status } from "@/components/ui";
-import { WalletIcon, RefreshIcon } from "@/components/icons/icons";
+import { WalletIcon, RefreshIcon, LinkIcon } from "@/components/icons/icons";
 import { timeAgo } from "@/features/notifications/format";
 import { accountTypeLabel, exchangeTypeLabel } from "../utils";
 import type { ImportedPortfolioSummary } from "../types";
 import { useImportedPortfolio } from "../hooks/useImportedPortfolio";
+import { exchangesApi, ExchangeApiError } from "../services/exchanges.api";
+import { liveManager } from "../live/binanceLiveManager";
 import { ImportedOverview } from "./ImportedOverview";
 import { ImportedMetricGrid } from "./ImportedMetricGrid";
 import { ImportedOpenPositions } from "./ImportedOpenPositions";
 import { ImportedCashFlow } from "./ImportedCashFlow";
 import { ImportedPerformance } from "./ImportedPerformance";
 import { ImportedHistory } from "./ImportedHistory";
+import { BinanceUnlinkModal } from "./BinanceUnlinkModal";
+import { BinanceRelinkModal } from "./BinanceRelinkModal";
 
 function statusOf(syncStatus: ImportedPortfolioSummary["syncStatus"]) {
   switch (syncStatus) {
@@ -38,13 +42,25 @@ function freshnessOf(ts: number | null, now: number) {
   return { label: "قديمة", cls: "text-down-fg" };
 }
 
-export function ImportedPortfolioView({ meta }: { meta: ImportedPortfolioSummary }) {
+export function ImportedPortfolioView({
+  meta,
+  onConnectionChange,
+}: {
+  meta: ImportedPortfolioSummary;
+  /** Re-read the wallet meta after a link state change (connect / disconnect). */
+  onConnectionChange?: () => void;
+}) {
+  const disconnected = meta.syncStatus === "DISCONNECTED";
   const { detail, error, isSyncing, refreshing, syncingNow, refreshManual, syncNow } = useImportedPortfolio(
     meta.accountId,
     200
   );
   const [hidden, setHidden] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const [unlinkOpen, setUnlinkOpen] = useState(false);
+  const [relinkOpen, setRelinkOpen] = useState(false);
+  const [unlinking, setUnlinking] = useState(false);
+  const [unlinkError, setUnlinkError] = useState<string | null>(null);
 
   // Display-only clock for "آخر تحديث منذ…" labels — reads nothing (no timers
   // that touch Firestore or Binance).
@@ -53,12 +69,36 @@ export function ImportedPortfolioView({ meta }: { meta: ImportedPortfolioSummary
     return () => clearInterval(t);
   }, []);
 
+  // Safety net: a wallet that arrives already disconnected (another tab, a
+  // reload) must not keep a live session alive from a previous session.
+  useEffect(() => {
+    if (disconnected) liveManager.dispose();
+  }, [disconnected]);
+
+  const handleUnlink = useCallback(async () => {
+    setUnlinking(true);
+    setUnlinkError(null);
+    try {
+      await exchangesApi.disconnect(meta.accountId);
+      // Kill sockets, keepalive timers and leadership BEFORE the re-render, so
+      // no request can be issued against a connection that no longer exists.
+      liveManager.dispose();
+      setUnlinkOpen(false);
+      onConnectionChange?.();
+    } catch (e) {
+      setUnlinkError(e instanceof ExchangeApiError ? e.message : "تعذر إلغاء الاقتران.");
+    } finally {
+      setUnlinking(false);
+    }
+  }, [meta.accountId, onConnectionChange]);
+
   const lastUpdatedMs = detail?.latestSnapshot?.timestamp ?? meta.lastSuccessfulSync ?? null;
-  const freshness = freshnessOf(lastUpdatedMs, now);
+  const freshness = disconnected ? null : freshnessOf(lastUpdatedMs, now);
 
   const st = statusOf(meta.syncStatus);
   const loadingDetail = detail == null;
   const busy = refreshing || syncingNow || isSyncing;
+  const exchangeName = exchangeTypeLabel(meta.exchangeType);
 
   return (
     <div className="space-y-3">
@@ -69,11 +109,19 @@ export function ImportedPortfolioView({ meta }: { meta: ImportedPortfolioSummary
         description={
           <>
             حساب محفظة <b className="text-foreground">{accountTypeLabel(meta.accountType)}</b> على منصة{" "}
-            <b className="text-foreground">{exchangeTypeLabel(meta.exchangeType)}</b>
-            {meta.accountName ? <> · {meta.accountName}</> : null} — آخر تحديث:{" "}
-            <b dir="ltr" className="text-zinc-200">
-              {lastUpdatedMs != null ? timeAgo(lastUpdatedMs, now) : "لم يُحدَّث بعد"}
-            </b>
+            <b className="text-foreground">{exchangeName}</b>
+            {meta.accountName ? <> · {meta.accountName}</> : null}
+            {disconnected ? (
+              <> — الاقتران ملغى، تُعرض آخر بيانات محفوظة</>
+            ) : (
+              <>
+                {" "}
+                — آخر تحديث:{" "}
+                <b dir="ltr" className="text-zinc-200">
+                  {lastUpdatedMs != null ? timeAgo(lastUpdatedMs, now) : "لم يُحدَّث بعد"}
+                </b>
+              </>
+            )}
           </>
         }
         right={
@@ -84,31 +132,76 @@ export function ImportedPortfolioView({ meta }: { meta: ImportedPortfolioSummary
                 {freshness.label}
               </span>
             ) : null}
-            <button
-              type="button"
-              onClick={() => void refreshManual()}
-              disabled={busy}
-              className="flex h-8 items-center gap-1.5 rounded-panel bg-gold/10 px-3 text-xs font-bold text-gold-fg ring-1 ring-gold/40 transition-colors hover:bg-gold/20 disabled:opacity-60"
-            >
-              <RefreshIcon className={refreshing ? "animate-spin" : ""} />
-              {refreshing ? "جارٍ التحديث…" : "تحديث البيانات"}
-            </button>
-            {!isSyncing && (
+            {disconnected ? (
               <button
                 type="button"
-                onClick={() => void syncNow("INITIAL")}
-                disabled={busy}
-                className="flex h-8 items-center rounded-panel px-3 text-xs font-semibold text-muted ring-1 ring-line/60 transition-colors hover:bg-surface-2 hover:text-foreground disabled:opacity-60"
-                title="إعادة سحب كامل سجل العمليات من المنصة (يُستخدم لاسترداد الخسائر والضرائب والرسوم القديمة)"
+                onClick={() => setRelinkOpen(true)}
+                className="flex h-8 items-center gap-1.5 rounded-panel bg-gold/10 px-3 text-xs font-bold text-gold-fg ring-1 ring-gold/40 transition-colors hover:bg-gold/20"
               >
-                إعادة مزامنة كاملة
+                <LinkIcon className="h-3.5 w-3.5" />
+                ربط {exchangeName}
               </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void refreshManual()}
+                  disabled={busy}
+                  className="flex h-8 items-center gap-1.5 rounded-panel bg-gold/10 px-3 text-xs font-bold text-gold-fg ring-1 ring-gold/40 transition-colors hover:bg-gold/20 disabled:opacity-60"
+                >
+                  <RefreshIcon className={refreshing ? "animate-spin" : ""} />
+                  {refreshing ? "جارٍ التحديث…" : "تحديث البيانات"}
+                </button>
+                {!isSyncing && (
+                  <button
+                    type="button"
+                    onClick={() => void syncNow("INITIAL")}
+                    disabled={busy}
+                    className="flex h-8 items-center rounded-panel px-3 text-xs font-semibold text-muted ring-1 ring-line/60 transition-colors hover:bg-surface-2 hover:text-foreground disabled:opacity-60"
+                    title="إعادة سحب سجل العمليات من المنصة ابتداءً من خط الأساس (يُستخدم لاسترداد الخسائر والضرائب والرسوم الناقصة)"
+                  >
+                    إعادة مزامنة كاملة
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUnlinkError(null);
+                    setUnlinkOpen(true);
+                  }}
+                  disabled={unlinking}
+                  className="flex h-8 items-center rounded-panel px-3 text-xs font-semibold text-muted ring-1 ring-line/60 transition-colors hover:bg-down/10 hover:text-down-fg disabled:opacity-60"
+                  title={`فصل المحفظة عن ${exchangeName} وحذف مفاتيح API المخزّنة — دون حذف بيانات المحفظة`}
+                >
+                  إلغاء الاقتران
+                </button>
+              </>
             )}
           </>
         }
       />
 
-      {meta.lastError || error ? (
+      {disconnected ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-panel border border-line bg-surface-1/40 px-3 py-2.5 text-xs">
+          <div className="space-y-0.5">
+            <p className="font-bold text-zinc-200">هذه المحفظة غير مرتبطة بـ{exchangeName}</p>
+            <p className="text-2xs leading-5 text-muted">
+              تم حذف مفاتيح API ولا يجري أي اتصال بالمنصة. البيانات المعروضة محفوظة من
+              آخر مزامنة ناجحة، ورأس المال الابتدائي (خط الأساس) محفوظ — أعد الربط
+              بمفتاح جديد لاستئناف التحديث دون فقدان الأداء التاريخي.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setRelinkOpen(true)}
+            className="rounded-panel bg-gold/10 px-3 py-1.5 text-2xs font-bold text-gold-fg ring-1 ring-gold/40 transition-colors hover:bg-gold/20"
+          >
+            إعادة الربط
+          </button>
+        </div>
+      ) : null}
+
+      {!disconnected && (meta.lastError || error) ? (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-panel border border-down/25 bg-down/10 px-3 py-2 text-xs font-medium text-down-fg">
           <span>
             {meta.lastError ?? error}
@@ -135,13 +228,33 @@ export function ImportedPortfolioView({ meta }: { meta: ImportedPortfolioSummary
 
       <ImportedMetricGrid meta={meta} detail={detail} loading={loadingDetail} nowMs={now} />
 
-      <ImportedOpenPositions accountId={meta.accountId} snapshot={detail} />
+      <ImportedOpenPositions accountId={meta.accountId} snapshot={detail} liveEnabled={!disconnected} />
 
       <ImportedCashFlow meta={meta} detail={detail} loading={loadingDetail} nowMs={now} />
 
       <ImportedPerformance meta={meta} detail={detail} loading={loadingDetail} />
 
       <ImportedHistory detail={detail} loading={loadingDetail} nowMs={now} />
+
+      <BinanceUnlinkModal
+        open={unlinkOpen}
+        exchangeName={exchangeName}
+        busy={unlinking}
+        error={unlinkError}
+        onClose={() => setUnlinkOpen(false)}
+        onConfirm={() => void handleUnlink()}
+      />
+
+      <BinanceRelinkModal
+        open={relinkOpen}
+        accountId={meta.accountId}
+        exchangeName={exchangeName}
+        onClose={() => setRelinkOpen(false)}
+        onRelinked={() => {
+          setRelinkOpen(false);
+          onConnectionChange?.();
+        }}
+      />
     </div>
   );
 }

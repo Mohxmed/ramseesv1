@@ -41,9 +41,11 @@ import {
 import { getPrices } from "./priceProvider";
 import { getTransactions, getTrades } from "./queries";
 import { buildAccountSnapshot, valuateAccount } from "./engine/portfolio";
+import { baselineAssetsOf, hasBaseline, historyWindowStart, sinceBaseline } from "./engine/baseline";
 import { reconcileAssets, reconcileEquity, type ReconciliationVerdict } from "./reconciliation";
 import { syncImportedPortfolioMeta } from "./portfolioDb";
 import type {
+  AccountFinancials,
   StoredAccount,
   StoredOrder,
   StoredPosition,
@@ -110,14 +112,20 @@ function structuredLog(event: string, fields: Record<string, string | number | b
 
 /* ─── Fetch: canonical per-account-type, symbol-scoped platform queries ── */
 
-interface FetchResult {
+interface StateResult {
   balances: ExchangeBalance[];
   positions: StoredPosition[];
   openOrders: StoredOrder[];
-  transactions: StoredTransaction[];
-  trades: StoredTrade[];
+  /** Symbols derived from current holdings — the scope for history queries. */
   symbols: string[];
 }
+
+interface HistoryResult {
+  transactions: StoredTransaction[];
+  trades: StoredTrade[];
+}
+
+type FetchResult = StateResult & HistoryResult;
 
 function quoteSymbol(asset: string): string | null {
   if (/^(USDT|USDC|BUSD|FDUSD|TUSD|DAI|EUR|UST|BSC-USD)/i.test(asset)) return null;
@@ -125,16 +133,13 @@ function quoteSymbol(asset: string): string | null {
 }
 
 /**
- * Per-account fetch. accountType drives which platform surface is queried
- * (SPOT vs FUTURES). Binance requires a per-symbol scope for trade/order
- * history, so candidate symbols are derived from held balances/positions and
- * each symbol is fetched independently (one failing symbol never aborts sync).
+ * Current state ONLY (balances / positions / open orders).
+ *
+ * Fetched BEFORE any history so the baseline can be captured and priced first:
+ * the history window is then anchored to the baseline and platform history
+ * older than it is never even requested.
  */
-async function fetchAll(
-  creds: ExchangeCredentials,
-  account: StoredAccount,
-  window: ExchangeDataWindow
-): Promise<FetchResult> {
+async function fetchState(creds: ExchangeCredentials, account: StoredAccount): Promise<StateResult> {
   const adapter = getAdapter(account.exchangeType);
   const accountType = account.accountType;
   const caps = account.capabilities;
@@ -143,8 +148,6 @@ async function fetchAll(
   const balances = await adapter.getBalances(creds, accountType);
   const positions: StoredPosition[] = [];
   const openOrders: StoredOrder[] = [];
-  const transactions: StoredTransaction[] = [];
-  const trades: StoredTrade[] = [];
 
   if (isFutures && caps.supportsPositions) {
     for (const p of await adapter.getPositions(creds, accountType)) {
@@ -156,6 +159,34 @@ async function fetchAll(
       openOrders.push({ ...o, id: o.externalOrderId, userId: account.userId, accountId: account.id, syncedAt: Date.now() });
     }
   }
+
+  // Binance needs a per-symbol scope for historical fills/orders.
+  const symbols = discoverSymbols(balances, positions, openOrders, isFutures);
+  return { balances, positions, openOrders, symbols };
+}
+
+/**
+ * Ledger history inside the window. `window.fromMs` is never earlier than the
+ * account baseline, so pre-baseline platform history costs neither a platform
+ * call nor a Firestore write. A degenerate window (first activation, where the
+ * baseline IS "now") short-circuits to nothing at all.
+ */
+async function fetchHistory(
+  creds: ExchangeCredentials,
+  account: StoredAccount,
+  window: ExchangeDataWindow,
+  symbols: string[]
+): Promise<HistoryResult> {
+  const transactions: StoredTransaction[] = [];
+  const trades: StoredTrade[] = [];
+  if (window.fromMs != null && window.toMs != null && window.fromMs >= window.toMs) {
+    return { transactions, trades };
+  }
+
+  const adapter = getAdapter(account.exchangeType);
+  const accountType = account.accountType;
+  const caps = account.capabilities;
+  const isFutures = accountType === "FUTURES";
 
   if (caps.supportsDeposits) {
     for (const d of await adapter.getDeposits(creds, window)) {
@@ -172,16 +203,13 @@ async function fetchAll(
       transactions.push({ ...f, id: idempotentId(f.exchange, account.id, f.externalId), source: account.exchangeType, userId: account.userId, accountId: account.id, syncedAt: Date.now(), createdAt: Date.now() });
     }
   }
-
-  // Binance needs a per-symbol scope for historical fills/orders.
-  const symbols = discoverSymbols(balances, positions, openOrders, isFutures);
   if (caps.supportsTrades) {
     for (const t of await adapter.getTrades(creds, accountType, { ...window, symbols })) {
       trades.push({ ...t, id: idempotentId(account.exchangeType, account.id, t.externalTradeId), source: account.exchangeType, userId: account.userId, accountId: account.id, syncedAt: Date.now(), createdAt: Date.now() });
     }
   }
 
-  return { balances, positions, openOrders, transactions, trades, symbols };
+  return { transactions, trades };
 }
 
 function discoverSymbols(
@@ -215,6 +243,10 @@ function discoverSymbols(
  *    once (the income row is skipped when a matching fill exists).
  *  - Every other fee-family row (commissions, taxes, funding, insurance) is a
  *    wallet cost → totalFees (rebates reduce it).
+ *
+ * Baseline rule: rows dated BEFORE `baselineAt` are excluded entirely. The
+ * baseline equity already embodies everything that happened before it, so
+ * counting that history again would double-count the initial capital.
  */
 async function recomputeFinancials(
   target: {
@@ -223,10 +255,14 @@ async function recomputeFinancials(
     totalFees: number;
     realizedPnl: number;
   },
-  storedTx: StoredTransaction[],
-  storedTrades: StoredTrade[],
-  accountType: AccountType
+  allTx: StoredTransaction[],
+  allTrades: StoredTrade[],
+  accountType: AccountType,
+  baselineAt: number | null
 ): Promise<void> {
+  const since = baselineAt ?? 0;
+  const storedTx = sinceBaseline(allTx, since);
+  const storedTrades = sinceBaseline(allTrades, since);
   target.netDeposits = 0;
   target.netWithdrawals = 0;
   target.totalFees = 0;
@@ -313,17 +349,70 @@ async function runSync(uid: string, accountId: string, mode: SyncMode, manager: 
 
   const lastValuedAt = account.financials?.lastValuedAt ?? null;
   const now = nowMs();
-  // INITIAL canvases a bounded history (platform + load guard); INCREMENTAL
-  // resumes exactly where the last sync stopped.
-  const window: ExchangeDataWindow =
-    mode === "INCREMENTAL" && lastValuedAt != null
-      ? { fromMs: lastValuedAt, toMs: now }
-      : {
-          fromMs: now - DAY_MS * (account.accountType === "FUTURES" ? INITIAL_TRADE_LOOKBACK_DAYS : INITIAL_FLOW_LOOKBACK_DAYS),
-          toMs: now,
-        };
 
-  const fetched = await fetchAll(creds, account, window);
+  /* ── State first: the baseline must be priced before any history is pulled ── */
+  const state = await fetchState(creds, account);
+
+  const stateSymbols = new Set<string>();
+  for (const b of state.balances) stateSymbols.add(b.asset.toUpperCase());
+  const prices = await getPrices(stateSymbols);
+  const valuation = valuateAccount({
+    accountId: account.id,
+    accountType: account.accountType,
+    balances: state.balances,
+    positions: state.positions,
+    prices,
+    computedAt: nowMs(),
+  });
+
+  /* ── Baseline — captured ONCE, at first activation, then locked ──────── */
+  const fin: AccountFinancials = account.financials
+    ? { ...account.financials }
+    : {
+        baselineEquity: 0,
+        baselineAt: null,
+        baselineAssets: [],
+        baselineLocked: false,
+        currentEquity: 0,
+        lastValuedAt: null,
+        netDeposits: 0,
+        netWithdrawals: 0,
+        totalFees: 0,
+        realizedPnl: 0,
+        unrealizedPnl: 0,
+      };
+  // Legacy accounts (linked before the baseline was tracked) carry a baselineAt
+  // without the lock flag — treat that as already captured, never re-capture.
+  if (!hasBaseline(fin)) {
+    const baselineAssets = baselineAssetsOf(valuation.balances);
+    fin.baselineEquity = valuation.totalEquity;
+    fin.baselineAt = startedAt;
+    fin.baselineAssets = baselineAssets;
+    fin.baselineLocked = true;
+    structuredLog("baseline.captured", {
+      userId: uid,
+      accountId: account.id,
+      baselineEquity: fin.baselineEquity,
+      baselineAt: startedAt,
+      assets: baselineAssets.length,
+    });
+  }
+
+  /* ── History window — never reaches behind the baseline ──────────────── */
+  const baselineAt = fin.baselineAt ?? startedAt;
+  const window: ExchangeDataWindow = {
+    fromMs: historyWindowStart({
+      mode,
+      lastValuedAt,
+      baselineAt,
+      defaultFrom:
+        now - DAY_MS * (account.accountType === "FUTURES" ? INITIAL_TRADE_LOOKBACK_DAYS : INITIAL_FLOW_LOOKBACK_DAYS),
+    }),
+    toMs: now,
+  };
+
+  const history = await fetchHistory(creds, account, window, state.symbols);
+  const fetched: FetchResult = { ...state, ...history };
 
   /* ── Idempotent persistence (duplicates impossible by construction) ── */
   const balanceTimestamp = nowMs();
@@ -343,40 +432,13 @@ async function runSync(uid: string, accountId: string, mode: SyncMode, manager: 
   await replacePositions(uid, account.id, fetched.positions.map((p) => ({ ...p, userId: uid })));
   await replaceOpenOrders(uid, account.id, fetched.openOrders.map((o) => ({ ...o, userId: uid })));
 
-  /* ── Valuation ── */
-  const symbols = new Set<string>();
-  for (const b of fetched.balances) symbols.add(b.asset.toUpperCase());
-  const prices = await getPrices(symbols);
-  const valuation = valuateAccount({
-    accountId: account.id,
-    accountType: account.accountType,
-    balances: fetched.balances,
-    positions: fetched.positions,
-    prices,
-    computedAt: nowMs(),
-  });
-
-  /* ── Financials (accumulate inserted-only → idempotent across windows) ── */
-  const fin = account.financials ?? {
-    baselineEquity: valuation.totalEquity,
-    baselineAt: startedAt,
-    currentEquity: valuation.totalEquity,
-    lastValuedAt: startedAt,
-    netDeposits: 0,
-    netWithdrawals: 0,
-    totalFees: 0,
-    realizedPnl: 0,
-    unrealizedPnl: 0,
-  };
-  if (fin.baselineEquity === 0 && valuation.totalEquity !== 0) {
-    fin.baselineEquity = valuation.totalEquity;
-    fin.baselineAt = startedAt;
-  }
+  /* ── Financials — recomputed from stored rows, baseline-anchored ─────── */
   await recomputeFinancials(
     fin,
     await getTransactions(uid, account.id, { limit: 1000 }),
     await getTrades(uid, account.id, { limit: 1000 }),
-    account.accountType
+    account.accountType,
+    fin.baselineAt
   );
   fin.currentEquity = valuation.totalEquity;
   fin.lastValuedAt = valuation.computedAt;
