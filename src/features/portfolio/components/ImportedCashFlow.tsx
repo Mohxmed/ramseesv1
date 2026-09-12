@@ -1,9 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { colors, num, SkeletonCard, type Tone } from "@/components/ui";
+import { num, SkeletonCard, type Tone } from "@/components/ui";
 import { DepositIcon, WithdrawIcon } from "@/components/icons/icons";
-import { BarChart } from "@/components/charts";
 import { fmtMoney } from "../utils";
 import { buildOps } from "../operations";
 import { PortfolioCard } from "./PortfolioCard";
@@ -132,7 +131,7 @@ export function ImportedCashFlow({
       {loading || detail == null || win == null ? (
         <SkeletonCard rows={2} className="border-0 p-0" />
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-panel border border-line/60 bg-surface-2/30 px-3 py-2.5">
               <div className="flex items-center gap-1.5 text-2xs font-semibold text-muted">
@@ -153,20 +152,6 @@ export function ImportedCashFlow({
               </div>
             </div>
           </div>
-
-          <BarChart
-            data={[
-              { label: "إيداعات", value: Math.round(win.deposits * 100) / 100, color: colors.upFg },
-              { label: "سحوبات", value: -Math.round(win.withdrawals * 100) / 100, color: colors.downFg },
-            ]}
-            xKey="label"
-            height={150}
-            yDomain={["auto", "auto"]}
-            minTickGap={8}
-            series={[{ key: "value", name: "القيمة", dataKeyForCellColor: "color" }]}
-            yFormatter={(v) => fmtMoney(v, { compact: true })}
-            valueFormatter={(v) => fmtMoney(Number(v))}
-          />
 
           <div className="flex items-center justify-between border-t border-line/60 pt-3">
             <span className="text-2xs font-semibold text-muted">صافي حركة الفلوس</span>

@@ -1,8 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { colors, num, SkeletonCard, type Tone } from "@/components/ui";
-import { BarChart } from "@/components/charts";
+import { num, SkeletonCard, type Tone } from "@/components/ui";
 import { timeAgo } from "@/features/notifications/format";
 import { fmtMoney } from "../utils";
 import { buildOps, computeStatement } from "../operations";
@@ -37,26 +36,6 @@ export function ImportedPerformance({
 
   const rows = detail == null || loading ? null : (
     <>
-      <BarChart
-        data={[
-          { label: "أرباح محققة", value: Math.round(statement.profit * 100) / 100, color: colors.upFg },
-          { label: "خسائر محققة", value: -Math.round(statement.loss * 100) / 100, color: colors.downFg },
-          {
-            label: "غير محقق",
-            value: Math.round(f.unrealizedPnl * 100) / 100,
-            color: f.unrealizedPnl >= 0 ? colors.upFg : colors.downFg,
-          },
-          { label: "رسوم", value: Math.round(statement.fees * 100) / 100, color: colors.warnFg },
-        ]}
-        xKey="label"
-        height={130}
-        yDomain={["auto", "auto"]}
-        minTickGap={8}
-        series={[{ key: "value", name: "القيمة", dataKeyForCellColor: "color" }]}
-        yFormatter={(v) => fmtMoney(v, { compact: true })}
-        valueFormatter={(v) => fmtMoney(Number(v))}
-      />
-
       <div className="space-y-3">
         <div className="rounded-panel border border-line/60 bg-surface-2/30 p-3">
           <h3 className="text-2xs font-bold uppercase tracking-[0.14em] text-muted">
