@@ -101,27 +101,14 @@ export async function loadLiveCredential(
   };
 }
 
-/* ─── Least privilege (connect / re-link gate) ─────────────────────── */
+/* ─── Least privilege (read-only posture reporting) ─────────────────── */
 
 /**
  * RAMSEES only ever READS an exchange account — it never places, cancels or
- * withdraws anything. A key that can move funds therefore buys the user zero
- * features while carrying the entire downside, so it is refused at the door
- * instead of being stored "just in case".
- *
- * Trading permission is tolerated (most users' default keys have it and
- * revoking it is a Binance-side action), but it downgrades the security mode
- * so the UI can tell the user their key is broader than necessary.
+ * withdraws anything. That posture is RECOMMENDED but not enforced at the
+ * door: any key format is accepted, and the account simply carries a
+ * `securityMode` label the UI can use to suggest narrowing a broad key.
  */
-export function keyAllowsWithdrawals(permissions: ExchangePermissions): boolean {
-  return permissions.withdrawalsEnabled === true;
-}
-
-export const WITHDRAWAL_KEY_REJECTED =
-  "هذا المفتاح يسمح بالسحب من حساب Binance. RAMSEES يقرأ بياناتك فقط ولا يحتاج هذه الصلاحية — " +
-  "أنشئ مفتاحًا بصلاحية القراءة فقط (Enable Reading) مع تعطيل Withdrawals ثم أعد المحاولة.";
-
-/** `restricted` = read-only key (the recommended posture). */
 export function securityModeOf(permissions: ExchangePermissions): SecurityMode {
   return permissions.readOnly ? "restricted" : "unrestricted";
 }

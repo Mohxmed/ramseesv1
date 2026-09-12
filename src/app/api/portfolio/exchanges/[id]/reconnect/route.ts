@@ -23,9 +23,7 @@ import { createCredentials } from "@/server/exchanges/core";
 import {
   routeErrorResponse,
   requireOwnedAccountForRead,
-  keyAllowsWithdrawals,
   securityModeOf,
-  WITHDRAWAL_KEY_REJECTED,
 } from "@/server/portfolio/apiHelpers";
 import { encryptSecret } from "@/server/portfolio/vault";
 import {
@@ -84,12 +82,6 @@ export async function POST(
     if (!test.ok || !test.accountInfo) {
       return NextResponse.json(
         { error: "فشل التحقق من البيانات — حاول مجددًا." },
-        { status: 400 },
-      );
-    }
-    if (keyAllowsWithdrawals(test.accountInfo.permissions)) {
-      return NextResponse.json(
-        { error: WITHDRAWAL_KEY_REJECTED },
         { status: 400 },
       );
     }
