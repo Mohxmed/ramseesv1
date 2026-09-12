@@ -19,6 +19,7 @@ import {
 } from "../lib/versioning";
 import { strategyNumbersService } from "../services/strategy-numbers.service";
 import { useAuth } from "../../auth/hooks/useAuth";
+import { userDataRepository } from "@/lib/data/userDataRepository";
 
 export type StrategyStatus = "loading" | "saved" | "saving" | "error" | "local";
 
@@ -86,11 +87,11 @@ export function useStrategyNumbers() {
     }
     let cancelled = false;
     void Promise.resolve().then(() => setStatus("loading"));
-    strategyNumbersService
-      .list(userId)
+    userDataRepository
+      .getStrategyNumbers(userId, { caller: "useStrategyNumbers" })
       .then((remote) => {
         if (cancelled) return;
-        const merged = remote
+        const merged = (remote.data ?? [])
           .map((s) => hydrate(s))
           .filter((s): s is StrategyNumbers => s != null);
         if (merged.length > 0) setStrategies(merged);
@@ -143,6 +144,9 @@ export function useStrategyNumbers() {
       })
       .catch(() => {
         if (!cancelled) setStatus("error");
+      })
+      .finally(() => {
+        userDataRepository.invalidateStrategyNumbers(userId);
       });
     return () => {
       cancelled = true;

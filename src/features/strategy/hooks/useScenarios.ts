@@ -9,6 +9,7 @@ import {
 } from "../lib/scenario";
 import { scenariosService } from "../services/scenarios.service";
 import { useAuth } from "../../auth/hooks/useAuth";
+import { userDataRepository } from "@/lib/data/userDataRepository";
 
 export type ScenariosStatus = "loading" | "saved" | "saving" | "error" | "local";
 
@@ -55,11 +56,11 @@ export function useScenarios() {
     }
     let cancelled = false;
     void Promise.resolve().then(() => setStatus("loading"));
-    scenariosService
-      .list(userId)
+    userDataRepository
+      .getScenarios(userId, { caller: "useScenarios" })
       .then((remote) => {
         if (cancelled) return;
-        const merged = remote
+        const merged = (remote.data ?? [])
           .map((s) => hydrate(s))
           .filter((s): s is SavedScenario => s != null);
         if (merged.length > 0) setScenarios(merged);
@@ -110,6 +111,9 @@ export function useScenarios() {
       })
       .catch(() => {
         if (!cancelled) setStatus("error");
+      })
+      .finally(() => {
+        userDataRepository.invalidateScenarios(userId);
       });
     return () => {
       cancelled = true;

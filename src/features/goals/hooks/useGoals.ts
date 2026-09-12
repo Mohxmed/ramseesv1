@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { usePortfolio } from "@/features/portfolio/hooks/usePortfolio";
 import { goalsService } from "../services/goals.service";
+import { userDataRepository } from "@/lib/data/userDataRepository";
 import {
   createImportedPlan,
   createInitialData,
@@ -48,7 +49,9 @@ export function useGoals() {
   const { user, loading: authLoading } = useAuth();
   const userId = user?.uid ?? null;
 
-  const { meta: walletMeta, loading: portfolioLoading } = usePortfolio();
+  const { meta: walletMeta, loading: portfolioLoading } = usePortfolio({
+    withTransactions: false,
+  });
 
   // The wallet balance is the single source of truth: the ladder anchors on it
   // (manual: ledger balance; imported: exchange equity) and a cycle completes
@@ -153,7 +156,10 @@ export function useGoals() {
       // plan — loadIssue explains the fallback in a visible banner instead.
       let doc: GoalsDocument | null = null;
       try {
-        doc = await goalsService.getProgress(userId);
+        doc =
+          (await userDataRepository.getGoalsProgress(userId, {
+            caller: "useGoals.load",
+          }))?.data ?? null;
         setLoadIssue(null);
       } catch (e) {
         doc = null;
@@ -185,6 +191,7 @@ export function useGoals() {
           setRawData(rebased);
           if (doc && (rebased !== migrated || doc.perMoveGrowthPercent !== 10)) {
             goalsService.saveProgress(userId, rebased).catch(() => {});
+            userDataRepository.invalidateGoals(userId);
           }
           anchoredRef.current = true;
         } else if (doc) {
@@ -204,6 +211,7 @@ export function useGoals() {
           setRawData(migrated);
           if (doc.perMoveGrowthPercent !== 10) {
             goalsService.saveProgress(userId, migrated).catch(() => {});
+            userDataRepository.invalidateGoals(userId);
           }
           anchoredRef.current = false;
         } else {
@@ -245,6 +253,7 @@ export function useGoals() {
     if (rebased !== migrated) {
       setRawData(rebased);
       goalsService.saveProgress(userId, rebased).catch(() => {});
+      userDataRepository.invalidateGoals(userId);
     }
     anchoredRef.current = true;
   }, [userId, isImported, rawData, walletValue]);
@@ -254,6 +263,7 @@ export function useGoals() {
   useEffect(() => {
     if (!userId || isImported || !data || data === rawData) return;
     goalsService.saveProgress(userId, data).catch(() => {});
+    userDataRepository.invalidateGoals(userId);
   }, [userId, isImported, data, rawData]);
 
   // Auto-open: the freshly completed card pops open when the balance crosses a
@@ -283,6 +293,7 @@ export function useGoals() {
       setRawData(initial);
       anchoredRef.current = walletValue != null;
       await goalsService.saveProgress(userId, initial);
+      userDataRepository.invalidateGoals(userId);
       setSaveState("success");
     } catch {
       setSaveState("error");

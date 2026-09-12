@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/features/auth/hooks/useAuth";
 import { goldenTargetService } from "../services/golden-target.service";
+import { userDataRepository } from "@/lib/data/userDataRepository";
 import {
   createInitialData,
   evaluateCheck,
@@ -36,7 +37,9 @@ export function useGoldenTarget() {
       setLoading(true);
       try {
         const doc: GoldenTargetDocument | null =
-          await goldenTargetService.getProgress(userId);
+          (await userDataRepository.getGoldenTargetProgress(userId, {
+            caller: "useGoldenTarget.load",
+          }))?.data ?? null;
         if (doc) {
           const dataOnly: GoldenTargetData = {
             currentMove: doc.currentMove,
@@ -50,6 +53,7 @@ export function useGoldenTarget() {
           const initial = createInitialData();
           setData(initial);
           await goldenTargetService.saveProgress(userId, initial);
+          userDataRepository.invalidateGoldenTarget(userId);
         }
       } catch {
         setData(null);
@@ -82,6 +86,7 @@ export function useGoldenTarget() {
         setData(next);
         setProjected(null);
         await goldenTargetService.saveProgress(userId, next);
+        userDataRepository.invalidateGoldenTarget(userId);
         setSaveState("success");
       } catch {
         setSaveState("error");
@@ -98,6 +103,7 @@ export function useGoldenTarget() {
       setData(initial);
       setProjected(null);
       await goldenTargetService.saveProgress(userId, initial);
+      userDataRepository.invalidateGoldenTarget(userId);
       setSaveState("success");
     } catch {
       setSaveState("error");

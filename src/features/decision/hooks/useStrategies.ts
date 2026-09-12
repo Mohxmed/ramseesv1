@@ -10,6 +10,7 @@ import {
 } from "../templates";
 import { strategiesService } from "../services/strategies.service";
 import { useAuth } from "../../auth/hooks/useAuth";
+import { userDataRepository } from "@/lib/data/userDataRepository";
 
 export type PersistStatus =
   | "loading"
@@ -107,7 +108,9 @@ export function useStrategies() {
     const fetchRemote = async () => {
       setPersistStatus("loading");
       try {
-        const remote = await strategiesService.list(userId);
+        const remote = (await userDataRepository.getStrategies(userId, {
+          caller: "useStrategies",
+        })).data;
         if (cancelled) return;
         if (remote.length > 0) {
           const merged = remote
@@ -169,6 +172,8 @@ export function useStrategies() {
         if (!cancelled) setPersistStatus("saved");
       } catch {
         if (!cancelled) setPersistStatus("error");
+      } finally {
+        userDataRepository.invalidateStrategies(userId);
       }
     };
     void push();

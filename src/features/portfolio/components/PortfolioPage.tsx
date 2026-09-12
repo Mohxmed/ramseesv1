@@ -16,6 +16,8 @@ import { ImportPortfolioModal } from "./ImportPortfolioModal";
 import { AddTransactionModal } from "./AddTransactionModal";
 import { CreatePortfolioModal } from "./CreatePortfolioModal";
 
+const timeFmt = new Intl.DateTimeFormat("ar-EG", { timeStyle: "medium" });
+
 export function PortfolioPage() {
   const {
     loading,
@@ -29,6 +31,7 @@ export function PortfolioPage() {
     createPortfolio,
     recordTransaction,
     loadOlder,
+    metaFetchedAt,
   } = usePortfolio();
 
   const [addOpen, setAddOpen] = useState(false);
@@ -178,7 +181,10 @@ export function PortfolioPage() {
           key={importFormNonce}
           open={importOpen}
           onClose={() => setImportOpen(false)}
-          onImported={() => setImportOpen(false)}
+          onImported={() => {
+            setImportOpen(false);
+            retry();
+          }}
         />
       </div>
     );
@@ -200,10 +206,15 @@ export function PortfolioPage() {
         right={
           <>
             <Status
-              label={saving ? "جارٍ الحفظ…" : "محدَّث لحظياً"}
+              label={saving ? "جارٍ الحفظ…" : "محدَّث"}
               tone={saving ? "warn" : saveState === "error" ? "down" : "good"}
               pulse={saving}
             />
+            {metaFetchedAt ? (
+              <span className="hidden items-center gap-1 text-2xs font-medium text-muted sm:inline-flex" dir="ltr">
+                آخر تحديث {timeFmt.format(metaFetchedAt)}
+              </span>
+            ) : null}
             <Tooltip title="استيراد محفظة من منصة تداول — تُحذف المحفظة اليدوية الحالية">
               <button
                 type="button"
@@ -290,7 +301,10 @@ export function PortfolioPage() {
         key={importFormNonce}
         open={importOpen}
         onClose={() => setImportOpen(false)}
-        onImported={() => setImportOpen(false)}
+        onImported={() => {
+          setImportOpen(false);
+          retry();
+        }}
         replaceManual
       />
     </div>

@@ -127,7 +127,7 @@ export function CalculatorPage() {
   const store = useStrategyNumbers();
   const scenarios = useScenarios();
   const market = useMarketData();
-  const portfolio = usePortfolio();
+  const portfolio = usePortfolio({ withTransactions: false });
   const livePrice = market.livePrice;
 
   const [accountBalance, setAccountBalance] = useState(INITIAL.accountBalance);
