@@ -46,6 +46,22 @@ export function WalletStatusBanner({
     );
   }
 
+  if (wallet.source === "manual" && wallet.usable) {
+    return (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-card border border-line/70 bg-surface-2/25 px-4 py-3 text-xs text-zinc-300">
+        <span className="inline-flex items-center gap-1.5 font-semibold text-up-fg">
+          <span className="h-1.5 w-1.5 rounded-full bg-up" />
+          الأهداف تُحسب تلقائيًا من رصيد محفظتك اليدوية
+        </span>
+        <span className="text-2xs text-muted">
+          كل دورة = 10% نمو على الرصيد السابق — السلم مرسى على رصيدك الحالي
+          وتُفتتح الدورة تلقائيًا بمجرد نمو الرصيد إلى هدفها. سجّل عملياتك من
+          صفحة المحفظة لتتقدم.
+        </span>
+      </div>
+    );
+  }
+
   if (wallet.source !== "binance") return null;
 
   const typeLabel = wallet.label ?? "المنصة";
