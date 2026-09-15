@@ -15,6 +15,7 @@ const CATEGORY_LABELS: Record<SignalCategory, string> = {
   technical: "مؤشرات",
   risk: "مخاطرة",
   volatility: "التقلب",
+  bias: "الانحياز الخارجي",
 };
 
 const FILTERS: { id: "ALL" | "TRUE" | "FALSE" | "UNKNOWN" | SignalCategory; label: string }[] = [

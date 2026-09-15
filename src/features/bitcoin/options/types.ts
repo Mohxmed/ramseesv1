@@ -13,7 +13,7 @@ export type { DataStatus, MarketSource };
 export type OptionsFresh = {
   timestamp: number; // exchange/observed time (ms)
   receivedAt: number; // local receive time (ms)
-  freshnessMs: number | null; // receivedAt - timestamp
+  freshnessMs: number | null; // age of the observation (nowMs - receivedAt)
   source: MarketSource;
   status: DataStatus;
 };
@@ -52,9 +52,9 @@ export type OptionsExpiry = {
   openInterest: number | null;
   /** Put/Call OI ratio in that expiry. */
   putCallOiRatio: number | null;
-  /** Open-interest weighted ATM mark IV (%). */
+  /** ATM mark IV (%), interpolated at the index price. */
   atmIv: number | null;
-  /** IV skew: OTM-put IV - OTM-call IV (ppt). */
+  /** IV skew: OTM-put IV - OTM-call IV within ±20% moneyness (ppt). */
   skew: number | null;
   /** Max-pain strike for the expiry. */
   maxPainStrike: number | null;
@@ -79,7 +79,7 @@ export type OptionsState = OptionsFresh & {
   atmIv: number | null;
   /** IV term/level change hint: last session's IV - current (ppt) — directional pace. */
   ivChange: number | null;
-  /** 25-delta risk-reversal skew proxy: OTM put IV - OTM call IV (ppt). */
+  /** 25Δ-style skew proxy: OTM put IV - OTM call IV (±20% moneyness), OI-weighted (ppt). */
   skew25: number | null;
   /** Flagship expiry chains (closest liquid expiries). */
   expiries: OptionsExpiry[];

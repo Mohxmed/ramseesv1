@@ -124,19 +124,15 @@ export async function POST(
     await cancelRunningSyncs(uid, id);
 
     // Incremental on purpose: a full re-pull would only re-fetch what the
-    // baseline already covers.
-    const sync = await startBackgroundSync(uid, id, "INCREMENTAL");
-    await setImportedPortfolioConnection(
-      uid,
-      id,
-      sync.inProgress ? "SYNCING" : "CONNECTING",
-    );
-    if (sync.inProgress) {
+    // baseline already covers. The SYNCING markers run on the lock BEFORE the
+    // background job's own final HEALTHY/ERROR write.
+    const sync = await startBackgroundSync(uid, id, "INCREMENTAL", async () => {
+      await setImportedPortfolioConnection(uid, id, "SYNCING");
       await patchAccount(uid, id, {
         status: "SYNCING",
         lastAttemptedSync: Date.now(),
       });
-    }
+    });
 
     return NextResponse.json({
       ok: true,

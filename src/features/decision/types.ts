@@ -20,7 +20,8 @@ export type SignalCategory =
   | "liquidity"
   | "technical"
   | "risk"
-  | "volatility";
+  | "volatility"
+  | "bias";
 
 /** Whether a signal is compared numerically or as a boolean status. */
 export type SignalKind = "numeric" | "boolean";

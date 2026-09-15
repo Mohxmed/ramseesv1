@@ -106,6 +106,12 @@ class RingBuffer<T> {
     if (this.count === 0) return null;
     return this.buf[(this.head - 1 + this.capacity) % this.capacity];
   }
+
+  /** Get the OLDEST retained item (eviction point). */
+  peekOldest(): T | null {
+    if (this.count === 0) return null;
+    return this.buf[((this.head - this.count) % this.capacity + this.capacity) % this.capacity];
+  }
 }
 
 // ─── Default Config ─────────────────────────────────────────────────
@@ -326,7 +332,10 @@ export function ingestTrade(trade: NormalizedTrade): void {
   });
 
   // Price tracking (bounded trim only near the cap — no per-trade re-allocation)
-  priceHistory.push({ time: trade.timestamp, price: trade.price });
+  // Stamped on the LOCAL receipt clock: consumers compare against Date.now()
+  // (price 5s lookback, window deltas); exchange `T` per venue skews by network
+  // latency and would silently shift the windows.
+  priceHistory.push({ time: trade.receivedAt, price: trade.price });
   trimPriceHistory();
 
   // CVD update
@@ -373,7 +382,10 @@ function trimEventRate(): void {
 function checkLargeTrade(trade: NormalizedTrade): void {
   if (trade.notional >= config.largeTradeThreshold) {
     const lt: LargeTrade = {
+      // Exchange print time kept for display/sort; windowing is done on the
+      // local `receivedAt` clock (see largeCountsInWindow).
       timestamp: trade.timestamp,
+      receivedAt: trade.receivedAt,
       exchange: trade.exchange,
       side: trade.side,
       price: trade.price,
@@ -394,7 +406,9 @@ function ingestLiquidation(trade: NormalizedTrade): void {
   } else {
     shortLiqVolume += trade.notional;
   }
-  liqEvents.push({ ts: trade.timestamp, notional: trade.notional, side: trade.side });
+  // Bucketed on the local receipt clock — all liq windows/trims compare against
+  // Date.now(), so storing exchange `T` would skew decay by per-venue latency.
+  liqEvents.push({ ts: trade.receivedAt, notional: trade.notional, side: trade.side });
   // Keep only last 60s of liq events (trim at low cadence, not per event)
   const cutoff = Date.now() - 60_000;
   if (liqEvents.length > 500 && Date.now() - lastLiqTrim > 500) {
@@ -417,6 +431,7 @@ function computeFlowWindows(): FlowWindow[] {
     let buyCount = 0;
     let sellCount = 0;
     let maxNotional = 0;
+    let minTime = Infinity;
 
     for (const t of trades) {
       if (t.side === "buy") {
@@ -427,6 +442,7 @@ function computeFlowWindows(): FlowWindow[] {
         sellCount++;
       }
       if (t.notional > maxNotional) maxNotional = t.notional;
+      if (t.receivedAt < minTime) minTime = t.receivedAt;
     }
 
     const total = buyNotional + sellNotional;
@@ -442,6 +458,10 @@ function computeFlowWindows(): FlowWindow[] {
       avgTradeSize: count > 0 ? total / count : 0,
       largestTrade: maxNotional,
       tradeCount: count,
+      // Honest data span: if the ring lost history (cap) or we just started,
+      // this window represents LESS than its nominal `seconds`. Consumers must
+      // normalize rates over this span, never the nominal window.
+      coveredMs: count > 0 ? now - minTime : 0,
     };
   });
 }
@@ -675,6 +695,11 @@ function computeDataQuality(): DataQuality {
     if (c.reconnectGapMs > 0) reconnectGapTotal += c.reconnectGapMs;
   }
 
+  // REAL history depth in the local ring — the honest ceiling on the longest
+  // requested window, in case the ring (fixed capacity) dropped older trades.
+  const ringOldest = rawTradeRing.peekOldest()?.receivedAt;
+  const ringSpanMs = ringOldest != null ? now - ringOldest : 0;
+
   return {
     level,
     connectedCount: liveCount,
@@ -689,6 +714,7 @@ function computeDataQuality(): DataQuality {
     dataGap,
     overflowCount: overflowCountTotal,
     reconnectGapMs: reconnectGapTotal,
+    ringSpanMs,
   };
 }
 
@@ -1067,13 +1093,15 @@ export function getPressureTimeframe(): number {
   return pressurePrimarySeconds;
 }
 
-/** Large-trade counts over a window (from the session large-trade rings). */
+/** Large-trade counts over a window (from the session large-trade rings).
+ *  Windowing on the LOCAL receipt clock (`receivedAt`) so the cutoff compares
+ *  with Date.now() consistently — never the per-exchange print timestamp. */
 function largeCountsInWindow(seconds: number, now: number): { buys: number; sells: number } {
   const cutoff = now - seconds * 1000;
   let buys = 0;
   let sells = 0;
-  for (const t of largeBuyRing.toArray()) if (t.timestamp >= cutoff) buys++;
-  for (const t of largeSellRing.toArray()) if (t.timestamp >= cutoff) sells++;
+  for (const t of largeBuyRing.toArray()) if (t.receivedAt >= cutoff) buys++;
+  for (const t of largeSellRing.toArray()) if (t.receivedAt >= cutoff) sells++;
   return { buys, sells };
 }
 
@@ -1089,7 +1117,10 @@ function cvdDeltaOver(seconds: number, cvd: number): number | null {
 function buildTfPressure(w: FlowWindow, cvd: number, large: { buys: number; sells: number }, now: number): TfPressure {
   const buyPct = pctOf(w.buyNotional, w.sellNotional);
   const score = scoreOf(buyPct);
-  const secs = Math.max(1, w.seconds);
+  // Rates are normalized over the window's ACTUAL data span, not its nominal
+  // seconds — a partial ring (early session / overflow loss) must not inflate
+  // trades/sec by dividing a short sample over a long headline window.
+  const spanSec = Math.max(w.coveredMs, 1) / 1000;
   return {
     seconds: w.seconds,
     label: tfLabel(w.seconds),
@@ -1102,14 +1133,15 @@ function buildTfPressure(w: FlowWindow, cvd: number, large: { buys: number; sell
     buyVolume: w.buyNotional,
     sellVolume: w.sellNotional,
     tradeCount: w.tradeCount,
-    buyTradesPerSec: w.buyCount / secs,
-    sellTradesPerSec: w.sellCount / secs,
-    tradesPerSec: w.tradeCount / secs,
+    buyTradesPerSec: w.buyCount / spanSec,
+    sellTradesPerSec: w.sellCount / spanSec,
+    tradesPerSec: w.tradeCount / spanSec,
     avgTradeSize: w.avgTradeSize,
     largeBuys: large.buys,
     largeSells: large.sells,
     cvdDelta: cvdDeltaOver(w.seconds, cvd),
     ageMs: now - (rawTradeRing.peekLatest()?.receivedAt ?? now),
+    coveredMs: w.coveredMs,
   };
 }
 

@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import type { ConditionNode, Signal, Strategy, StrategyEvaluation, StrategyType } from "../types";
 import { STRATEGY_TYPES } from "../constants";
 import { useMarketData } from "../../bitcoin/store/market-context";
-import { buildSignals } from "../signals/signalEngine";
+import { useCrossMarketStore } from "@/features/market-influence/store/cross-market-context";
+import { buildSignals, buildDecisionInput } from "../signals/signalEngine";
 import { evaluateFlow } from "../evaluation/evaluate";
 import { StrategyBuilder } from "./StrategyBuilder";
 
@@ -24,45 +25,15 @@ export function LiveStrategyBuilder({
   initialTab?: StrategyType;
 }) {
   const cmd = useMarketData();
+  const externalStore = useCrossMarketStore();
 
   // Stable fallback timestamp (mount time) — no impure Date.now() in render.
   const [mountTs] = useState(() => Date.now());
-  const updatedAt = cmd.marketState?.timestamp ?? cmd.overview?.updatedAt ?? mountTs;
 
   const signals: Signal[] = useMemo(
     () =>
-      buildSignals({
-        overview: cmd.overview,
-        marketState: cmd.marketState,
-        analysis: cmd.analysis30m,
-        structure: cmd.structure,
-        liquidity: cmd.liquidity,
-        forecast: cmd.forecast,
-        prediction: cmd.prediction,
-        indicators: cmd.indicators,
-        orderFlow: cmd.orderFlow,
-        orderBook: cmd.orderBook,
-        futures: cmd.futures,
-        candles: cmd.candles,
-        waves: cmd.waves,
-        updatedAt,
-      }),
-    [
-      cmd.overview,
-      cmd.marketState,
-      cmd.analysis30m,
-      cmd.structure,
-      cmd.liquidity,
-      cmd.forecast,
-      cmd.prediction,
-      cmd.indicators,
-      cmd.orderFlow,
-      cmd.orderBook,
-      cmd.futures,
-      cmd.candles,
-      cmd.waves,
-      updatedAt,
-    ]
+      buildSignals(buildDecisionInput(cmd, mountTs, externalStore.state)),
+    [cmd, externalStore.state, mountTs]
   );
 
   const signalById = useMemo(() => {
@@ -75,6 +46,10 @@ export function LiveStrategyBuilder({
     () => signals.map((s) => ({ id: s.id, status: s.status })),
     [signals]
   );
+
+  // Same freshness anchor the Decision Center uses — Command Center timestamp or
+  // the stable mount fallback. Kept in sync with buildDecisionInput.
+  const updatedAt = cmd.marketState?.timestamp ?? cmd.overview?.updatedAt ?? mountTs;
 
   const evaluation: StrategyEvaluation | null = useMemo(() => {
     if (!strategy.enabled) {

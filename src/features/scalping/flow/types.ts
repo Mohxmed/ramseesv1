@@ -303,6 +303,10 @@ export type FlowWindow = {
   avgTradeSize: number;
   largestTrade: number;
   tradeCount: number;
+  /** Actual span of real data behind this window (ms). ≤ seconds*1000; smaller
+   *  when the ring does not yet (or no longer) retain the full window. Rates
+   *  are normalized over this span, never the nominal window. */
+  coveredMs: number;
 };
 
 // ─── CVD ────────────────────────────────────────────────────────────
@@ -328,6 +332,9 @@ export type FlowVelocity = {
 
 export type LargeTrade = {
   timestamp: number;
+  /** Local receipt clock (engine receive wall-clock). Used for windowing so a
+   *  single consistent clock buckets flows regardless of per-exchange skew. */
+  receivedAt: number;
   exchange: string;
   side: TradeSide;
   price: number;
@@ -408,6 +415,9 @@ export type TfPressure = {
   cvdDelta: number | null;
   /** Milliseconds since the newest trade in the window was received. 0 = none. */
   ageMs: number;
+  /** Actual span of real data behind this window (ms) — < seconds*1000 when the
+   *  ring cannot yet/fully cover the nominal timeframe. */
+  coveredMs: number;
 };
 
 /** Pressure source breakdown — every component is a REAL, sourced value. */
@@ -541,6 +551,9 @@ export type DataQuality = {
   overflowCount: number;
   /** Total estimated outage time across exchanges (ms) that gaps data. */
   reconnectGapMs: number;
+  /** How much real trade history the local ring currently retains (ms) — the
+   *  HONEST coverage available for the longest requested window. */
+  ringSpanMs: number;
 };
 
 // ─── Market Flow State (Single Source of Truth) ─────────────────────

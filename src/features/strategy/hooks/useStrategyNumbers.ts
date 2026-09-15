@@ -324,9 +324,10 @@ export function useStrategyNumbers() {
           if (!wasActive) {
             return { ...s, versions: remaining, updatedAt: Date.now() };
           }
-          const nextActive = [...remaining].sort(
-            (a, b) => b.version.localeCompare(a.version)
-          )[0];
+          // Pick the highest remaining version numerically — not
+          // lexicographically, which would pick "2" over "10".
+          const topLabel = highestVersionLabel(remaining);
+          const nextActive = remaining.find((v) => v.version === topLabel) ?? remaining[0];
           return {
             ...s,
             activeVersionId: nextActive.id,

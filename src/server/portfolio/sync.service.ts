@@ -19,6 +19,7 @@
  */
 
 import { getAdapter } from "../exchanges";
+import { waitUntil } from "@vercel/functions";
 import type { ExchangeBalance, ExchangeCredentials, ExchangeDataWindow, ExchangeOrder, ExchangePosition, AccountType } from "../exchanges/core";
 import { decryptSecret } from "./vault";
 import {
@@ -39,7 +40,7 @@ import {
   idempotentId,
 } from "./portfolioDb";
 import { getPrices } from "./priceProvider";
-import { getTransactions, getTrades } from "./queries";
+import { listAllTransactions, listAllTrades } from "./queries";
 import { buildAccountSnapshot, valuateAccount } from "./engine/portfolio";
 import { baselineAssetsOf, hasBaseline, historyWindowStart, sinceBaseline } from "./engine/baseline";
 import { reconcileAssets, reconcileEquity, type ReconciliationVerdict } from "./reconciliation";
@@ -433,10 +434,12 @@ async function runSync(uid: string, accountId: string, mode: SyncMode, manager: 
   await replaceOpenOrders(uid, account.id, fetched.openOrders.map((o) => ({ ...o, userId: uid })));
 
   /* ── Financials — recomputed from stored rows, baseline-anchored ─────── */
+  // The ENTIRE post-baseline ledger is read (paged, no cap): a bounded read
+  // here silently drifts financials the moment an account passes the cap.
   await recomputeFinancials(
     fin,
-    await getTransactions(uid, account.id, { limit: 1000 }),
-    await getTrades(uid, account.id, { limit: 1000 }),
+    await listAllTransactions(uid, account.id, { fromMs: fin.baselineAt ?? 0 }),
+    await listAllTrades(uid, account.id, { fromMs: fin.baselineAt ?? 0 }),
     account.accountType,
     fin.baselineAt
   );
@@ -576,16 +579,31 @@ async function acquirePersistedLock(uid: string, accountId: string): Promise<Syn
 
 type SyncResult = { status: "STARTED" | "COMPLETED"; summary?: SyncSummary; inProgress: boolean };
 
+/** Synchronously-usable marker any caller may run right AFTER the lock is held. */
+export type SyncStartedCallback = () => Promise<void> | void;
+
 /**
- * Public entry — starts a sync. Waits only long enough to establish the lock;
- * the heavy work continues in the background (never blocking the API layer).
+ * Acquire the lock in three independent layers, then hand back a background
+ * promise. Returns `ok: false` when a run is already active for this account
+ * (by memory or by persisted RUNNING job) — the caller treats that as "already
+ * STARTED", never as an error.
  */
-export async function startBackgroundSync(uid: string, accountId: string, mode: SyncMode = "INCREMENTAL"): Promise<SyncResult> {
+async function launchSync(
+  uid: string,
+  accountId: string,
+  mode: SyncMode,
+  onStarted: SyncStartedCallback
+): Promise<{ ok: boolean; promise?: Promise<SyncSummary> }> {
   const key = `${uid}:${accountId}`;
-  if (LOCKS.has(key)) return { status: "STARTED", inProgress: true };
+  if (LOCKS.has(key)) return { ok: false };
 
   const manager = await acquirePersistedLock(uid, accountId);
-  if (!manager) return { status: "STARTED", inProgress: true };
+  if (!manager) return { ok: false };
+
+  // Called while the lock is held but BEFORE any background work — so the
+  // "SYNCING" marker a route wants is guaranteed to land before the run's own
+  // final HEALTHY/ERROR write, never after it.
+  await onStarted();
 
   const promise = runSync(uid, accountId, mode, manager)
     .catch(async (err: unknown) => {
@@ -622,14 +640,44 @@ export async function startBackgroundSync(uid: string, accountId: string, mode: 
       LOCKS.delete(key);
     });
 
+  // A settled sink — the callers that fire-and-forget must not trigger an
+  // unhandled-rejection warning, while `syncNow` still awaits the raw promise.
   LOCKS.set(key, promise);
-  const summary = await promise;
-  return { status: "COMPLETED", summary, inProgress: false };
+  promise.catch(() => {});
+  return { ok: true, promise };
 }
 
-/** Awaited variant for tests / cron / manual route (still lock-protected). */
+/**
+ * Public entry — starts a sync and returns STARTED IMMEDIATELY, exactly as
+ * the docstrings have always promised: the request never waits on the exchange
+ * or on Firestore. On Vercel `waitUntil` extends the invocation's lifetime for
+ * the background job so it is not torn down when the handler returns; outside
+ * the hosting runtime it is a safe no-op. The UI polls GET /sync until the job
+ * flips to COMPLETED.
+ */
+export async function startBackgroundSync(
+  uid: string,
+  accountId: string,
+  mode: SyncMode = "INCREMENTAL",
+  onStarted: SyncStartedCallback = () => {}
+): Promise<SyncResult> {
+  const { ok, promise } = await launchSync(uid, accountId, mode, onStarted);
+  if (!ok) return { status: "STARTED", inProgress: true };
+  try {
+    waitUntil(promise as Promise<unknown>);
+  } catch {
+    // Host context unavailable (local dev / non-Vercel) — the job still runs
+    // detached in-process; only the platform keep-alive is lost.
+  }
+  return { status: "STARTED", inProgress: true };
+}
+
+/**
+ * Awaited variant for tests / cron — same lock protection, but the caller
+ * blocks on the result. Never used by API routes (they must return instantly).
+ */
 export async function syncNow(uid: string, accountId: string, mode: SyncMode = "INCREMENTAL"): Promise<SyncSummary> {
-  const result = await startBackgroundSync(uid, accountId, mode);
-  if (result.summary) return result.summary;
-  throw new SyncConflictError(accountId);
+  const { ok, promise } = await launchSync(uid, accountId, mode, () => {});
+  if (!ok) throw new SyncConflictError(accountId);
+  return promise as Promise<SyncSummary>;
 }

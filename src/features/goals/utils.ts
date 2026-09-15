@@ -19,23 +19,21 @@ export function calculateProgress(completedMoves: number): number {
   );
 }
 
-export function getNextTarget(
-  currentMove: number,
-  startingValue: number,
-  perMoveGrowthPercent: number
-): number {
-  if (currentMove >= GOALS_CONFIG.TOTAL_CARDS) {
-    return targetForMove(
-      GOALS_CONFIG.TOTAL_CARDS,
-      startingValue,
-      perMoveGrowthPercent
-    );
-  }
-  return targetForMove(
-    currentMove + 1,
-    startingValue,
-    perMoveGrowthPercent
-  );
+/**
+ * The next open target, read from the ACTUAL next card in the ladder.
+ *
+ * This must be read from `data.moves`, never recomputed from `currentMove`
+ * against `startingValue`: after a wallet rebase the card numbers stop lining
+ * up with growth steps (cards 4.. are re-anchored to the wallet as steps 1..),
+ * so `targetForMove(currentMove + 1, startingValue, …)` would jump several
+ * cards ahead. The stored card target always reflects the plan's current
+ * anchor — absolute for a never-rebased plan, re-anchored after a rebase.
+ */
+export function getNextTarget(data: GoalsData): number {
+  const next = data.moves.find((m) => m.move === data.currentMove + 1);
+  if (next) return next.targetValue;
+  const last = data.moves[data.moves.length - 1];
+  return last ? last.targetValue : data.currentValue;
 }
 
 /**

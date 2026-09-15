@@ -244,6 +244,69 @@ describe("aggregation â€” pure helpers", () => {
   });
 });
 
+describe("engine â€” periodic factor wiring (raw.daily)", () => {
+  const DAY = 86_400_000;
+
+  function daily(values: number[]): SeriesPoint[] {
+    const base = NOW - DAY * values.length;
+    return values.map((v, i) => ({ t: base + i * DAY, v }));
+  }
+
+  const liquidityFred: FactorSeriesRaw = {
+    id: "liquidity",
+    ok: true,
+    level: 100,
+    prevDay: 99,
+    unit: "point",
+    provider: "fred",
+    source: "periodic",
+    fetchedAt: NOW,
+    updatedAt: NOW - DAY,
+    series: daily(Array.from({ length: 90 }, (_, i) => 100 + i * 0.05)),
+  };
+
+  it("a FRED factor scores AGAINST BTC daily closes when the daily dataset exists", () => {
+    const r = raw({ liquidity: liquidityFred });
+    r.daily = {
+      fetchedAt: NOW,
+      assets: {},
+      btc: daily(Array.from({ length: 90 }, (_, i) => 60_000 + i * 40)),
+    };
+    const state = buildCrossMarketState(r, NOW);
+    const f = state.factors.liquidity;
+    expect(f.impactScore).not.toBeNull();
+    expect(f.corr["24h"]).not.toBeNull();
+    expect(f.corr["24h"]!).toBeGreaterThan(0.5);
+    // Rising liquidity + rising BTC = expansion is supportive, never mislabeled
+    // "break" just because its intraday windows don't exist by cadence.
+    expect(f.corrStatus).toBe("normal");
+  });
+
+  it("without daily closes the periodic factor stays honestly unscored (5m window cannot align)", () => {
+    const r = raw({ liquidity: liquidityFred });
+    r.daily = undefined;
+    const state = buildCrossMarketState(r, NOW);
+    const f = state.factors.liquidity;
+    expect(f.impactScore).toBeNull();
+    expect(f.corr["24h"]).toBeNull();
+  });
+
+  it("periodic factors never leak into the intraday corr windows they can't support", () => {
+    const r = raw({ m2: { ...liquidityFred, id: "m2" } });
+    r.daily = {
+      fetchedAt: NOW,
+      assets: {},
+      btc: daily(Array.from({ length: 90 }, (_, i) => 60_000 + i * 40)),
+    };
+    const state = buildCrossMarketState(r, NOW);
+    const f = state.factors.m2;
+    expect(f.corr["30m"]).toBeNull();
+    expect(f.corr["1h"]).toBeNull();
+    expect(f.corr["4h"]).toBeNull();
+    expect(f.corr["24h"]).not.toBeNull();
+  });
+});
+
 describe("engine â€” buildCrossMarketState end-to-end", () => {
   it("assembles a full state from raw payloads", () => {
     const state = buildCrossMarketState(raw(), NOW);

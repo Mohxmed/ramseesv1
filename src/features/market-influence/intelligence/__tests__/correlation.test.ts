@@ -90,6 +90,27 @@ describe("correlation", () => {
     expect(corrStatusOf({ "30m": 0.4, "7d": -0.6 })).toBe("flip");
   });
 
+  it("corrStatusOf with periodic cadence ignores missing tactical windows", () => {
+    // A FRED/DefiLlama factor has no intraday windows BY DESIGN — a strong
+    // long-band correlation is a "normal" relationship, never a break/shift.
+    expect(corrStatusOf({ "24h": 0.8, "7d": 0.9 }, { periodicCadence: true })).toBe(
+      "normal"
+    );
+    // Divergence between the two long windows is still honored.
+    expect(corrStatusOf({ "24h": 0.7, "7d": -0.5 }, { periodicCadence: true })).toBe(
+      "flip"
+    );
+    expect(corrStatusOf({ "24h": 0.8, "7d": 0.2 }, { periodicCadence: true })).toBe(
+      "break"
+    );
+    expect(corrStatusOf({ "24h": 0.8, "7d": 0.5 }, { periodicCadence: true })).toBe(
+      "shift"
+    );
+    expect(corrStatusOf({ "24h": null, "7d": null }, { periodicCadence: true })).toBe(
+      "normal"
+    );
+  });
+
   it("corrDaily produces only 24h/7d columns from daily data", () => {
     // 40 consecutive UTC days, intraday BTC closes within the same days.
     const day = 86_400_000;

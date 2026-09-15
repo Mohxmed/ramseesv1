@@ -43,6 +43,7 @@ import {
   deleteManualPortfolio,
   getPortfolioMeta,
   listAccounts,
+  patchAccount,
   syncImportedPortfolioMeta,
 } from "@/server/portfolio/portfolioDb";
 import { startBackgroundSync } from "@/server/portfolio/sync.service";
@@ -206,15 +207,27 @@ export async function POST(req: Request): Promise<Response> {
       await createImportedPortfolioMeta(uid, account);
     }
 
-    const sync = await startBackgroundSync(uid, accountId, "INITIAL");
-    await patchAccountStatus(uid, accountId, sync);
-    if (sync.inProgress && wantPortfolio) {
-      await syncImportedPortfolioMeta(uid, accountId, {
-        status: "SYNCING",
-        financials: account.financials,
-        lastAttemptedSync: Date.now(),
-      });
-    }
+    const sync = await startBackgroundSync(
+      uid,
+      accountId,
+      "INITIAL",
+      async () => {
+        // Runs while the lock is held but BEFORE the background job's own
+        // final write, so SYNCING can never be overwritten/overwritten sideways
+        // by the run's end state (HEALTHY/ERROR).
+        await patchAccount(uid, accountId, {
+          status: "SYNCING",
+          lastAttemptedSync: Date.now(),
+        });
+        if (wantPortfolio) {
+          await syncImportedPortfolioMeta(uid, accountId, {
+            status: "SYNCING",
+            financials: account.financials,
+            lastAttemptedSync: Date.now(),
+          });
+        }
+      }
+    );
 
     return NextResponse.json(
       {
@@ -227,20 +240,5 @@ export async function POST(req: Request): Promise<Response> {
     );
   } catch (err) {
     return routeErrorResponse(err);
-  }
-}
-
-/** Reflect "a sync is running" on the account line so the UI shows SYNCING. */
-async function patchAccountStatus(
-  uid: string,
-  accountId: string,
-  sync: { status: "STARTED" | "COMPLETED"; inProgress: boolean }
-): Promise<void> {
-  const { patchAccount } = await import("@/server/portfolio/portfolioDb");
-  if (sync.inProgress) {
-    await patchAccount(uid, accountId, {
-      status: "SYNCING",
-      lastAttemptedSync: Date.now(),
-    });
   }
 }

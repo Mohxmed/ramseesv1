@@ -9,14 +9,18 @@
  *     there is never a fabricated 0 to "look connected".
  *   - status is derived from real freshness (LIVE / PERIODIC / STALE /
  *     DISCONNECTED / INVALID / UNAVAILABLE).
- *   - Max pain, ATM IV and skew are computed from *actual* per-leg data when
- *     present, else null.
+ *   - ATM IV is interpolated between the strikes bracketing the index price;
+ *     skew only ever averages OTM strikes within a moneyness band; max pain is
+ *     the strike minimizing the chain's total exercise payout — all computed
+ *     from *actual* per-leg data when present, else null.
  */
 
 import type { OptionsRawSnapshot } from "./provider";
 import type { DataStatus, OptionLeg, OptionsExpiry, OptionsState } from "./types";
 
 export const OPTIONS_STALE_MS = 60_000; // no fresh options poll within => STALE
+/** Moneyness band (±) for the OTM-skew calculation. */
+export const SKEW_MONEYNESS_BAND = 0.2;
 
 export type BuildOptionsStateInput = {
   raw: OptionsRawSnapshot;
@@ -27,7 +31,7 @@ export function buildOptionsState(input: BuildOptionsStateInput): OptionsState {
   const { raw, nowMs } = input;
   const legs = raw.legs;
   const receivedAt = raw.receivedAt;
-  const ageMs = Math.max(0, receivedAt - nowMs);
+  const ageMs = Math.max(0, nowMs - receivedAt);
 
   const oiStatus = deriveStatus(legs.some((l) => l.openInterest != null), receivedAt, nowMs);
   const ivStatus = deriveStatus(legs.some((l) => l.markIv != null), receivedAt, nowMs);
@@ -41,21 +45,19 @@ export function buildOptionsState(input: BuildOptionsStateInput): OptionsState {
   }
 
   const expiries: OptionsExpiry[] = [];
-  const putCallOiRatios: number[] = [];
   for (const [expiry, expLegs] of byExpiry) {
     const expOi = sumOi(expLegs);
     const callOi = sumOi(expLegs.filter((l) => l.kind === "call"));
     const putOi = sumOi(expLegs.filter((l) => l.kind === "put"));
     const pcrOi = callOi != null && putOi != null && callOi > 0 ? putOi / callOi : null;
-    if (pcrOi != null) putCallOiRatios.push(pcrOi);
 
     expiries.push({
       expiry,
       label: labelOfExpiry(expiry),
       openInterest: expOi,
       putCallOiRatio: pcrOi,
-      atmIv: oiWeightedAtmIv(expLegs),
-      skew: computeSkew(expLegs),
+      atmIv: computeAtmIv(expLegs, raw.indexPrice),
+      skew: computeSkew(expLegs, raw.indexPrice),
       maxPainStrike: computeMaxPain(expLegs),
       underlyingPrice: raw.indexPrice,
       daysToExpiry: Math.max(0, Math.round((expiry - nowMs) / 86_400_000)),
@@ -72,21 +74,15 @@ export function buildOptionsState(input: BuildOptionsStateInput): OptionsState {
 
   const callVol = raw.callVolume24h;
   const putVol = raw.putVolume24h;
-  const putCallVolumeRatio =
-    callVol != null && putVol != null && callVol > 0 ? putVol / callVol : null;
+  const putCallVolumeRatio = callVol != null && putVol != null && callVol > 0 ? putVol / callVol : null;
 
-  const atmIvList: number[] = [];
-  for (const e of expiries) if (e.atmIv != null) atmIvList.push(e.atmIv as number);
-
-  // ATM IV (open-interest weighted across the covered expiries).
-  const atmIv = atmIvList.length ? oiWeightedAvg(expiries) : null;
+  // Market-wide ATM IV and 25Δ-style skew: OI-weighted across the covered expiries.
+  const atmIv = oiWeightedAvg(expiries, (e) => e.atmIv);
+  const skew25 = oiWeightedAvg(expiries, (e) => e.skew);
 
   // Claimed IV change requires history not present in a single poll; we expose
   // the current level only, so ivChange stays null (honest N/A) rather than 0.
   const ivChange: number | null = null;
-
-  // 25-delta risk-reversal proxy from the pooled option set.
-  const skew25 = computeSkew(legs);
 
   const allLive = oiStatus !== "STALE" && oiStatus !== "DISCONNECTED" && oiStatus !== "INVALID";
 
@@ -138,63 +134,123 @@ function labelOfExpiry(expiry: number): string {
   return `${String(d.getUTCDate()).padStart(2, "0")}${mon}${String(d.getUTCFullYear() % 100).padStart(2, "0")}`;
 }
 
-/**
- * OI-weighted "ATM" IV: weight each leg's IV by 1/(1+|moneyness|) so strikes
- * near the underlying dominate. Without a reliable spot reference we use the
- * pooled legs directly (best-effort).
- */
-function oiWeightedAtmIv(expLegs: OptionLeg[]): number | null {
-  const withIv = expLegs.filter((l) => l.markIv != null);
-  if (!withIv.length) return null;
-  let sum = 0;
-  let w = 0;
-  for (const l of withIv) {
-    sum += l.markIv as number;
-    w += 1;
+/** Per-strike mark IV (mean across the call + put legs at that strike). */
+function ivByStrike(expLegs: OptionLeg[]): Record<number, number> {
+  const acc: Record<number, { sum: number; n: number }> = {};
+  for (const l of expLegs) {
+    if (l.markIv == null) continue;
+    acc[l.strike] ??= { sum: 0, n: 0 };
+    acc[l.strike].sum += l.markIv;
+    acc[l.strike].n += 1;
   }
-  return w > 0 ? sum / w : null;
-}
-
-function oiWeightedAvg(expiries: OptionsExpiry[]): number | null {
-  let sum = 0;
-  let w = 0;
-  for (const e of expiries) {
-    if (e.atmIv == null || e.openInterest == null) continue;
-    const weight = Math.max(1, e.openInterest);
-    sum += (e.atmIv as number) * weight;
-    w += weight;
-  }
-  return w > 0 ? sum / w : null;
+  const out: Record<number, number> = {};
+  for (const k of Object.keys(acc)) out[Number(k)] = acc[Number(k)].sum / acc[Number(k)].n;
+  return out;
 }
 
 /**
- * Skew proxy: mean OTM-put mark IV minus mean OTM-call mark IV, pooled across
- * the supplied legs (positive = puts richer = downside protection demand).
+ * ATM IV: interpolate the mark-IV between the two strikes bracketing the index
+ * price (per-strike IV = mean of call+put mark IV at that strike). Without a
+ * usable index price it falls back to the simple mean across strikes (honest
+ * N/A would be preferable, but the mean is a documented best-effort).
  */
-function computeSkew(legs: OptionLeg[]): number | null {
-  const puts = legs.filter((l) => l.markIv != null);
-  const calls = legs.filter((l) => l.markIv != null);
-  if (!puts.length || !calls.length) return null;
-  const avg = (arr: OptionLeg[]) => arr.reduce((s, l) => s + (l.markIv as number), 0) / arr.length;
-  return avg(puts) - avg(calls);
+function computeAtmIv(expLegs: OptionLeg[], underlyingPrice: number | null): number | null {
+  const byStrike = ivByStrike(expLegs);
+  const strikes = Object.keys(byStrike)
+    .map(Number)
+    .map((s) => ({ strike: s, iv: byStrike[s] }))
+    .sort((a, b) => a.strike - b.strike);
+  if (!strikes.length) return null;
+
+  if (underlyingPrice != null && underlyingPrice > 0) {
+    const s = underlyingPrice;
+    const below = strikes.filter((x) => x.strike <= s);
+    const above = strikes.filter((x) => x.strike >= s);
+    if (below.length && above.length) {
+      const low = below[below.length - 1];
+      const high = above[0];
+      if (low.strike === high.strike) return low.iv;
+      const t = (s - low.strike) / (high.strike - low.strike);
+      return low.iv + (high.iv - low.iv) * t;
+    }
+    if (below.length) return below[below.length - 1].iv;
+    if (above.length) return above[0].iv;
+  }
+
+  return strikes.reduce((sum, x) => sum + x.iv, 0) / strikes.length;
 }
 
-/** Approximate max pain: the strike where the put+call OI crossover is closest. */
+/**
+ * 25Δ-style call/put skew: mean mark IV of OTM puts minus mean mark IV of OTM
+ * calls, restricted to a ±SKEW_MONEYNESS_BAND moneyness window around the index
+ * price (positive = puts richer = downside-protection demand). Requires both an
+ * index price and at least one OTM put + one OTM call with IVs, else null.
+ */
+function computeSkew(legs: OptionLeg[], underlyingPrice: number | null): number | null {
+  if (underlyingPrice == null || underlyingPrice <= 0) return null;
+  const band = SKEW_MONEYNESS_BAND;
+  const putIv: number[] = [];
+  const callIv: number[] = [];
+  for (const l of legs) {
+    if (l.markIv == null) continue;
+    const m = l.strike / underlyingPrice;
+    if (m < 1 && m >= 1 - band) putIv.push(l.markIv); // OTM put (K < S)
+    else if (m > 1 && m <= 1 + band) callIv.push(l.markIv); // OTM call (K > S)
+  }
+  if (!putIv.length || !callIv.length) return null;
+  const mean = (a: number[]) => a.reduce((s, x) => s + x, 0) / a.length;
+  return mean(putIv) - mean(callIv);
+}
+
+/**
+ * Max pain: the strike that minimizes the total exercise payout across the
+ * chain at expiration —
+ *   cost(K) = Σ_i [ putOi_i · max(S_i − K, 0) + callOi_i · max(K − S_i, 0) ]
+ * over every listed strike (calls below K pay K−S, puts above K pay S−K; the
+ * strike's own legs are worth zero at settlement). Ties break to the lower
+ * strike. Null when no leg carries open interest.
+ */
 function computeMaxPain(expLegs: OptionLeg[]): number | null {
-  const strikes = Array.from(new Set(expLegs.map((l) => l.strike))).sort((a, b) => a - b);
-  if (strikes.length === 0) return null;
-  let best = strikes[0];
-  let bestDist = Infinity;
-  for (const s of strikes) {
-    const callAt = expLegs.find((l) => l.strike === s && l.kind === "call");
-    const putAt = expLegs.find((l) => l.strike === s && l.kind === "put");
-    const cOi = callAt?.openInterest ?? 0;
-    const pOi = putAt?.openInterest ?? 0;
-    const dist = Math.abs(cOi - pOi);
-    if (dist < bestDist) {
-      bestDist = dist;
-      best = s;
+  const oiAt = new Map<number, { call: number; put: number }>();
+  for (const l of expLegs) {
+    if (l.openInterest == null) continue;
+    const cur = oiAt.get(l.strike) ?? { call: 0, put: 0 };
+    if (l.kind === "call") cur.call += l.openInterest;
+    else cur.put += l.openInterest;
+    oiAt.set(l.strike, cur);
+  }
+  const list = Array.from(oiAt.entries()).sort((a, b) => a[0] - b[0]);
+  if (!list.length) return null;
+
+  let best = list[0][0];
+  let bestCost = Infinity;
+  for (const [k] of list) {
+    let cost = 0;
+    for (const [s, oi] of list) {
+      if (s < k) cost += oi.call * (k - s);
+      else if (s > k) cost += oi.put * (s - k);
+    }
+    if (cost < bestCost) {
+      bestCost = cost;
+      best = k;
     }
   }
   return best;
+}
+
+/** OI-weighted average of a per-expiry metric (≥1 OI floor for stability). */
+function oiWeightedAvg(
+  expiries: OptionsExpiry[],
+  pick: (e: OptionsExpiry) => number | null
+): number | null {
+  let sum = 0;
+  let w = 0;
+  for (const e of expiries) {
+    const v = pick(e);
+    if (v == null || e.openInterest == null) continue;
+    const weight = Math.max(1, e.openInterest);
+    sum += v * weight;
+    w += weight;
+  }
+  return w > 0 ? sum / w : null;
 }

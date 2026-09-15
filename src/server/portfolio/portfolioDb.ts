@@ -380,6 +380,22 @@ export async function getSnapshots(uid: string, accountId: string, opts: { fromM
   return snap.docs.map((d) => d.data() as StoredSnapshot);
 }
 
+/**
+ * The single most recent snapshot for an account. Distinct from
+ * `getSnapshots` because THAT query is ascending and capped: beyond the cap
+ * its last element is only "newest of the oldest N", not the latest snapshot —
+ * a separate HEAD query avoids that drift.
+ */
+export async function getLatestSnapshot(uid: string, accountId: string): Promise<StoredSnapshot | null> {
+  const snap = await snapshots(uid)
+    .orderBy("timestamp", "desc")
+    .where("accountId", "==", accountId)
+    .limit(1)
+    .get();
+  if (snap.empty) return null;
+  return snap.docs[0].data() as StoredSnapshot;
+}
+
 /* ─── Reconciliation ──────────────────────────────────────────────── */
 
 export async function writeReconciliationEvent(uid: string, event: Omit<ReconciliationEvent, "id">): Promise<string> {
@@ -433,11 +449,35 @@ export async function finishSyncJob(
   } as FirebaseFirestore.UpdateData<SyncJob>);
 }
 
-/** Read the running sync for an account — the lock check. */
+/**
+ * How long a RUNNING sync job may legitimately live. Event-loop crashes and
+ * platform timeouts kill a sync AFTER its lock was persisted; without expiry
+ * that job would block the account forever (every later refresh replies
+ * "already in progress"). Far above any live request window, so a genuinely
+ * running sync is never cancelled by a concurrent invocation.
+ */
+export const SYNC_JOB_MAX_RUNNING_MS = 60 * 60 * 1000; // 60 min
+
+/**
+ * Read the running sync for an account — the lock check. A RUNNING job older
+ * than `SYNC_JOB_MAX_RUNNING_MS` is evidence its process is gone: it is
+ * re-marked FAILED (STALE_LOCK) so the account can sync again, and null is
+ * returned so the caller proceeds as if unlocked.
+ */
 export async function getRunningSync(uid: string, accountId: string): Promise<SyncJob | null> {
   const snap = await syncJobs(uid).where("accountId", "==", accountId).where("status", "==", "RUNNING").limit(1).get();
   if (snap.empty) return null;
-  return { id: snap.docs[0].id, ...(snap.docs[0].data() as Omit<SyncJob, "id">) };
+  const doc = snap.docs[0];
+  const job = doc.data() as Omit<SyncJob, "id">;
+  if (job.startedAt != null && Date.now() - job.startedAt > SYNC_JOB_MAX_RUNNING_MS) {
+    await doc.ref.update({
+      status: "FAILED" as SyncJobStatus,
+      finishedAt: Date.now(),
+      errors: [{ kind: "LOCK", code: "STALE_LOCK", message: "sync abandoned by a dead process; lock expired" }],
+    });
+    return null;
+  }
+  return { id: doc.id, ...job };
 }
 
 /**

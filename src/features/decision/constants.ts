@@ -26,6 +26,7 @@ export const SIGNAL_THRESHOLDS: Record<string, number> = {
   rsiOversold: 30,
   rsiOverbought: 70,
   volumeConfirmRatio: 0.52, // taker buy ratio threshold for volume confirmation
+  externalBiasScore: 10, // |cross-market score| boundary for bullish/bearish bias
 };
 
 /** Tooltip/explainer for the tri-state. */

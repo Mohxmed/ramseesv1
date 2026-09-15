@@ -119,12 +119,20 @@ export function useBitcoinPipeline() {
   const liveFeed = useLiveFeed();
   // Mirror the live payload into refs so the REST fetch does not re-create its
   // effect (and interval) whenever the WebSocket emits a tick. Synced after
-  // every render so the values always reflect the latest committed frame.
+  // every render so the values always reflect the latest committed frame —
+  // WITHOUT these, the long-lived fast/slow callbacks would read the liveFeed
+  // object from the single render that created them (stale forever).
   const liveFlowRef = useRef<OrderFlowData | null>(null);
   const liveBookRef = useRef<{ bestBid: number; bestAsk: number } | null>(null);
+  const futuresLiveRef = useRef(false);
+  const futuresStaleRef = useRef(false);
+  const liqEventsLocalRef = useRef(liveFeed.liqEventsRef.current);
   useEffect(() => {
     liveFlowRef.current = liveFeed.orderFlow;
     liveBookRef.current = liveFeed.bookTicker;
+    futuresLiveRef.current = liveFeed.futuresLive;
+    futuresStaleRef.current = liveFeed.futuresStale;
+    liqEventsLocalRef.current = liveFeed.liqEventsRef.current;
   });
 
   // Overlay the WebSocket spot price onto the canonical overview so the instant
@@ -175,10 +183,6 @@ export function useBitcoinPipeline() {
 
   const loadIndicators = useCallback((chartSeries: BtcCandle[]) => {
     if (chartSeries.length >= 2) setIndicators(computeIndicators(chartSeries));
-  }, []);
-
-  const loadAnalysis30m = useCallback((kLines: BtcCandle[]) => {
-    setAnalysis30m(analyzeSupportResistance(kLines));
   }, []);
 
   // Fast tier: refresh only the live, lightweight Binance endpoints (~5s).
@@ -282,7 +286,7 @@ export function useBitcoinPipeline() {
       prevPriceRef.current = spot.price;
 
       const pos = posRawRef.current;
-      const flow = liveFeed.orderFlow;
+      const flow = liveFlowRef.current;
       const nextFuturesState = buildFuturesState({
         nowMs: Date.now(),
         receivedAt: Date.now(),
@@ -290,8 +294,8 @@ export function useBitcoinPipeline() {
         oiSamples: oiSamplesRef.current,
         markPrice: effectiveMark,
         spotPrice: spot.price,
-        futuresWsLive: liveFeed.futuresLive,
-        futuresWsStale: liveFeed.futuresStale,
+        futuresWsLive: futuresLiveRef.current,
+        futuresWsStale: futuresStaleRef.current,
         positioning: {
           globalLongShortRatio: pos?.globalLongShortRatio ?? null,
           topLongShortRatio: pos?.topLongShortRatio ?? null,
@@ -300,11 +304,14 @@ export function useBitcoinPipeline() {
           futuresVolume: pos?.futuresVolume ?? null,
           time: pos?.time ?? Date.now(),
         },
-        liqEvents: liveFeed.liqEventsRef.current,
+        liqEvents: liqEventsLocalRef.current,
         priceMovePct,
         oiMovePct30: null,
         flow,
-        book: orderBook,
+        // Use the book freshly built by THIS fetch — reading the `orderBook`
+        // state here would (a) lag this fetch and (b) force `fetchFast` to
+        // recreate on every depth update, which restarts both polling loops.
+        book,
         flowDelta: flow ? flow.buySellDelta : null,
         futuresVolume: pos?.futuresVolume ?? null,
       });
@@ -318,7 +325,7 @@ export function useBitcoinPipeline() {
     } finally {
       busyRef.current = false;
     }
-  }, [timeframe, loadIndicators, orderBook]);
+  }, [timeframe, loadIndicators]);
 
   const fetchSlow = useCallback(async () => {
     if (busyRef.current) return;
@@ -332,8 +339,12 @@ export function useBitcoinPipeline() {
       const spot = normalizeSpotTicker(rawTicker);
       const all1m = normalizeKlines(rawKlines);
       const all30m = normalizeKlines(rawKlines30m);
+      // Compute S/R from the fresh 30m bars so analyzeLiquidity below reads the
+      // CURRENT zones — reading the `analysis30m` state inside this same
+      // callback would be a stale closure from the previous fetch.
+      const sr30m = analyzeSupportResistance(all30m);
+      setAnalysis30m(sr30m);
       setCandles(all1m);
-      loadAnalysis30m(all30m);
 
       const tfResults = await Promise.all(
         MULTI_TFS.map((tf) =>
@@ -458,7 +469,7 @@ export function useBitcoinPipeline() {
 
       const liq = analyzeLiquidity({
         candles: all30m,
-        srZones: analysis30m?.zones ?? [],
+        srZones: sr30m?.zones ?? [],
         orderBook: book,
         orderFlow: effectiveFlow,
         futures: futuresCtx,
@@ -516,7 +527,7 @@ export function useBitcoinPipeline() {
     } finally {
       busyRef.current = false;
     }
-  }, [timeframe, loadIndicators, loadPrediction, loadAnalysis30m]);
+  }, [timeframe, loadIndicators, loadPrediction]);
 
   useEffect(() => {
     // Initial load: pull the full snapshot, then keep the live tiers going.

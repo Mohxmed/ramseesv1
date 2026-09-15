@@ -25,13 +25,17 @@ export type MarketRegime =
   | "STRONG_DOWNTREND"
   | "LIQUIDATION_CASCADE";
 
+/** Directional read of a driver. `"up"`/`"down"` vote into regime confidence
+ *  agreement; `"neutral"` (e.g. a pure volatility read) never votes. */
+export type DriverDirection = "up" | "down" | "neutral";
+
 /** Regime classification result with a confidence (0..100). */
 export type RegimeResult = {
   regime: MarketRegime;
   /** 0..100 how confident the classifier is in the chosen regime. */
   confidence: number;
   /** Driver scores that fed the decision (for explainability). */
-  drivers: { key: string; label: string; score: number; direction: string }[];
+  drivers: { key: string; label: string; score: number; direction: DriverDirection }[];
 };
 
 /** Human Arabic labels for each regime (UI only). */
@@ -77,7 +81,7 @@ export function classifyRegime(ctx: MarketStateSnapshot): RegimeResult {
   const taker = ctx.takerBuyRatio ?? null;
 
   const drivers: RegimeResult["drivers"] = [];
-  const push = (key: string, label: string, score: number, direction: string) =>
+  const push = (key: string, label: string, score: number, direction: DriverDirection) =>
     drivers.push({ key, label, score, direction });
 
   const volHigh = volZ != null && volZ > T.highVolZ;
@@ -87,15 +91,20 @@ export function classifyRegime(ctx: MarketStateSnapshot): RegimeResult {
   const extremeSellFlow =
     (flowRatio != null && flowRatio < 0.35) || (taker != null && taker < 0.4);
 
-  push("vol", "التقلب", volZ ?? 0, volHigh ? "مرتفع" : volLow ? "منخفض" : "وسط");
-  push("trend5", "زخم 5ث", short ?? 0, (short ?? 0) >= 0 ? "صاعد" : "هابط");
+  // Volatility is a magnitude read, never a direction — it must not vote in the
+  // directional agreement metric below.
+  push("vol", "التقلب", volZ ?? 0, "neutral");
+  push("trend5", "زخم 5ث", short ?? 0, (short ?? 0) >= 0 ? "up" : "down");
   push(
     "trendLong",
     "الزخم الطويل",
     trend?.returnZ ?? 0,
-    (trend?.returnZ ?? 0) >= 0 ? "صاعد" : "هابط"
+    (trend?.returnZ ?? 0) >= 0 ? "up" : "down"
   );
-  push("flow", "تدفق", taker ?? 0.5, (taker ?? 0.5) >= 0.5 ? "شراء" : "بيع");
+  // Taker flow direction IS directional. (Prior code labelled this "شراء"/"بيع"
+  // which never matched the "صاعد"/"هابط" agreement filter, silently excluding
+  // the flow driver from confidence. Now it votes like any other driver.)
+  push("flow", "تدفق", taker ?? 0.5, (taker ?? 0.5) >= 0.5 ? "up" : "down");
 
   const regime: MarketRegime = (() => {
     // Liquidation cascade is the most defensive: falling price + extreme
@@ -131,10 +140,12 @@ export function classifyRegime(ctx: MarketStateSnapshot): RegimeResult {
 
   // Confidence: how decisive the drivers are. More agreement in the same
   // direction => higher confidence; high volatility reduces directional trust.
+  // Direction is a typed enum (never locale/string-typed) so every directional
+  // driver participates; values now live with the data, not in Arabic labels.
   let conf = 45;
   const dirScores = drivers
-    .filter((d) => d.direction === "صاعد" || d.direction === "هابط")
-    .map((d) => (d.direction === "صاعد" ? 1 : -1));
+    .filter((d) => d.direction !== "neutral")
+    .map((d) => (d.direction === "up" ? 1 : -1));
   const agreement =
     dirScores.length > 0
       ? Math.abs(dirScores.reduce((a, b) => a + b, 0)) / dirScores.length

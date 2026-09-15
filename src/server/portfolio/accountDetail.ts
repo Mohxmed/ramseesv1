@@ -12,6 +12,7 @@
 
 import {
   getBalances,
+  getLatestSnapshot,
   getRunningSync,
   getSnapshots,
   listReconciliationEvents,
@@ -28,13 +29,14 @@ export async function buildAccountDetailBody(
   const limit = Number.isFinite(opts.limit) ? Math.min(Math.max(Math.floor(opts.limit ?? 50), 1), 500) : 50;
   const since = account.financials?.baselineAt ?? null;
 
-  const [balances, positions, openOrders, allTransactions, allTrades, running, allSnapshots, recon] = await Promise.all([
+  const [balances, positions, openOrders, allTransactions, allTrades, running, latestSnapshot, allSnapshots, recon] = await Promise.all([
     getBalances(uid, account.id),
     getPositions(uid, account.id),
     getOpenOrders(uid, account.id),
     getTransactions(uid, account.id, { limit }),
     getTrades(uid, account.id, { limit }),
     getRunningSync(uid, account.id),
+    getLatestSnapshot(uid, account.id),
     getSnapshots(uid, account.id, { limit }),
     listReconciliationEvents(uid, account.id, 10),
   ]);
@@ -43,7 +45,7 @@ export async function buildAccountDetailBody(
   const trades = sinceBaseline(allTrades, since);
   const snapshots = sinceBaseline(allSnapshots, since);
 
-  const latest = snapshots[snapshots.length - 1] ?? null;
+  const latest = latestSnapshot;
   return {
     account,
     balances: balances.map((b) => ({

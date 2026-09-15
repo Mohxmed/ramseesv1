@@ -12,6 +12,7 @@ export const CATEGORY_LABELS: Record<string, string> = {
   technical: "مؤشرات",
   risk: "مخاطرة",
   volatility: "التقلب",
+  bias: "الانحياز الخارجي",
 };
 
 /**

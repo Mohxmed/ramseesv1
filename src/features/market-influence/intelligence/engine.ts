@@ -121,7 +121,16 @@ export function buildCrossMarketState(
       nowMs,
       marketStatus,
     });
-    const stats = scoreFactor(def, series, btc ?? [], {
+    // Adaptive correlation reference: intraday factors align against the 5m
+    // BTC grid; PERIODIC (FRED / DefiLlama) factors correlate against BTC
+    // DAILY closes. `raw.daily.btc` (~200 1-day bars) is the honest reference —
+    // the 5m series spans only ~5 days, which collapses to ~5 daily closes and
+    // starves corrDaily (needs >= 9 pairs) so periodic factors NEVER scored.
+    const btcRef: SeriesPoint[] =
+      def.provider === "fred" || def.provider === "defillama"
+        ? (raw.daily?.btc ?? btc ?? [])
+        : (btc ?? []);
+    const stats = scoreFactor(def, series, btcRef, {
       nowMs,
       updatedAt: ts,
       marketTimestamp: entry.updatedAt,

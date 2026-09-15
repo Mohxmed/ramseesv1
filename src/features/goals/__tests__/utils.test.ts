@@ -7,6 +7,7 @@ import {
   advanceToWallet,
   rebaseToWallet,
   forceFixedGrowth,
+  getNextTarget,
 } from "../utils";
 import { GOALS_CONFIG, targetForMove } from "../constants";
 
@@ -237,5 +238,32 @@ describe("rebaseToWallet", () => {
     const data = createInitialData(1000);
     const done = advanceToWallet(data, targetForMove(30, 1000, PCT));
     expect(rebaseToWallet(done, 9999999)).toBe(done);
+  });
+});
+
+describe("getNextTarget", () => {
+  it("is one growth step above the current card on a never-rebased ladder", () => {
+    const data = createInitialData(1000);
+    expect(getNextTarget(data)).toBeCloseTo(targetForMove(2, 1000, PCT), 6);
+  });
+
+  it("follows the re-anchored ladder, NOT the absolute card number, after a rebase", () => {
+    let data = createInitialData(1000);
+    data = advanceToWallet(data, targetForMove(3, 1000, PCT)); // 3 completed
+    const wallet = 9000;
+    const rebased = rebaseToWallet(data, wallet);
+
+    expect(rebased.currentMove).toBe(4);
+    // Card 5 was re-anchored to step 2 of the wallet (9000×1.1²), while
+    // 9000×1.1⁵ (the old absolute-card formula) would skip 3 steps too far.
+    expect(getNextTarget(rebased)).toBeCloseTo(targetForMove(2, wallet, PCT), 6);
+    expect(getNextTarget(rebased)).toBeCloseTo(rebased.moves[4].targetValue, 6);
+  });
+
+  it("falls back to the top card when the ladder is exhausted", () => {
+    const data = createInitialData(1000);
+    const done = advanceToWallet(data, targetForMove(30, 1000, PCT));
+    expect(getNextTarget(done)).toBeCloseTo(targetForMove(30, 1000, PCT), 6);
+    expect(getNextTarget(done)).toBe(done.moves[29].targetValue);
   });
 });

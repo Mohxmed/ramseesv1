@@ -20,11 +20,12 @@
 import { gunzipSync } from "node:zlib";
 import WebSocket from "ws";
 import { experimental_upgradeWebSocket } from "@vercel/functions";
+import { htxUpstreamUrl } from "@/server/env";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const HTX_UPSTREAM = process.env.HTX_UPSTREAM_URL || "wss://api.huobi.pro/ws";
+const HTX_UPSTREAM = htxUpstreamUrl();
 
 /** Convert an inbound ws RawData into a Buffer (handles Buffer/text/ArrayBuffer/view/array). */
 function toBuffer(data: unknown): Buffer {

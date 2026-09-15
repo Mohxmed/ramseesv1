@@ -119,12 +119,36 @@ export function corrStability(
  * Detects when the short-horizon relationship has diverged from the long-run
  * one. Uses the earlier "1h"-ish lookback as the tactical read and the
  * "24h/7d" band as the structural read.
+ *
+ * `periodicCadence`: the factor is inherently slow (FRED/DefiLlama) so its
+ * intraday windows are missing BY DESIGN, not because the relationship broke.
+ * In that mode a missing tactical read is never evidence of divergence — the
+ * long band alone carries no comparative "break" signal.
  */
 export function corrStatusOf(
-  corr: CorrByWindow
+  corr: CorrByWindow,
+  opts?: { periodicCadence?: boolean }
 ): CorrStatus {
   const short = corr["1h"] ?? corr["30m"] ?? null;
   const long = corr["7d"] ?? corr["24h"] ?? null;
+
+  if (opts?.periodicCadence) {
+    // Both long windows are present by cadence (24h = "tactical long", 7d =
+    // "structural long"); the missing intraday band is never evidence of a
+    // broken relationship.
+    const shortLong = corr["24h"] ?? null;
+    const longLong = corr["7d"] ?? null;
+    if (shortLong != null && longLong != null) {
+      const both = (v: number) => Math.abs(v) >= 0.15;
+      if (both(shortLong) && both(longLong) && Math.sign(shortLong) !== Math.sign(longLong)) {
+        return "flip";
+      }
+      const diff = Math.abs(shortLong - longLong);
+      if (diff >= 0.5) return "break";
+      if (diff >= 0.25) return "shift";
+    }
+    return "normal";
+  }
 
   if (short == null && long != null) {
     return Math.abs(long) >= 0.5 ? "break" : "normal";

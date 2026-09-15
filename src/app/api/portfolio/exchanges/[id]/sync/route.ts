@@ -11,7 +11,7 @@
 import { NextResponse } from "next/server";
 import { authenticateRequest } from "@/server/auth";
 import { routeErrorResponse, requireOwnedAccount } from "@/server/portfolio/apiHelpers";
-import { getRunningSync, getSnapshots, syncImportedPortfolioMeta } from "@/server/portfolio/portfolioDb";
+import { getRunningSync, getLatestSnapshot, syncImportedPortfolioMeta } from "@/server/portfolio/portfolioDb";
 import { startBackgroundSync } from "@/server/portfolio/sync.service";
 
 export const runtime = "nodejs";
@@ -29,7 +29,7 @@ export async function GET(
 
     const [running, snapshot] = await Promise.all([
       getRunningSync(uid, id),
-      getSnapshots(uid, id, { limit: 1 }),
+      getLatestSnapshot(uid, id),
     ]);
 
     return NextResponse.json({
@@ -42,7 +42,7 @@ export async function GET(
       lastError: account.lastError,
       lastErrorAt: account.lastErrorAt,
       financials: account.financials,
-      latestSnapshot: snapshot[0] ?? null,
+      latestSnapshot: snapshot,
       checkedAt: Date.now(),
     });
   } catch (err) {

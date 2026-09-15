@@ -13,16 +13,10 @@ function sma(values: number[], period: number): (number | null)[] {
 
 function ema(values: number[], period: number): (number | null)[] {
   const out: (number | null)[] = new Array(values.length).fill(null);
+  if (values.length === 0) return out;
   const k = 2 / (period + 1);
-  let prev = 0;
-  let seeded = false;
-  for (let i = 0; i < values.length; i++) {
-    if (!seeded) {
-      prev = values[0];
-      seeded = true;
-      out[i] = prev;
-      continue;
-    }
+  let prev = values[0];
+  for (let i = 1; i < values.length; i++) {
     prev = values[i] * k + prev * (1 - k);
     if (i >= period - 1) out[i] = prev;
   }
@@ -70,11 +64,23 @@ function macd(
   const macdLine: (number | null)[] = values.map((_, i) =>
     emaFast[i] != null && emaSlow[i] != null ? emaFast[i]! - emaSlow[i]! : null
   );
-  const validMacd = macdLine.map((v) => (v != null ? v : 0));
-  const signalLine = ema(validMacd.map((v) => (v as number)), signal);
-  const hist: (number | null)[] = macdLine.map((v, i) =>
-    v != null && signalLine[i] != null ? (v as number) - (signalLine[i] as number) : null
-  );
+  // The signal EMA is computed ONLY over the valid MACD window â€” warmup bars
+  // must stay null, never zero-filled, or the pre-warmup zeros would crawl
+  // into the signal line and fabricate crosses long after enough input exists.
+  const signalLine: (number | null)[] = new Array(values.length).fill(null);
+  const hist: (number | null)[] = new Array(values.length).fill(null);
+  const firstValid = macdLine.findIndex((v) => v != null);
+  if (firstValid >= 0) {
+    const valid = macdLine.slice(firstValid).map((v) => v as number);
+    const signalSub = ema(valid, signal);
+    for (let i = 0; i < signalSub.length; i++) {
+      const idx = firstValid + i;
+      if (signalSub[i] != null) signalLine[idx] = signalSub[i];
+      if (macdLine[idx] != null && signalLine[idx] != null) {
+        hist[idx] = macdLine[idx]! - signalLine[idx]!;
+      }
+    }
+  }
   return { macd: macdLine, signal: signalLine, hist };
 }
 
@@ -150,11 +156,11 @@ function signal(value: number | null, bull: number, bear: number): IndicatorValu
 }
 
 /**
- * Canonical indicator series for a candle set — the single source every
+ * Canonical indicator series for a candle set â€” the single source every
  * consumer (indicators summary, market state, chart overlays) computes against
  * so primitives are never re-derived in different ways.
  *
- * All series are aligned to `candles` (index i ↔ candle i; null before warmup).
+ * All series are aligned to `candles` (index i â†” candle i; null before warmup).
  */
 export function indicatorSeries(candles: BtcCandle[]) {
   const closes = candles.map((c) => c.close);
@@ -223,9 +229,15 @@ export function computeIndicators(candles: BtcCandle[]): TechnicalIndicators {
 
   const macdHistSignal = histVal != null ? signal(histVal, 0, 0) : "neutral";
 
+  // Price vs a moving line. A null line means the series is still warming up â€”
+  // emitting "bearish" there would FABRICATE a bearish signal on (e.g.) a
+  // fresh chart whose SMA200 literally does not exist yet.
+  const priceVsLine = (line: number | null): IndicatorValue["signal"] =>
+    line == null ? "neutral" : lastClose >= line ? "bullish" : "bearish";
+
   return {
     rsi: {
-      label: "مؤشر القوة النسبية (RSI)",
+      label: "ظ…ط¤ط´ط± ط§ظ„ظ‚ظˆط© ط§ظ„ظ†ط³ط¨ظٹط© (RSI)",
       value: rsiVal,
       signal: rsiVal != null ? (rsiVal > 70 ? "bearish" : rsiVal < 30 ? "bullish" : "neutral") : "neutral",
     },
@@ -237,35 +249,35 @@ export function computeIndicators(candles: BtcCandle[]): TechnicalIndicators {
     ema9: {
       label: "EMA 9",
       value: ema9,
-      signal: lastClose >= (ema9 ?? Infinity) ? "bullish" : "bearish",
+      signal: priceVsLine(ema9),
     },
     ema21: {
       label: "EMA 21",
       value: ema21,
-      signal: lastClose >= (ema21 ?? Infinity) ? "bullish" : "bearish",
+      signal: priceVsLine(ema21),
     },
     ema50: {
       label: "EMA 50",
       value: ema50,
-      signal: lastClose >= (ema50 ?? Infinity) ? "bullish" : "bearish",
+      signal: priceVsLine(ema50),
     },
     sma20: {
       label: "SMA 20",
       value: sma20,
-      signal: lastClose >= (sma20 ?? Infinity) ? "bullish" : "bearish",
+      signal: priceVsLine(sma20),
     },
     sma50: {
       label: "SMA 50",
       value: sma50,
-      signal: lastClose >= (sma50 ?? Infinity) ? "bullish" : "bearish",
+      signal: priceVsLine(sma50),
     },
     sma200: {
       label: "SMA 200",
       value: sma200,
-      signal: lastClose >= (sma200 ?? Infinity) ? "bullish" : "bearish",
+      signal: priceVsLine(sma200),
     },
     bollingerUpper: {
-      label: "بولينجر العلوي",
+      label: "ط¨ظˆظ„ظٹظ†ط¬ط± ط§ظ„ط¹ظ„ظˆظٹ",
       value: bUpper,
       signal:
         bUpper != null && lastClose > bUpper
@@ -275,12 +287,12 @@ export function computeIndicators(candles: BtcCandle[]): TechnicalIndicators {
           : "neutral",
     },
     bollingerMiddle: {
-      label: "بولينجر الأوسط",
+      label: "ط¨ظˆظ„ظٹظ†ط¬ط± ط§ظ„ط£ظˆط³ط·",
       value: bMid,
-      signal: lastClose >= (bMid ?? Infinity) ? "bullish" : "bearish",
+      signal: priceVsLine(bMid),
     },
     bollingerLower: {
-      label: "بولينجر السفلي",
+      label: "ط¨ظˆظ„ظٹظ†ط¬ط± ط§ظ„ط³ظپظ„ظٹ",
       value: bLower,
       signal:
         bLower != null && lastClose < bLower
@@ -297,15 +309,15 @@ export function computeIndicators(candles: BtcCandle[]): TechnicalIndicators {
     vwap: {
       label: "VWAP",
       value: vwapVal,
-      signal: lastClose >= (vwapVal ?? Infinity) ? "bullish" : "bearish",
+      signal: priceVsLine(vwapVal),
     },
     momentum: {
-      label: "الزخم (20)",
+      label: "ط§ظ„ط²ط®ظ… (20)",
       value: momentumVal,
       signal: signal(momentumVal, 0, 0),
     },
     volatility: {
-      label: "التقلب (نسبة التذبذب)",
+      label: "ط§ظ„طھظ‚ظ„ط¨ (ظ†ط³ط¨ط© ط§ظ„طھط°ط¨ط°ط¨)",
       value: volatilityVal,
       signal: signal(volatilityVal, 3, 0.75),
     },

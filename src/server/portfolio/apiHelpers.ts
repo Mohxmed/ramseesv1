@@ -51,7 +51,9 @@ export function routeErrorResponse(err: unknown): NextResponse {
   }
   const msg = err instanceof Error ? err.message : "internal error";
   console.error("[portfolio-api] unhandled error:", msg);
-  return NextResponse.json({ error: "حدث خطأ غير متوقع.", detail: msg }, { status: 500 });
+  // The raw message never reaches the client: it may embed SDK internals,
+  // endpoint URLs or key fragments. Only a stable Arabic description is sent.
+  return NextResponse.json({ error: "حدث خطأ غير متوقع." }, { status: 500 });
 }
 
 /** Load an account and hard-fail when it is disabled or not owned by uid. */

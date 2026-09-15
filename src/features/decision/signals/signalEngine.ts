@@ -22,6 +22,8 @@ import type { SupportResistanceResult } from "../../bitcoin/analysis/types";
 import type { LiquidityAnalysis } from "../../bitcoin/analysis/liquidity";
 import type { MarketStructureAnalysis } from "../../bitcoin/analysis/market-structure";
 import type { Wave } from "../../bitcoin/analysis/waves";
+import type { CrossMarketState } from "@/features/market-influence/intelligence";
+
 import type { Signal, SignalCategory, SignalKind, TriState } from "../types";
 import {
   SIGNAL_THRESHOLDS,
@@ -42,6 +44,9 @@ export interface DecisionMarketInput {
   candles: BtcCandle[];
   waves: Wave[];
   updatedAt: number;
+  /** Cross-market intelligence (S&P, DXY, Gold, …) — null ⇒ bias signals UNKNOWN.
+   *  Zero extra network calls: the shared CrossMarketProvider store. */
+  external?: CrossMarketState | null;
 }
 
 function stat(
@@ -75,7 +80,7 @@ function stat(
 }
 
 export function buildSignals(input: DecisionMarketInput): Signal[] {
-  const { marketState, analysis, structure, liquidity, forecast, prediction, indicators, orderFlow, candles, updatedAt } = input;
+  const { marketState, analysis, structure, liquidity, forecast, prediction, indicators, orderFlow, candles, updatedAt, external } = input;
   const out: Signal[] = [];
   const push = (s: Signal) => out.push(s);
 
@@ -721,6 +726,103 @@ export function buildSignals(input: DecisionMarketInput): Signal[] {
     )
   );
 
+  // ---------------- External cross-market bias ----------------
+  // Reads the SHARED Cross-Market store (already polled by the dashboard) —
+  // never a new fetch. Score ∈ [-100, +100]; + supportive, − pressure. All
+  // signals are UNKNOWN when the store has no data yet (honest, not fabricated).
+  const ext = external ?? null;
+  const extScore = ext?.score ?? null;
+  const extBias = ext?.bias ?? null;
+  const extEnv = ext?.regime.externalEnvironment ?? null;
+  const extConflict = ext?.conflictLevel ?? null;
+
+  push(
+    stat(
+      "externalBiasScore",
+      "درجة الانحياز الخارجي (Model Score)",
+      "bias",
+      "numeric",
+      extScore == null ? "unknown" : extScore >= SIGNAL_THRESHOLDS.externalBiasScore ? "true" : "false",
+      extScore == null ? "N/A" : `${extScore >= 0 ? "+" : ""}${extScore.toFixed(0)}`,
+      extScore,
+      `>= ${SIGNAL_THRESHOLDS.externalBiasScore}`,
+      extScore == null
+        ? "بيانات الأسواق العالمية غير متوفرة بعد."
+        : extScore >= SIGNAL_THRESHOLDS.externalBiasScore
+        ? `الانحياز الخارجي الكلي ${extScore >= 0 ? "+" : ""}${extScore.toFixed(0)} — فوق عتبة الدعم الصاعد (${SIGNAL_THRESHOLDS.externalBiasScore}).`
+        : extScore <= -SIGNAL_THRESHOLDS.externalBiasScore
+        ? `الانحياز الخارجي الكلي ${extScore >= 0 ? "+" : ""}${extScore.toFixed(0)} — دون عتبة الضغط الهابط (−${SIGNAL_THRESHOLDS.externalBiasScore}).`
+        : `الانحياز الخارجي ${extScore >= 0 ? "+" : ""}${extScore.toFixed(0)} — ضمن النطاق المحايد (لا اتجاه حاسم).`,
+      "Cross-Market (aggregateScore)",
+      now,
+      [
+        { label: "داعم/ضاغط", value: `${ext?.supportive ?? "—"} / ${ext?.pressure ?? "—"}` },
+        { label: "غطاء البيانات", value: ext?.coverage != null ? `${(ext.coverage * 100).toFixed(0)}%` : "—" },
+      ]
+    )
+  );
+  push(
+    stat(
+      "externalBiasBullish",
+      "الانحياز الخارجي صاعد (Bias Bullish)",
+      "bias",
+      "boolean",
+      extBias == null ? "unknown" : extBias === "bullish" ? "true" : "false",
+      extBias == null ? "N/A" : extBias === "bullish" ? "Bullish" : extBias === "bearish" ? "Bearish" : "Neutral",
+      extBias === "bullish" ? 1 : 0,
+      "bias = bullish (±10)",
+      extBias == null
+        ? "بيانات الانحياز الخارجي غير متوفرة."
+        : extBias === "bullish"
+        ? "معظم العوامل العالمية المهمة تدعم اتجاهًا صاعدًا."
+        : extBias === "bearish"
+        ? "معظم العوامل العالمية المهمة تضغط باتجاه هابط."
+        : "العوامل العالمية في حالة توازن (محايد).",
+      "Cross-Market (biasOf)",
+      now
+    )
+  );
+  push(
+    stat(
+      "externalEnvironmentFavorable",
+      "البيئة الخارجية مواتية (Env Favorable)",
+      "bias",
+      "boolean",
+      extEnv == null ? "unknown" : extEnv === "FAVORABLE" ? "true" : "false",
+      extEnv == null ? "N/A" : extEnv === "FAVORABLE" ? "Favorable" : extEnv === "UNFAVORABLE" ? "Unfavorable" : "Neutral",
+      extEnv === "FAVORABLE" ? 1 : 0,
+      "externalEnvironment = FAVORABLE",
+      extEnv == null
+        ? "حالة البيئة الخارجية غير متوفرة."
+        : extEnv === "FAVORABLE"
+        ? "البيئة الخارجية العامة مواتية للتداول الإيجابي."
+        : extEnv === "UNFAVORABLE"
+        ? "البيئة الخارجية العامة معاكسة (غير مواتية)."
+        : "البيئة الخارجية العامة محايدة.",
+      "Cross-Market (regime.externalEnvironment)",
+      now
+    )
+  );
+  push(
+    stat(
+      "externalConflictHigh",
+      "تعارض خارجي مرتفع (Signal Conflict)",
+      "bias",
+      "boolean",
+      extConflict == null ? "unknown" : extConflict === "high" ? "true" : "false",
+      extConflict == null ? "N/A" : extConflict === "high" ? "High" : extConflict === "medium" ? "Medium" : "Low",
+      extConflict === "high" ? 1 : 0,
+      "conflictLevel = high",
+      extConflict == null
+        ? "مستوى تعارض الإشارات غير متوفر."
+        : extConflict === "high"
+        ? "إشارات قوية متعاكسة بين العوامل العالمية (تعارض مرتفع)."
+        : `مستوى التعارض بين العوامل العالمية ${extConflict === "medium" ? "متوسط" : "منخفض"}.`,
+      "Cross-Market (conflictOf)",
+      now
+    )
+  );
+
   return out;
 }
 
@@ -752,4 +854,49 @@ function detectSweeps(
     }
   }
   return { sellSide, buySide };
+}
+
+// ---------------------------------------------------------------------------
+// Shared input builder — maps the Command Center store + Cross-Market store into
+// the exact `DecisionMarketInput` the signal engine needs. The single source of
+// truth for the mapping so no caller (Decision Center page, Live Strategy
+// Builder, future embedders) can drift from the signal contract.
+// ---------------------------------------------------------------------------
+export function buildDecisionInput(
+  source: {
+    overview: MarketOverview | null;
+    marketState: MarketState | null;
+    analysis30m: SupportResistanceResult | null;
+    structure: MarketStructureAnalysis | null;
+    liquidity: LiquidityAnalysis | null;
+    forecast: Forecast | null;
+    prediction: PredictionResult | null;
+    indicators: TechnicalIndicators | null;
+    orderFlow: OrderFlowData | null;
+    orderBook: OrderBookSnapshot | null;
+    futures: FuturesContext | null;
+    candles: BtcCandle[];
+    waves: Wave[];
+  },
+  fallbackTs: number,
+  external?: CrossMarketState | null
+): DecisionMarketInput {
+  const updatedAt = source.marketState?.timestamp ?? source.overview?.updatedAt ?? fallbackTs;
+  return {
+    overview: source.overview,
+    marketState: source.marketState,
+    analysis: source.analysis30m,
+    structure: source.structure,
+    liquidity: source.liquidity,
+    forecast: source.forecast,
+    prediction: source.prediction,
+    indicators: source.indicators,
+    orderFlow: source.orderFlow,
+    orderBook: source.orderBook,
+    futures: source.futures,
+    candles: source.candles,
+    waves: source.waves,
+    updatedAt,
+    external: external ?? null,
+  };
 }

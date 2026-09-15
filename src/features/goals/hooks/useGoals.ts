@@ -308,11 +308,7 @@ export function useGoals() {
         currentTarget: data.moves.find(
           (m) => m.move === data.currentMove
         )?.targetValue,
-        nextTarget: getNextTarget(
-          data.currentMove,
-          data.startingValue,
-          data.perMoveGrowthPercent
-        ),
+        nextTarget: getNextTarget(data),
         completedMoves: data.completedMoves,
         progressPercent: calculateProgress(data.completedMoves),
         currentValue: walletValue ?? data.currentValue,

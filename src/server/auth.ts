@@ -26,13 +26,16 @@ export async function authenticateRequest(req: Request): Promise<string> {
     throw new UnauthorizedError("مطلوب تسجيل الدخول للوصول إلى هذه الحماية.");
   }
   try {
-    const decoded = await getAdminAuth().verifyIdToken(token);
+    const decoded = await getAdminAuth().verifyIdToken(token, true);
     if (!decoded.uid) {
       throw new UnauthorizedError();
     }
     return decoded.uid;
   } catch (err) {
     if (err instanceof FirebaseAuthError) {
+      // checkRevoked=true makes a revoked session (sign-out-everywhere,
+      // password change, admin block) fail here instead of staying valid for
+      // the rest of the ID token's lifetime.
       throw new UnauthorizedError("الجلسة منتهية أو غير صالحة — سجّل الدخول مجددًا.");
     }
     throw new UnauthorizedError();

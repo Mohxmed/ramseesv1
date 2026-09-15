@@ -104,6 +104,12 @@ export const SIGNAL_CATALOG: CatalogEntry[] = [
   // Volatility
   b("volatilityOk", "التقلب مقبول", "volatility"),
   b("volatilityExpansion", "توسع التقلب", "volatility"),
+
+  // External cross-market bias
+  n("externalBiasScore", "درجة الانحياز الخارجي", "bias", SIGNAL_THRESHOLDS.externalBiasScore, { hint: "من -100 إلى +100 (موجبة دعم صاعد)" }),
+  b("externalBiasBullish", "الانحياز الخارجي صاعد", "bias"),
+  b("externalEnvironmentFavorable", "البيئة الخارجية مواتية", "bias"),
+  b("externalConflictHigh", "تعارض خارجي مرتفع", "bias"),
 ];
 
 const CAT_MAP = new Map(SIGNAL_CATALOG.map((c) => [c.id, c]));

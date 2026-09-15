@@ -14,6 +14,7 @@ import {
   downsample,
   momentumOf,
   rocByWindow,
+  rocOfPoints,
   timeframeAgreement,
   volatilityOf,
   zByWindow,
@@ -131,7 +132,12 @@ export function scoreFactor(
   const acceleration = accelerationOf(zs);
   const volatility = volatilityOf(points, rocBars);
   const agreement = timeframeAgreement(rocs);
-  const change24hPctValue = change24hPct(points);
+  // "24h" for a periodic asset is its LAST DAILY BAR — change24hPct's intraday
+  // lookback (288 bars) has no meaning on a daily grid and would read null.
+  const change24hPctValue =
+    kind === "periodic"
+      ? rocOfPoints(points, PERIODIC_ROCS["24h"] ?? 1)
+      : change24hPct(points);
   const direction = directionFromRocs(rocs);
 
   // Correlations: daily alignment for periodic sources, 5m grid for intraday.
@@ -149,7 +155,7 @@ export function scoreFactor(
     corr = corrByWindow(points, btcSeries, INTRADAY_LOOKBACK);
     stability = corrStability(points, btcSeries, 288);
   }
-  const corrStatus = corrStatusOf(corr);
+  const corrStatus = corrStatusOf(corr, { periodicCadence: kind === "periodic" });
 
   // --- Impact: window-weighted directional z gated by adaptive correlation --.
   let acc = 0;

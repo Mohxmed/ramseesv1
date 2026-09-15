@@ -45,6 +45,68 @@ type BookTickerEvt = {
   T: number;
 };
 
+/** Row seen by the rolling order-flow aggregator (aggTrade). */
+export type OrderFlowTrade = { T: number; q: string; p: string; m: boolean };
+
+/**
+ * Aggregate a rolling window of aggressive trades into the OrderFlowData
+ * snapshot. PURE: the caller supplies the raw trailing trades and the clock.
+ *
+ * `T` is Binance aggTrade trade time in EPOCH MILLISECONDS — compared directly
+ * against `nowMs` (same unit). Scaling it (T * 1000) would pull EVERY retained
+ * trade into the window and report a timestamps ~1000× in the future, which
+ * silently removed the 60s horizon this feed is supposed to enforce.
+ */
+export function aggregateOrderFlow(
+  trades: OrderFlowTrade[],
+  nowMs: number,
+  windowMs = WINDOW_MS,
+  largeBtc = ORDER_FLOW_LARGE_BTC
+): OrderFlowData {
+  const cutoff = nowMs - windowMs;
+  const active = trades.filter((t) => t.T >= cutoff);
+  let buyVolume = 0;
+  let sellVolume = 0;
+  let largeBuyVolume = 0;
+  let largeSellVolume = 0;
+  let largeTradeCount = 0;
+  for (const t of active) {
+    const q = parseFloat(t.q);
+    const p = parseFloat(t.p);
+    const usd = q * p;
+    if (t.m) {
+      sellVolume += q;
+      if (usd >= largeBtc * p) largeSellVolume += q;
+    } else {
+      buyVolume += q;
+      if (usd >= largeBtc * p) largeBuyVolume += q;
+    }
+    if (usd >= largeBtc * p) largeTradeCount++;
+  }
+  const total = buyVolume + sellVolume;
+  const received = nowMs;
+  // Intentionally ONE clock: the hook measures everything against Date.now();
+  // mixing a scaled (T*1000) value here is exactly the bug this pure function
+  // exists to keep out.
+  const processed = nowMs;
+  return {
+    buyVolume,
+    sellVolume,
+    buySellDelta: buyVolume - sellVolume,
+    buySellRatio: sellVolume > 0 ? buyVolume / sellVolume : buyVolume > 0 ? 2 : 1,
+    takerBuyRatio: total > 0 ? buyVolume / total : 0.5,
+    largeBuyVolume,
+    largeSellVolume,
+    largeTradeCount,
+    sampleSeconds: windowMs / 1000,
+    timestamp: nowMs,
+    // Integrity timestamps: exchange vs local-received vs local-processed.
+    exchangeTimestamp: active.length ? active[active.length - 1].T : nowMs,
+    receivedTimestamp: received,
+    processedTimestamp: processed,
+  };
+}
+
 /** One raw aggTrade captured for the scalping micro-tick buffer. */
 export type MicroTick = {
   /** Trade time in ms (Binance `T`). */
@@ -178,47 +240,7 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
 
     const computeFlow = () => {
       const now = Date.now();
-      const cutoff = now - WINDOW_MS;
-      const active = tradesRef.current.filter((t) => t.T * 1000 >= cutoff);
-      let buyVolume = 0;
-      let sellVolume = 0;
-      let largeBuyVolume = 0;
-      let largeSellVolume = 0;
-      let largeTradeCount = 0;
-      const LARGE = ORDER_FLOW_LARGE_BTC;
-      for (const t of active) {
-        const q = parseFloat(t.q);
-        const p = parseFloat(t.p);
-        const usd = q * p;
-        if (t.m) {
-          sellVolume += q;
-          if (usd >= LARGE * p) largeSellVolume += q;
-        } else {
-          buyVolume += q;
-          if (usd >= LARGE * p) largeBuyVolume += q;
-        }
-        if (usd >= LARGE * p) largeTradeCount++;
-      }
-      const total = buyVolume + sellVolume;
-      const received = Date.now();
-      const processed = Date.now();
-      const lastEx = active.length ? active[active.length - 1].T * 1000 : now;
-      setOrderFlow({
-        buyVolume,
-        sellVolume,
-        buySellDelta: buyVolume - sellVolume,
-        buySellRatio: sellVolume > 0 ? buyVolume / sellVolume : buyVolume > 0 ? 2 : 1,
-        takerBuyRatio: total > 0 ? buyVolume / total : 0.5,
-        largeBuyVolume,
-        largeSellVolume,
-        largeTradeCount,
-        sampleSeconds: ORDER_FLOW_WINDOW_S,
-        timestamp: now,
-        // Integrity timestamps: exchange vs local-received vs local-processed.
-        exchangeTimestamp: lastEx,
-        receivedTimestamp: received,
-        processedTimestamp: processed,
-      });
+      setOrderFlow(aggregateOrderFlow(tradesRef.current, now));
     };
 
     const publish = () => {
@@ -257,7 +279,7 @@ export function useLiveFeed(onDebug?: (msg: string) => void) {
             );
             if (e === "aggTrade") {
               const t = data as unknown as AggTradeEvt;
-              if (t.T * 1000 > Date.now() - WINDOW_MS) tradesRef.current.push(t);
+              if (t.T > Date.now() - WINDOW_MS) tradesRef.current.push(t);
               if (tradesRef.current.length > 1000) {
                 tradesRef.current = tradesRef.current.slice(-800);
               }

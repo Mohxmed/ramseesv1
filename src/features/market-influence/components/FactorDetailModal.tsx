@@ -23,6 +23,13 @@ const windowLabel: Record<WindowKey, string> = {
   "7d": "7 أيام",
 };
 
+// Intraday series only reach back 5 days (1440 × 5m), so "7d" must not claim
+// a full week — the honest label keeps that window's length truthful.
+const intradayWindowLabel: Record<WindowKey, string> = {
+  ...windowLabel,
+  "7d": "5 أيام (سلسلة 5 دقائق)",
+};
+
 const windows: WindowKey[] = ["30m", "1h", "4h", "24h", "7d"];
 
 export interface FactorDetailModalProps {
@@ -118,7 +125,11 @@ export function FactorDetailModal({ factor: f, nowMs, onClose }: FactorDetailMod
             const v = f.corr[w];
             return (
               <div key={w} className="flex items-center gap-3">
-                <span className="w-16 shrink-0 text-2xs text-muted">{windowLabel[w]}</span>
+                <span className="w-16 shrink-0 text-2xs text-muted">
+                  {f.provider === "fred" || f.provider === "defillama"
+                    ? windowLabel[w]
+                    : intradayWindowLabel[w]}
+                </span>
                 <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-line">
                   <div
                     className="h-full rounded-full bg-zinc-400/70"

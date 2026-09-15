@@ -17,6 +17,7 @@ import { createHmac } from "node:crypto";
 import { ExchangeError, type ExchangeErrorKind } from "../core/ExchangeErrors";
 import { isRetryableHttpStatus } from "../core/ExchangeErrors";
 import type { ExchangeCredentials } from "../core/ExchangeAdapter";
+import { exchangeRateLimitMs } from "@/server/env";
 
 export const BINANCE_SPOT_URL = "https://api.binance.com";
 export const BINANCE_FUTURES_URL = "https://fapi.binance.com";
@@ -49,16 +50,11 @@ export interface BinanceRestOptions {
 }
 
 const defaultOptions: Required<Omit<BinanceRestOptions, "spotUrl" | "futuresUrl">> = {
-  minRequestIntervalMs: envRateLimitMs(),
+  minRequestIntervalMs: exchangeRateLimitMs(),
   maxRetries: 3,
   baseRetryMs: 600,
   timeoutMs: 12_000,
 };
-
-function envRateLimitMs(): number {
-  const raw = Number(process.env.EXCHANGE_RATE_LIMIT_MS);
-  return Number.isFinite(raw) && raw > 0 ? raw : 120;
-}
 
 const CLOCK_SKEW_TTL_MS = 30 * 60_000;
 
